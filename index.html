@@ -3,7 +3,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 <title>Cartera · Portfolio Manager</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -21,8 +21,8 @@
   --r:8px;--r2:12px;--r3:18px;
 }
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
-html{font-size:14px;-webkit-font-smoothing:antialiased;}
-body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+html{font-size:14px;-webkit-font-smoothing:antialiased;touch-action:manipulation;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;touch-action:pan-x pan-y;}
 .screen{display:none;min-height:100vh;flex-direction:column;}
 .screen.active{display:flex;}
 #s-login{align-items:center;justify-content:center;
@@ -536,6 +536,13 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   </div>
 </div>
 <script>
+// Prevent all zoom gestures on mobile
+document.addEventListener('gesturestart', e=>e.preventDefault(), {passive:false});
+document.addEventListener('gesturechange', e=>e.preventDefault(), {passive:false});
+document.addEventListener('gestureend', e=>e.preventDefault(), {passive:false});
+(()=>{let lt=0;document.addEventListener('touchend',e=>{const now=Date.now();if(now-lt<300){e.preventDefault();}lt=now;},{passive:false});})();
+document.addEventListener('wheel',e=>{if(e.ctrlKey)e.preventDefault();},{passive:false});
+
 // ── SUPABASE ──────────────────────────────────────────────────
 const SB_URL = 'https://sbtsdukberbsthbkrkqo.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNidHNkdWtiZXJic3RoYmtya3FvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzY4OTA2MjQsImV4cCI6MjA5MjQ2NjYyNH0.G9Z4L4ReDZYC-bzqACa6S5ozUb7k8-4G_ZnP2E4b3qE';

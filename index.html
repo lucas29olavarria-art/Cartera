@@ -1435,7 +1435,8 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     <div style="position:absolute;top:0;right:0;width:3px;height:100%;background:linear-gradient(to bottom,#2dd4a0,#5b9cf6);border-radius:0 18px 18px 0;"></div>
     <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Patrimonio total</div>
     <div style="font-size:38px;font-weight:700;color:var(--text);letter-spacing:-1px;line-height:1;font-family:var(--mono);">u$s ${fmt(tot)}</div>
-    <div style="font-size:12px;color:var(--soft);margin-top:5px;">${inv.name} · ${(inv.rv?.length||0)+(inv.rf?.length||0)} posiciones${inv.olasVal>0?' · Incl. Olas':''}</div>
+    <div style="font-size:12px;color:var(--soft);margin-top:5px;">${inv.name} · ${(inv.rv?.length||0)+(inv.rf?.length||0)} posiciones${inv.olasVal>0?' · Incl. capital Olas':''}</div>
+    ${inv.olasVal>0?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Cartera: u$s ${fmt(totalLiq(inv))} · Capital Olas: u$s ${fmt(inv.olasVal||0)} · Intereses no computados</div>`:''}
     ${inv.last_import_date?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">Última actualización: ${inv.last_import_date} vía ${inv.last_import_source||'importador'}</div>`:''}
     <div style="margin-top:8px;font-family:var(--mono);font-size:9px;color:var(--muted);">Datos al ${inv.last_import_date||'última importación'}</div>
     ${(()=>{if(!inv.last_import_date)return'';const days=Math.floor((new Date()-new Date(inv.last_import_date))/(1000*60*60*24));return days>=7?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);border-radius:20px;padding:3px 10px;font-size:10px;color:var(--amber);margin-top:6px;display:inline-block;">⚠️ Datos de hace ${days} días · Contactá a tu asesor</div>`:'';})()}
@@ -1532,8 +1533,8 @@ function rOlasMini(inv){
   const nxtMonto=nxt?olasMonto(nxt):0;
   return `<div class="card" style="margin-bottom:12px;"><div class="ct">Fideicomiso Olas</div>
     <div class="g3" style="margin-bottom:12px;">
-      <div style="background:var(--bg3);border-radius:var(--r);padding:11px 13px;"><div class="kl">Valor estimado</div><div style="font-family:var(--mono);font-size:16px;font-weight:500;">u$s ${fmt(inv.olasVal||inv.olas_val||0)}</div></div>
-      <div style="background:var(--bg3);border-radius:var(--r);padding:11px 13px;"><div class="kl">Total flujos ARS</div><div style="font-family:var(--mono);font-size:16px;font-weight:500;">$${fmtars(tot)}</div></div>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:11px 13px;"><div class="kl">Capital invertido</div><div style="font-family:var(--mono);font-size:16px;font-weight:500;">u$s ${fmt(inv.olasVal||inv.olas_val||0)}</div><div style="font-size:9px;color:var(--muted);margin-top:2px;">Incluido en patrimonio</div></div>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:11px 13px;"><div class="kl">Cobros proyectados</div><div style="font-family:var(--mono);font-size:16px;font-weight:500;">$${fmtars(tot)}</div><div style="font-size:9px;color:var(--muted);margin-top:2px;">No incluido en patrimonio</div></div>
       <div style="background:var(--bg3);border-radius:var(--r);padding:11px 13px;"><div class="kl">Próximo cobro</div><div style="font-family:var(--mono);font-size:12px;font-weight:500;color:var(--green);">$${fmtars(nxtMonto)}</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">${nxt?olasDate(nxt):'—'}</div></div>
     </div>
     <div style="height:120px;position:relative;"><canvas id="ov-olas" role="img" aria-label="Flujos Olas"></canvas></div>
@@ -1725,7 +1726,7 @@ function renderCFList(invId){
           <span class="tag ${fl.tipo==='Olas'?'ta2':'tp2'}">${fl.tipo}</span>
           <span class="cf-monto">${fl.moneda==='ARS'?'$'+fmtars(fl.monto):'u$s '+fmtd(fl.monto)}</span>
           ${fl.moneda==='ARS'?`<span style="font-family:var(--mono);font-size:10px;color:var(--muted);min-width:65px;text-align:right;">≈ u$s ${fmt(fl.usd)}</span>`:''}
-          ${CU.is_admin&&fl.tipo==='Olas'&&fl.id?`<button class="dbtn" title="Eliminar esta Ola" onclick="eliminarOlaPorId('${fl.id}','${invId}')">✕</button>`:''}
+          ${fl.tipo==='Olas'&&fl.id?`<button class="dbtn" title="Eliminar esta Ola" onclick="eliminarOlaPorId('${fl.id}','${invId}')">✕</button>`:''}
         </div>`;
       }).join('')}
     </div>`;

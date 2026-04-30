@@ -2711,28 +2711,21 @@ async function impConfirm(){
     }
 
     if(impCurrentTab==='rv'&&impParsedRV.length){
-      // Check existing positions to avoid duplicates
-      const inv=INV_CACHE[invId];
-      const existingTickers=new Set((inv?.rv||[]).map(p=>p.ticker));
-
-      for(const p of impParsedRV){
-        if(existingTickers.has(p.ticker)){
-          // Update existing
-          const existing=(inv.rv||[]).find(x=>x.ticker===p.ticker);
-          if(existing){
-            await sb.from('positions_rv').update({qty:p.qty,valor:p.valor,vinicial:p.vinicial,last_price:p.precioUSD}).eq('id',existing.id);
-          }
-        } else {
-          // Insert new
-          await sb.from('positions_rv').insert({
-            investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
-            sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
-            vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD
-          });
-        }
-        imported++;
-      }
-      showToast(`✓ ${imported} posiciones importadas`);
+      // DELETE all and reload fresh from Inviu
+      await sb.from('positions_rv').delete().eq('investor_id',invId);
+      const rows=impParsedRV.map(p=>({
+        investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
+        sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
+        vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD
+      }));
+      await sb.from('positions_rv').insert(rows);
+      imported=rows.length;
+      // Save import timestamp
+      await sb.from('investors').update({
+        last_import_date:new Date().toISOString().slice(0,10),
+        last_import_source:'Inviu'
+      }).eq('id',invId);
+      showToast(`✓ ${imported} posiciones importadas desde Inviu`);
     }
 
     if(impCurrentTab==='olas'&&impParsedOlas.length){

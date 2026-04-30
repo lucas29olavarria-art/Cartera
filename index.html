@@ -324,7 +324,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-overview" onclick="iTab('overview')">Overview</button>
     <button class="tb" id="itb-posiciones" onclick="iTab('posiciones')">Posiciones</button>
     <button class="tb" id="itb-flujo" onclick="iTab('flujo')">Flujo de caja</button>
-    <button class="tb" id="itb-movimientos" onclick="iTab('movimientos')">Movimientos</button>
     <button class="tb" id="itb-gastos" onclick="iTab('gastos')">Gastos</button>
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
@@ -1414,7 +1413,6 @@ function renderInv(inv){
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);
   else if(ITb==='posiciones')body=rPosiciones(inv,liq);
   else if(ITb==='flujo')body=rFlujoCaja(inv);
-  else if(ITb==='movimientos')body='<div id="mov-loading" class="empty">Cargando movimientos...</div>';
   else if(ITb==='gastos')body=rGastos(inv);
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
@@ -1425,7 +1423,6 @@ function renderInv(inv){
   // tabs use inline onclick via iTab()
   setTimeout(()=>{
     buildInvCharts(ITb,inv,liq);
-    if(ITb==='movimientos')rMovimientosAsync(inv.id);
     if(ITb==='simulador')setTimeout(calcSim,100);
     if(ITb==='camino')setTimeout(()=>buildCaminoCharts(inv_ref),100);
     runCountUps();
@@ -2229,7 +2226,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','posiciones','flujo','movimientos','gastos','analisis','simulador','camino'].forEach(name=>{
+  ['overview','posiciones','flujo','gastos','analisis','simulador','camino'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });

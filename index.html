@@ -10,6 +10,12 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='62' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>C</text></svg>">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%2307080b'/><text y='380' font-size='320' x='256' text-anchor='middle' font-family='Georgia,serif' fill='%235b9cf6'>C</text></svg>">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Cartera">
+<meta name="theme-color" content="#07080b">
 <style>
 :root{
   --bg:#07080b;--bg2:#0d0f14;--bg3:#13161d;--bg4:#1a1e28;--bg5:#222736;
@@ -230,6 +236,27 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   .krow{grid-template-columns:1fr;}
   .fg{grid-template-columns:1fr;}
 }
+@media(max-height:500px) and (orientation:landscape){
+  .topbar{padding:6px 16px;}
+  .tabbar{padding:0 8px;}
+  .content{padding:10px 12px;}
+  .krow{grid-template-columns:repeat(4,1fr);}
+  .lw{width:260px;}
+  .pips{margin-bottom:14px;}
+  .ltitle{font-size:24px;}
+  .lsub{margin-bottom:18px;}
+  #s-login{flex-direction:row;gap:32px;}
+}
+/* skeleton loading */
+.skel{background:linear-gradient(90deg,var(--bg3) 25%,var(--bg4) 50%,var(--bg3) 75%);background-size:200% 100%;animation:skel 1.4s infinite;border-radius:var(--r);display:block;}
+@keyframes skel{0%{background-position:200% 0}100%{background-position:-200% 0}}
+/* count-up */
+.kv[data-countup]{transition:none;}
+/* welcome overlay */
+#welcome-overlay{position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:10px;animation:fadeOut .5s ease 1.2s forwards;pointer-events:none;}
+@keyframes fadeOut{to{opacity:0;visibility:hidden;}}
+#welcome-overlay .wo-name{font-family:var(--serif);font-size:32px;font-weight:300;font-style:italic;color:var(--text);animation:up .45s ease;}
+#welcome-overlay .wo-sub{font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--muted);text-transform:uppercase;}
 </style>
 </head>
 <body>
@@ -669,8 +696,53 @@ async function logout(){
   sw('s-login');
 }
 
+// ── SKELETON LOADING ──────────────────────────────────────────
+function showSkeleton(){
+  document.getElementById('cnt').innerHTML=`
+  <div style="margin-bottom:12px;"><span class="skel" style="height:130px;width:100%;display:block;"></span></div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+    <span class="skel" style="height:80px;"></span>
+    <span class="skel" style="height:80px;"></span>
+  </div>
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:12px;">
+    ${Array(4).fill('<span class="skel" style="height:68px;"></span>').join('')}
+  </div>
+  <span class="skel" style="height:200px;width:100%;display:block;"></span>`;
+}
+
+// ── COUNT-UP ANIMATION ────────────────────────────────────────
+function countUp(el, target, duration=700, prefix='u$s '){
+  if(!el||isNaN(target))return;
+  const start=performance.now();
+  const step=ts=>{
+    const p=Math.min((ts-start)/duration,1);
+    const ease=1-Math.pow(1-p,3);
+    const val=target*ease;
+    el.textContent=prefix+fmt(val);
+    if(p<1)requestAnimationFrame(step);
+    else el.textContent=prefix+fmt(target);
+  };
+  requestAnimationFrame(step);
+}
+
+function runCountUps(){
+  document.querySelectorAll('[data-countup]').forEach(el=>{
+    const val=parseFloat(el.dataset.countup);
+    const prefix=el.dataset.prefix||'u$s ';
+    if(!isNaN(val))countUp(el,val,800,prefix);
+  });
+}
+
 // ── APP INIT ──────────────────────────────────────────────────
 async function showApp(){
+  // Welcome overlay
+  const wo=document.createElement('div');
+  wo.id='welcome-overlay';
+  const firstName=CU.name.split(' ')[0];
+  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">◆ Cartera · Portfolio Manager</div>`;
+  document.body.appendChild(wo);
+  setTimeout(()=>wo.remove(), 1800);
+
   sw('s-app');
   const av=document.getElementById('t-av');
   av.style.background=CU.color; av.textContent=CU.name[0].toUpperCase();
@@ -686,7 +758,8 @@ async function showApp(){
   updateMarketStatus();
   startQuotes();
 
-  // Precios estáticos — sin auto-refresh
+  // Skeleton mientras carga
+  showSkeleton();
 
   if(isA){
     ALL_INVESTORS=await loadAllInvestors();
@@ -914,10 +987,10 @@ function rConsolidado(){
   </div>`:'';
 
   sc(`${stalePanel}<div class="krow">
-    <div class="kpi"><div class="kl">AUM Total</div><div class="kv">u$s ${fmt(tot)}</div><div class="ks">${invs.length} inversores activos</div></div>
-    <div class="kpi"><div class="kl">Portafolio líquido</div><div class="kv">u$s ${fmt(liq)}</div><div class="ks">RV + RF</div></div>
+    <div class="kpi"><div class="kl">AUM Total</div><div class="kv" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div><div class="ks">${invs.length} inversores activos</div></div>
+    <div class="kpi"><div class="kl">Portafolio líquido</div><div class="kv" data-countup="${liq}" data-prefix="u$s ">u$s ${fmt(liq)}</div><div class="ks">RV + RF</div></div>
     <div class="kpi"><div class="kl">Rendimiento total</div><div class="kv ${rend>=0?'g':'r'}">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div><div class="ks">${rend>=0?'+':''}${rp}%</div></div>
-    <div class="kpi"><div class="kl">Olas total</div><div class="kv b">u$s ${fmt(olas)}</div><div class="ks">${invs.filter(i=>i.olasVal>0).length} con fideicomiso</div></div>
+    <div class="kpi"><div class="kl">Olas total</div><div class="kv b" data-countup="${olas}" data-prefix="u$s ">u$s ${fmt(olas)}</div><div class="ks">${invs.filter(i=>i.olasVal>0).length} con fideicomiso</div></div>
   </div>
 
   <!-- TABLA INVERSORES -->
@@ -1006,6 +1079,7 @@ function rConsolidado(){
       ].filter(e=>e.val>0),total:tot,cl:'tipos'},
       {id:'dc-inv',entries:invs.map(i=>({label:i.name,val:+totalLiq(i).toFixed(0),color:i.color})),total:liq,cl:'inversores',useColors:true},
     ]);
+    runCountUps();
   },50);
 }
 
@@ -1355,6 +1429,7 @@ function renderInv(inv){
     if(ITb==='movimientos')rMovimientosAsync(inv.id);
     if(ITb==='simulador')setTimeout(calcSim,100);
     if(ITb==='camino')setTimeout(()=>buildCaminoCharts(inv_ref),100);
+    runCountUps();
   },50);
 }
 
@@ -1441,7 +1516,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   html+=`<div style="background:linear-gradient(135deg,#131720,#0d0f14);border-radius:18px;padding:22px;margin-bottom:12px;position:relative;overflow:hidden;">
     <div style="position:absolute;top:0;right:0;width:3px;height:100%;background:linear-gradient(to bottom,#2dd4a0,#5b9cf6);border-radius:0 18px 18px 0;"></div>
     <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Patrimonio total</div>
-    <div style="font-size:38px;font-weight:700;color:var(--text);letter-spacing:-1px;line-height:1;font-family:var(--mono);">u$s ${fmt(tot)}</div>
+    <div style="font-size:38px;font-weight:700;color:var(--text);letter-spacing:-1px;line-height:1;font-family:var(--mono);" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
     <div style="font-size:12px;color:var(--soft);margin-top:5px;">${inv.name} · ${(inv.rv?.length||0)+(inv.rf?.length||0)} posiciones${inv.olasVal>0?' · Incl. capital Olas':''}</div>
     ${inv.olasVal>0?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Cartera: u$s ${fmt(totalLiq(inv))} · Capital Olas: u$s ${fmt(inv.olasVal||0)} · Intereses no computados</div>`:''}
     ${inv.last_import_date?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">Última actualización: ${inv.last_import_date} vía ${inv.last_import_source||'importador'}</div>`:''}

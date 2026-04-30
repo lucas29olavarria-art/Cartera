@@ -794,7 +794,7 @@ async function loadInvestor(id){
   const inv=invR.data||{};
   inv.rv=(rvR.data||[]).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change}));
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
-  inv.olasFlows=(olasR.data||[]).map(fx=>({fecha:fx.fecha,desc:fx.descripcion,ars:fx.monto_ars}));
+  inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars}));
   inv.gastos=gastosR.data||[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';
@@ -3213,15 +3213,21 @@ async function eliminarOla(invId, olaId){
 }
 
 async function confirmarEliminarOla(proyectName, invId){
-  if(!confirm('¿Eliminar todos los flujos de "'+proyectName+'"?\nSe borran todas las cuotas de este proyecto.'))return;
+  if(!confirm('¿Eliminar "'+proyectName+'"?\nSe borran todos sus flujos de cobro.'))return;
   try{
     const inv=INV_CACHE[invId]||CU_DATA;
     const ids=(inv.olasFlows||[])
-      .filter(f=>(f.descripcion||'').split('·')[0].trim()===proyectName)
+      .filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proyectName)
       .map(f=>f.id)
       .filter(Boolean);
+    if(!ids.length){showToast('No se encontraron flujos para eliminar');return;}
     for(const id of ids){
       await sb.from('olas_flows').delete().eq('id',id);
+    }
+    // Si no quedan más flows, limpiar olas_val también
+    const remaining=(inv.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()!==proyectName);
+    if(!remaining.length){
+      await sb.from('investors').update({olas_val:0}).eq('id',invId);
     }
     INV_CACHE[invId]=await loadInvestor(invId);
     if(CU_DATA&&CU_DATA.id===invId)CU_DATA=INV_CACHE[invId];

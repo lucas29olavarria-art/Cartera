@@ -610,6 +610,36 @@ const TICKER_MAP={
   'IRCPO': {sector:'Renta Fija',     pais:'Argentina', nombre:'ON IRSA 2035'},
 };
 
+// ── SECTOR & COUNTRY DISPLAY CONFIG ───────────────────────────
+const SECTOR_NORM={
+  'Tecnología':'Tech','Semiconductores':'Tech',
+  'Fintech':'Finanzas','Bancario':'Finanzas','Fondo/Cash':'Finanzas',
+  'Energía':'Energía','Petróleo':'Energía','Utilities':'Energía',
+  'Consumo':'Consumo',
+  'Industrial':'Industrial','Materiales':'Industrial',
+  'Salud':'Salud',
+  'Cripto/Bitcoin':'Cripto',
+  'ETF USA':'ETF','Commodities':'ETF',
+  'Renta Fija':'Renta Fija',
+  'Otro':'Otro',
+};
+const SECTOR_CFG={
+  'Tech':      {ic:'💻',cl:'#5b9cf6',bg:'rgba(91,156,246,.13)'},
+  'Finanzas':  {ic:'🏦',cl:'#2dd4a0',bg:'rgba(45,212,160,.13)'},
+  'Energía':   {ic:'⚡',cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
+  'Consumo':   {ic:'🛒',cl:'#1ecbe1',bg:'rgba(30,203,225,.13)'},
+  'Industrial':{ic:'🏗️',cl:'#7d8799',bg:'rgba(125,135,153,.13)'},
+  'Salud':     {ic:'🏥',cl:'#f06c6c',bg:'rgba(240,108,108,.13)'},
+  'Cripto':    {ic:'₿', cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
+  'ETF':       {ic:'📊',cl:'#9b7ff4',bg:'rgba(155,127,244,.13)'},
+  'Renta Fija':{ic:'📄',cl:'#a0a8b8',bg:'rgba(160,168,184,.13)'},
+  'Otro':      {ic:'🌐',cl:'#424b5c',bg:'rgba(66,75,92,.2)'},
+};
+const COUNTRY_FLAGS={
+  'USA':'🇺🇸','Argentina':'🇦🇷','Brasil':'🇧🇷',
+  'Países Bajos':'🇳🇱','Taiwan':'🇹🇼','Global':'🌍',
+};
+
 // CEDEAR ratios oficiales BYMA
 const CEDEAR_RATIOS={
   'META':8,'NVDA':10,'MELI':10,'NU':2,'IBIT':10,'TSM':5,
@@ -1648,62 +1678,82 @@ function sortPos(col, inv, liq){
 // ── POSICIONES ────────────────────────────────────────────────
 function rPosiciones(inv,liq){
   const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]].sort((a,b)=>b.valor-a.valor);
-  const rc={1:'tg',2:'tb2',3:'ta2',4:'ta2',5:'tr2'};
-  const rl={1:'Bajo',2:'Mod-bajo',3:'Moderado',4:'Alto',5:'Muy alto'};
   const uid=CU.is_admin?AVId:CU.id;
   if(!all.length)return`<div class="card"><div class="empty">No hay posiciones cargadas.</div></div>`;
-  // Totals
   const totalValor=all.reduce((s,p)=>s+p.valor,0);
   const totalRend2=all.reduce((s,p)=>s+p.rend,0);
   const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);
   const totalRendPct=totalVinicial>0?((totalRend2/totalVinicial)*100).toFixed(1):'—';
-  const totalHoyPct=0; const totalHoyUSD=0;
+
+  // Build sector summary cards (grouped + sorted by value)
+  const byGroup={};
+  all.forEach(p=>{const g=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';byGroup[g]=(byGroup[g]||0)+p.valor;});
+  const sectorCards=Object.entries(byGroup).sort((a,b)=>b[1]-a[1]).map(([g,v])=>{
+    const c=SECTOR_CFG[g]||SECTOR_CFG['Otro'];
+    const pct=totalValor>0?(v/totalValor*100).toFixed(0):0;
+    return `<div style="flex-shrink:0;background:${c.bg};border:1px solid ${c.cl}44;border-radius:10px;padding:10px 14px;min-width:88px;">
+      <div style="font-size:18px;margin-bottom:4px;">${c.ic}</div>
+      <div style="font-size:10px;font-weight:600;color:${c.cl};margin-bottom:3px;white-space:nowrap;">${g}</div>
+      <div style="font-family:var(--mono);font-size:11px;font-weight:500;">u$s ${fmt(v)}</div>
+      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);">${pct}%</div>
+    </div>`;
+  }).join('');
 
   return `<div class="card">
-  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-    <div style="display:flex;gap:16px;flex-wrap:wrap;">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;gap:20px;flex-wrap:wrap;">
       <div><div class="kl">Valor total</div><div style="font-family:var(--mono);font-size:16px;">u$s ${fmt(totalValor)}</div></div>
-      <div><div class="kl">Variación hoy</div><div style="font-family:var(--mono);font-size:16px;color:${totalHoyUSD>=0?'var(--green)':'var(--red)'};">${totalHoyUSD>=0?'+':''}u$s ${fmt(Math.abs(totalHoyUSD))} <span style="font-size:12px;">(${totalHoyUSD>=0?'+':''}${totalHoyPct}%)</span></div></div>
       <div><div class="kl">Rendimiento total</div><div style="font-family:var(--mono);font-size:16px;color:${totalRend2>=0?'var(--green)':'var(--red)'};">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))} <span style="font-size:12px;">(${totalRend2>=0?'+':''}${totalRendPct}%)</span></div></div>
     </div>
   </div>
+  <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:16px;-webkit-overflow-scrolling:touch;">${sectorCards}</div>
   <div class="tw"><table style="table-layout:auto;">
     <thead><tr>
       <th onclick="sortPos('ticker',inv,liq)" style="cursor:pointer;">Ticker ${sortCol==='ticker'?(sortAsc?'↑':'↓'):''}</th>
       <th>Nombre</th>
       <th>Sector</th>
-      <th style="text-align:right">Cantidad</th>
-      <th style="text-align:right">P. Promedio</th>
+      <th style="text-align:right">Cant.</th>
+      <th style="text-align:right">P. Prom.</th>
       <th style="text-align:right">Último</th>
-      <th onclick="sortPos('price_change',inv,liq)" style="cursor:pointer;text-align:right;">Hoy ${sortCol==='price_change'?(sortAsc?'↑':'↓'):''}</th>
-      <th onclick="sortPos('valor',inv,liq)" style="cursor:pointer;text-align:right;">Monto USD ${sortCol==='valor'?(sortAsc?'↑':'↓'):''}</th>
+      <th onclick="sortPos('valor',inv,liq)" style="cursor:pointer;text-align:right;">Monto ${sortCol==='valor'?(sortAsc?'↑':'↓'):''}</th>
       <th style="text-align:right">Invertido</th>
       <th onclick="sortPos('rend',inv,liq)" style="cursor:pointer;text-align:right;">Ganancia ${sortCol==='rend'?(sortAsc?'↑':'↓'):''}</th>
       <th onclick="sortPos('rendPct',inv,liq)" style="cursor:pointer;text-align:right;">Rend. % ${sortCol==='rendPct'?(sortAsc?'↑':'↓'):''}</th>
       <th></th>
     </tr></thead>
     <tbody>${[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
-      const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:sortCol==='price_change'?[a.price_change||0,b.price_change||0]:[a[sortCol]||0,b[sortCol]||0];
+      const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
       return sortAsc?v[0]-v[1]:v[1]-v[0];
     }).map(p=>{
-      // All calculations from qty + valor + vinicial (all in USD)
       const qty=p.qty||1;
       const valorUSD=p.valorDisplay||p.valor||0;
       const vinicialUSD=p.vinicial||0;
       const ganancia=valorUSD-vinicialUSD;
       const rendPct=vinicialUSD>0?((ganancia/vinicialUSD)*100).toFixed(2):'—';
-      const precioActual=qty>0?fmtd(valorUSD/qty):'—';      // último precio por CEDEAR
-      const precioPromedio=qty>0&&vinicialUSD>0?fmtd(vinicialUSD/qty):'—'; // PPC por CEDEAR
-      const hoy='<span class="neu" style="color:var(--muted);font-size:10px;">—</span>';
+      const precioActual=qty>0?fmtd(valorUSD/qty):'—';
+      const precioPromedio=qty>0&&vinicialUSD>0?fmtd(vinicialUSD/qty):'—';
+      const grp=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';
+      const c=SECTOR_CFG[grp]||SECTOR_CFG['Otro'];
+      const flag=COUNTRY_FLAGS[p.pais]||'';
+      const allocPct=totalValor>0?(valorUSD/totalValor*100).toFixed(1):0;
       return `<tr>
-        <td><span class="bdg">${p.ticker}</span>${(p.auto_price||p.autoPrice)?`<span class="ldot" style="margin-left:4px;"></span>`:''}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
+            <span class="bdg">${p.ticker}</span>
+            ${flag?`<span style="font-size:13px;">${flag}</span>`:''}
+            ${(p.auto_price||p.autoPrice)?`<span class="ldot"></span>`:''}
+          </div>
+        </td>
         <td style="color:var(--soft);max-width:110px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</td>
-        <td><span class="tag tb2" style="font-size:9px;">${p.sector||p.tipo}</span></td>
+        <td><span class="tag" style="background:${c.bg};color:${c.cl};font-size:9px;">${c.ic} ${grp}</span></td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;">${qty}</td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s ${precioPromedio}</td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s ${precioActual}</td>
-        <td style="text-align:right">${hoy}</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:12px;font-weight:500;">u$s ${fmt(valorUSD)}</td>
+        <td style="text-align:right;padding:6px 10px;">
+          <div style="font-family:var(--mono);font-size:12px;font-weight:500;">u$s ${fmt(valorUSD)}</div>
+          <div style="margin-top:3px;height:2px;background:var(--bg4);border-radius:2px;overflow:hidden;"><div style="width:${allocPct}%;height:100%;background:${c.cl};border-radius:2px;"></div></div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px;">${allocPct}%</div>
+        </td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);">u$s ${fmt(vinicialUSD)}</td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;" class="${ganancia>=0?'pos':'neg'}">${ganancia>=0?'+':''}u$s ${fmt(Math.abs(ganancia))}</td>
         <td style="text-align:right;font-family:var(--mono);font-size:12px;" class="${ganancia>=0?'pos':'neg'}">${rendPct}%</td>
@@ -1711,7 +1761,7 @@ function rPosiciones(inv,liq){
       </tr>`;
     }).join('')}</tbody>
     <tfoot><tr style="border-top:2px solid var(--line2);background:var(--bg3);">
-      <td colspan="7" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:10px 10px;">TOTALES · ${all.length} posiciones</td>
+      <td colspan="6" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:10px 10px;">TOTALES · ${all.length} posiciones</td>
       <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:500;padding:10px;">u$s ${fmt(totalValor)}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);padding:10px;">u$s ${fmt(totalVinicial)}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:500;padding:10px;" class="${totalRend2>=0?'pos':'neg'}">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))}</td>

@@ -1516,6 +1516,27 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>
   </div>`;
 
+  // TOTAL ALLOCATION DONUT (RV + RF + Olas)
+  const rv0=totalRV(inv), rf0=totalRF(inv), ol0=inv.olasVal||0, tot0=rv0+rf0+ol0;
+  if(tot0>0){
+    const segs=[];
+    if(rv0>0)segs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
+    if(rf0>0)segs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
+    if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
+    html+=`<div class="card" style="margin-bottom:12px;" id="ov-alloc-card">
+      <div class="ct" style="margin-bottom:10px;">Composición del patrimonio</div>
+      <div class="drow">
+        <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Composición"></canvas></div>
+        <div class="leg">${segs.map(s=>`<div class="lr">
+          <div class="ld" style="background:${s.c}"></div>
+          <span class="ln">${s.lb}</span>
+          <span class="lv" style="margin-right:6px;font-family:var(--mono);font-size:10px;">u$s ${fmt(s.v)}</span>
+          <span class="lp">${(s.v/tot0*100).toFixed(0)}%</span>
+        </div>`).join('')}</div>
+      </div>
+    </div>`;
+  }
+
   // PROXIMO COBRO
   if(nextAny||nextOlasFirst){
     const cobroVal=nextAny?'u$s '+fmt(nextAny.monto):'$'+fmtars(olasMonto(nextOlasFirst));
@@ -1832,9 +1853,10 @@ function rAnalisis(inv,liq){
 
   return `
   <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:16px;-webkit-overflow-scrolling:touch;">${sectorCards}</div>
-  <div class="g2" style="margin-bottom:12px;">
+  <div class="g3" style="margin-bottom:12px;">
     ${dCard('Por sector · clickeá para ver detalle','an-sec')}
     ${dCard('Por país · clickeá para ver detalle','an-pai')}
+    ${dCard('Por moneda','an-mon')}
   </div>
   <div class="g2" style="margin-bottom:12px;">
     <div class="card"><div class="ct">Concentración por ticker (%)</div><div style="height:260px;position:relative;"><canvas id="an-conc" role="img" aria-label="Concentración"></canvas></div></div>
@@ -1933,7 +1955,17 @@ function buildAlerts(pos,liq){
 // ── BUILD INV CHARTS ──────────────────────────────────────────
 function buildInvCharts(tab,inv,liq){
   const all=[...inv.rv||[],...inv.rf||[]];
-  if(tab==='flujo'){
+  if(tab==='overview'){
+    const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+    const segs=[];
+    if(rv0>0)segs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
+    if(rf0>0)segs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
+    if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
+    if(segs.length){
+      mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c));
+    }
+  }
+  else if(tab==='flujo'){
     const rfF=genRFFlows(inv);
     const olasF=inv.olasFlows||[];
     const rfByM={},oByM={};
@@ -1960,6 +1992,17 @@ function buildInvCharts(tab,inv,liq){
       {id:'an-sec',entries:groupBy(all,'sector'),total:liq,cl:'sectores',positions:all,groupKey:'sector'},
       {id:'an-pai',entries:groupBy(all,'pais'),total:liq,cl:'países',positions:all,groupKey:'pais'},
     ]);
+    // Currency donut: USD (RV+RF) vs ARS (Olas)
+    const monUSD=totalRV(inv)+totalRF(inv), monARS=inv.olasVal||0;
+    const monSegs=[];
+    if(monUSD>0)monSegs.push({lb:'USD',v:monUSD,c:'#5b9cf6'});
+    if(monARS>0)monSegs.push({lb:'Pesos (ARS)',v:monARS,c:'#f5a623'});
+    if(monSegs.length){
+      mkDonut('an-mon',monSegs.map(s=>s.v),monSegs.map(s=>s.c));
+      const leg=document.getElementById('an-mon-leg');
+      const tot2=monUSD+monARS;
+      if(leg)leg.innerHTML=monSegs.map(s=>`<div class="lr"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(s.v)}</span><span class="lp">${(s.v/tot2*100).toFixed(0)}%</span></div>`).join('');
+    }
     const top=[...all].sort((a,b)=>b.valor-a.valor).slice(0,10);
     mkHBarPct('an-conc',top.map(p=>p.ticker),top.map(p=>liq>0?+(p.valor/liq*100).toFixed(1):0),CHC);
     const br=[...all].filter(p=>p.rend!==0).sort((a,b)=>b.rend-a.rend);

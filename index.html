@@ -800,6 +800,49 @@ async function autoMarcarCobros(inv){
   return false;
 }
 
+async function fetchHistoricalMEP(dateStr){
+  for(let offset=0;offset<=4;offset++){
+    const d=new Date(dateStr+'T12:00:00');
+    d.setDate(d.getDate()-offset);
+    const y=d.getFullYear();
+    const m=String(d.getMonth()+1).padStart(2,'0');
+    const day=String(d.getDate()).padStart(2,'0');
+    try{
+      const r=await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/mep/${y}/${m}/${day}`);
+      if(r.ok){const data=await r.json();if(data?.venta&&data.venta>0)return data.venta;}
+    }catch(e){}
+  }
+  return null;
+}
+
+async function autoFetchTcInicio(inv){
+  if(!(inv.olasFlows?.length))return false;
+  const byProj={};
+  (inv.olasFlows||[]).forEach(fl=>{
+    const proj=(fl.descripcion||fl.desc||'Ola').split('·')[0].trim();
+    if(!byProj[proj])byProj[proj]=[];
+    byProj[proj].push(fl);
+  });
+  const projsNeedingTc=Object.entries(byProj).filter(([,flows])=>!flows[0]?.tcInicio);
+  if(!projsNeedingTc.length)return false;
+  const nProjs=Object.keys(byProj).length;
+  const totalCapUsd=inv.olasVal||0;
+  let changed=false;
+  for(const [,flows] of projsNeedingTc){
+    const sorted=[...flows].sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
+    const firstDate=olasDate(sorted[0]);
+    const tc=await fetchHistoricalMEP(firstDate);
+    if(!tc)continue;
+    const capUsd=nProjs>0&&totalCapUsd>0?Math.round(totalCapUsd/nProjs):null;
+    const upd={tc_inicio:tc};
+    if(capUsd&&capUsd>0)upd.capital_usd=capUsd;
+    const ids=sorted.map(f=>f.id);
+    const{error}=await sb.from('olas_flows').update(upd).in('id',ids);
+    if(!error){sorted.forEach(fl=>{fl.tcInicio=tc;if(capUsd)fl.capitalUsd=capUsd;});changed=true;}
+  }
+  return changed;
+}
+
 async function showApp(){
   // Welcome overlay
   const wo=document.createElement('div');
@@ -836,7 +879,7 @@ async function showApp(){
     CU_DATA=inv;
     checkObjetivoPrompt(inv);
     ITb='overview'; iTab('overview');
-    autoMarcarCobros(inv).then(changed=>{if(changed)renderInv(inv);});
+    Promise.all([autoMarcarCobros(inv),autoFetchTcInicio(inv)]).then(([c1,c2])=>{if(c1||c2)renderInv(inv);});
   }
 }
 
@@ -1178,7 +1221,7 @@ async function viewInv(id){
   kc();
   if(!INV_CACHE[id])INV_CACHE[id]=await loadInvestor(id);
   renderInv(INV_CACHE[id]);
-  autoMarcarCobros(INV_CACHE[id]).then(changed=>{if(changed)renderInv(INV_CACHE[id]);});
+  Promise.all([autoMarcarCobros(INV_CACHE[id]),autoFetchTcInicio(INV_CACHE[id])]).then(([c1,c2])=>{if(c1||c2)renderInv(INV_CACHE[id]);});
 }
 
 // ── CALENDARIO ────────────────────────────────────────────────
@@ -1709,14 +1752,14 @@ function olasSection(inv){
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
           ${tcInicio
-            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC: $${fmt(tcInicio)} ✎</button>`
-            :`<button class="ib" style="font-size:10px;padding:2px 8px;border-color:var(--amber);color:var(--amber);" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">+ TC entrada</button>`
+            ?`<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">TC inicio: $${fmt(tcInicio)}</span>`
+            :`<span style="font-family:var(--mono);font-size:10px;color:var(--amber);">⏳ Buscando TC...</span>`
           }
           <button class="dbtn" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
         </div>
       </div>
 
-      ${!tcInicio||!capitalUsd?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">Ingresá el TC de entrada y capital para ver el rendimiento en USD →</div>`:`
+      ${!tcInicio||!capitalUsd?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">⏳ Obteniendo tipo de cambio histórico automáticamente...</div>`:`
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
         <div>
           <div class="kl">Capital</div>

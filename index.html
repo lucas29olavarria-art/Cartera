@@ -764,6 +764,41 @@ function runCountUps(){
 }
 
 // ── APP INIT ──────────────────────────────────────────────────
+async function fetchLiveMEP(){
+  try{
+    const r=await fetch('https://dolarapi.com/v1/dolares/bolsa');
+    if(!r.ok)throw new Error('status '+r.status);
+    const d=await r.json();
+    if(d.venta&&d.venta>0){
+      MEP=d.venta;
+      const badge=document.getElementById('mep-badge');
+      const val=document.getElementById('mep-live-val');
+      if(badge)badge.style.display='';
+      if(val)val.textContent=fmt(MEP);
+      document.querySelectorAll('.live-mep-val').forEach(el=>el.textContent=fmt(MEP));
+    }
+  }catch(e){console.warn('MEP fetch failed:',e);}
+  return MEP;
+}
+
+async function autoMarcarCobros(inv){
+  if(!(inv.olasFlows?.length))return;
+  const today=new Date();today.setHours(23,59,59,999);
+  const vencidas=(inv.olasFlows||[]).filter(f=>{
+    if(f.cobrado)return false;
+    const d=new Date(olasDate(f)+'T12:00:00');
+    return d<=today;
+  });
+  if(!vencidas.length)return;
+  const tc=MEP;
+  let ok=0;
+  for(const fl of vencidas){
+    const{error}=await sb.from('olas_flows').update({cobrado:true,tc_cobro:tc,monto_real_ars:fl.ars}).eq('id',fl.id);
+    if(!error){fl.cobrado=true;fl.tcCobro=tc;fl.montoRealArs=fl.ars;ok++;}
+  }
+  if(ok>0)showToast('📥 '+ok+' cobro'+(ok>1?'s':'')+' de Olas registrado'+(ok>1?'s':'')+' automáticamente');
+}
+
 async function showApp(){
   // Welcome overlay
   const wo=document.createElement('div');

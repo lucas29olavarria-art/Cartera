@@ -1,4 +1,5 @@
 <!-- SQL: alter table investors add column if not exists last_import_date date; alter table investors add column if not exists last_import_source text; -->
+<!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -114,6 +115,8 @@ tbody tr:hover td{background:rgba(255,255,255,.018);}
 .mv{font-family:var(--mono);font-size:12px;}
 .dbtn{background:none;border:none;color:var(--muted);cursor:pointer;padding:3px 7px;border-radius:4px;font-size:12px;transition:color .18s;}
 .dbtn:hover{color:var(--red);}
+.ifield{width:100%;background:var(--bg3);border:1px solid var(--line2);border-radius:var(--r);color:var(--text);font-family:var(--mono);font-size:14px;padding:10px 12px;outline:none;transition:border-color .18s;}
+.ifield:focus{border-color:var(--blue);}
 .ldot{width:6px;height:6px;border-radius:50%;background:var(--green);display:inline-block;margin-right:4px;animation:pulse 2s infinite;}
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:.3;}}
 .pup{color:var(--green);font-family:var(--mono);font-size:11px;}
@@ -822,7 +825,7 @@ async function loadInvestor(id){
   const inv=invR.data||{};
   inv.rv=(rvR.data||[]).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change}));
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
-  inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars}));
+  inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null}));
   inv.gastos=gastosR.data||[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';
@@ -1551,25 +1554,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>`;
   }
 
-  // MOVERS
-  if(movers.length){
-    html+='<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px;margin-bottom:12px;">';
-    html+='<div class="ct" style="margin-bottom:10px;">Movimientos del día</div>';
-    movers.forEach(p=>{
-      const chg=p.price_change||0;
-      const bw=Math.min(Math.abs(chg)/5*100,100);
-      const col=chg>=0?'var(--green)':'var(--red)';
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);">
-        <span style="font-family:var(--mono);font-size:12px;font-weight:600;min-width:46px;">${p.ticker}</span>
-        <div style="flex:1;height:3px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;">
-          <div style="height:100%;width:${bw}%;background:${col};border-radius:2px;"></div>
-        </div>
-        <span style="font-family:var(--mono);font-size:12px;color:${col};min-width:58px;text-align:right;">${chg>=0?'+':''}${chg.toFixed(2)}%</span>
-      </div>`;
-    });
-    html+='</div>';
-  }
-
   // MILESTONE / OBJETIVO
   // Objetivo — solo botón rápido si no tiene, o mini progreso si tiene
   const hasObjetivo=inv.objetivo_desc&&inv.objetivo_monto>0;
@@ -1650,7 +1634,7 @@ function sortPos(col, inv, liq){
 
 // ── POSICIONES ────────────────────────────────────────────────
 function olasSection(inv){
-  // Group flows by project name
+  if(!(inv.olasFlows?.length))return'';
   const byProj={};
   (inv.olasFlows||[]).forEach(fl=>{
     const proj=(fl.descripcion||'Ola').split('·')[0].trim();
@@ -1658,39 +1642,184 @@ function olasSection(inv){
     byProj[proj].push(fl);
   });
 
-  const rows=Object.entries(byProj).map(([proj,flows])=>{
+  const projCards=Object.entries(byProj).map(([proj,flows])=>{
     const sorted=flows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
-    const next=sorted.find(f=>new Date(olasDate(f))>=new Date());
-    const cuota=olasMonto(sorted[0]);
-    const total=sorted.reduce((s,f)=>s+olasMonto(f),0);
-    return `<tr>
-      <td style="font-weight:600;font-size:13px;">${proj}</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);">${sorted.length} cuotas</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--amber);">${next?olasDate(next):'Finalizado'}</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:12px;">$${fmtars(cuota)}/mes</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--green);">$${fmtars(total)}</td>
-      <td><button class="dbtn" title="Eliminar esta Ola" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button></td>
-    </tr>`;
+    const tcInicio=sorted[0]?.tcInicio||null;
+    const capitalUsd=sorted[0]?.capitalUsd||null;
+    const cobradas=sorted.filter(f=>f.cobrado);
+    const pendientes=sorted.filter(f=>!f.cobrado);
+    const cobradoUSD=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+    const pendienteUSD=pendientes.reduce((s,f)=>s+(f.ars||0)/MEP,0);
+    const totalUSD=cobradoUSD+pendienteUSD;
+    const rendUSD=capitalUsd?totalUSD-capitalUsd:null;
+    const rendPct=capitalUsd&&capitalUsd>0?(rendUSD/capitalUsd*100).toFixed(1):null;
+
+    const flowRows=sorted.map(f=>{
+      const isCob=f.cobrado;
+      const arsAmt=isCob?(f.montoRealArs||f.ars||0):(f.ars||0);
+      const usdAmt=isCob?arsAmt/(f.tcCobro||MEP):arsAmt/MEP;
+      const tcLabel=isCob?(f.tcCobro?'@$'+fmt(f.tcCobro):'@?'):'@$'+fmt(MEP)+' (MEP)';
+      return `<tr style="${isCob?'opacity:0.55;':''}">
+        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);">${olasDate(f)}</td>
+        <td style="font-family:var(--mono);font-size:11px;text-align:right;">$${fmtars(arsAmt)}</td>
+        <td style="font-family:var(--mono);font-size:10px;text-align:right;color:var(--muted);">${tcLabel}</td>
+        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:${isCob?'var(--green)':'var(--muted)'};">u$s ${fmt(usdAmt)}</td>
+        <td style="text-align:center;">
+          ${isCob
+            ?`<span style="color:var(--green);font-size:10px;font-family:var(--mono);">✓</span>`
+            :`<button class="ib" style="padding:2px 9px;font-size:10px;" onclick="marcarCobrado('${f.id}','${inv.id}')">Cobrar</button>`
+          }
+        </td>
+      </tr>`;
+    }).join('');
+
+    return `<div style="background:var(--bg3);border-radius:var(--r2);padding:14px;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+        <div style="font-size:13px;font-weight:600;">📋 ${proj}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          ${tcInicio
+            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC: $${fmt(tcInicio)} ✎</button>`
+            :`<button class="ib" style="font-size:10px;padding:2px 8px;border-color:var(--amber);color:var(--amber);" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">+ TC inicio</button>`
+          }
+          <button class="dbtn" title="Eliminar" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
+          <div class="kl">Capital USD</div>
+          <div style="font-family:var(--mono);font-size:13px;font-weight:500;">${capitalUsd?'u$s '+fmt(capitalUsd):'—'}</div>
+          ${tcInicio?`<div style="font-size:9px;color:var(--muted);">TC inicio $${fmt(tcInicio)}</div>`:''}
+        </div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
+          <div class="kl">Cobrado</div>
+          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--green);">u$s ${fmt(cobradoUSD)}</div>
+          <div style="font-size:9px;color:var(--muted);">${cobradas.length}/${sorted.length} cuotas</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
+          <div class="kl">Pendiente est.</div>
+          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--amber);">u$s ${fmt(pendienteUSD)}</div>
+          <div style="font-size:9px;color:var(--muted);">MEP $${fmt(MEP)}</div>
+        </div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.2);':''}">
+          <div class="kl">Rend. USD</div>
+          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:${rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)'};">
+            ${rendUSD===null?'—':(rendUSD>=0?'+':'')+'u$s '+fmt(Math.abs(rendUSD))}
+          </div>
+          ${rendPct!==null?`<div style="font-size:9px;color:${+rendPct>=0?'var(--green)':'var(--red)'};">${+rendPct>=0?'+':''}${rendPct}%</div>`:'<div style="font-size:9px;color:var(--muted);">Ingresá capital</div>'}
+        </div>
+      </div>
+      <div class="tw"><table style="table-layout:auto;">
+        <thead><tr>
+          <th>Fecha</th>
+          <th style="text-align:right">Monto ARS</th>
+          <th style="text-align:right">TC</th>
+          <th style="text-align:right">USD equiv.</th>
+          <th style="text-align:center">Estado</th>
+        </tr></thead>
+        <tbody>${flowRows}</tbody>
+      </table></div>
+    </div>`;
   }).join('');
 
   return `<div class="card" style="margin-top:12px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div class="ct">Fideicomisos Olas</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--blue);">u$s ${fmt(inv.olasVal||0)} invertido</div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--blue);">u$s ${fmt(inv.olasVal||0)} total invertido</div>
     </div>
-    <div class="tw"><table style="table-layout:auto;">
-      <thead><tr>
-        <th>Proyecto</th>
-        <th style="text-align:right">Cuotas</th>
-        <th style="text-align:right">Próximo pago</th>
-        <th style="text-align:right">Cuota mensual</th>
-        <th style="text-align:right">Total estimado</th>
-        <th></th>
-      </tr></thead>
-      <tbody>${rows}</tbody>
-    </table></div>
+    ${projCards}
   </div>`;
 }
+
+function marcarCobrado(flowId, invId){
+  const inv=INV_CACHE[invId]||CU_DATA;
+  const fl=(inv?.olasFlows||[]).find(f=>f.id===flowId);
+  if(!fl)return;
+  document.getElementById('cobro-modal')?.remove();
+  const overlay=document.createElement('div');
+  overlay.id='cobro-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);padding:24px;width:360px;max-width:100%;animation:up .22s ease;">
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Registrar cobro</div>
+    <div style="margin-bottom:14px;padding:10px 12px;background:var(--bg3);border-radius:var(--r);">
+      <div class="kl">Cuota proyectada · ${olasDate(fl)}</div>
+      <div style="font-family:var(--mono);font-size:18px;color:var(--amber);">$${fmtars(fl.ars)}</div>
+    </div>
+    <div style="margin-bottom:12px;">
+      <label class="kl" for="cobro-ars">Monto real recibido (ARS)</label>
+      <input id="cobro-ars" type="number" class="ifield" style="margin-top:4px;" placeholder="${fl.ars}" value="${fl.ars}">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label class="kl" for="cobro-tc">TC MEP al cobrar</label>
+      <input id="cobro-tc" type="number" class="ifield" style="margin-top:4px;" placeholder="${Math.round(MEP)}" value="${Math.round(MEP)}">
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;">MEP actual: $${fmt(MEP)}</div>
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="ib pri" onclick="confirmarCobro('${flowId}','${invId}')">✓ Confirmar</button>
+      <button class="ib" onclick="document.getElementById('cobro-modal').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function confirmarCobro(flowId,invId){
+  const ars=parseFloat(document.getElementById('cobro-ars').value)||0;
+  const tc=parseFloat(document.getElementById('cobro-tc').value)||0;
+  if(!ars||!tc)return showToast('Completá los campos');
+  const{error}=await sb.from('olas_flows').update({cobrado:true,tc_cobro:tc,monto_real_ars:ars}).eq('id',flowId);
+  if(error)return showToast('Error: '+error.message);
+  document.getElementById('cobro-modal')?.remove();
+  const inv=INV_CACHE[invId]||CU_DATA;
+  if(inv){const fl=(inv.olasFlows||[]).find(f=>f.id===flowId);if(fl){fl.cobrado=true;fl.tcCobro=tc;fl.montoRealArs=ars;}}
+  showToast('✓ Cobro registrado');
+  renderInv(inv);
+}
+
+function setTcInicio(proj,invId){
+  const inv=INV_CACHE[invId]||CU_DATA;
+  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
+  const curTc=pFlows[0]?.tcInicio||'';
+  const curCap=pFlows[0]?.capitalUsd||'';
+  document.getElementById('tcinicio-modal')?.remove();
+  const overlay=document.createElement('div');
+  overlay.id='tcinicio-modal';
+  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;';
+  overlay.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);padding:24px;width:360px;max-width:100%;animation:up .22s ease;">
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Datos de inicio</div>
+    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">${proj}</div>
+    <div style="margin-bottom:12px;">
+      <label class="kl" for="tci-tc">TC MEP al inicio de la Ola</label>
+      <input id="tci-tc" type="number" class="ifield" style="margin-top:4px;" placeholder="ej: 1200" value="${curTc}">
+    </div>
+    <div style="margin-bottom:20px;">
+      <label class="kl" for="tci-cap">Capital invertido USD (este proyecto)</label>
+      <input id="tci-cap" type="number" class="ifield" style="margin-top:4px;" placeholder="ej: 5000" value="${curCap}">
+    </div>
+    <div style="display:flex;gap:8px;">
+      <button class="ib pri" onclick="confirmarTcInicio('${proj.replace(/'/g,"\\'")}','${invId}')">Guardar</button>
+      <button class="ib" onclick="document.getElementById('tcinicio-modal').remove()">Cancelar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(overlay);
+}
+
+async function confirmarTcInicio(proj,invId){
+  const tc=parseFloat(document.getElementById('tci-tc').value)||0;
+  const cap=parseFloat(document.getElementById('tci-cap').value)||0;
+  if(!tc)return showToast('Ingresá el TC de inicio');
+  const inv=INV_CACHE[invId]||CU_DATA;
+  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
+  for(const fl of pFlows){
+    const upd={tc_inicio:tc};
+    if(cap>0)upd.capital_usd=cap;
+    await sb.from('olas_flows').update(upd).eq('id',fl.id);
+    fl.tcInicio=tc;
+    if(cap>0)fl.capitalUsd=cap;
+  }
+  document.getElementById('tcinicio-modal')?.remove();
+  showToast('✓ Datos de inicio guardados');
+  renderInv(inv);
+}
+
 
 // ── FLUJO DE CAJA ─────────────────────────────────────────────
 function rFlujoCaja(inv){
@@ -2845,7 +2974,7 @@ async function impConfirm(){
     if(impCurrentTab==='olas'&&impParsedOlas.length){
       // Delete existing olas flows and replace
       await sb.from('olas_flows').delete().eq('investor_id',invId);
-      const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f})));
+      const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f,tc_inicio:impTcMep,capital_usd:+(o.monto/impTcMep).toFixed(0)})));
       if(allFlows.length){
         await sb.from('olas_flows').insert(allFlows);
         imported=allFlows.length;

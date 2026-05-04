@@ -781,21 +781,23 @@ async function fetchLiveMEP(){
 }
 
 async function autoMarcarCobros(inv){
-  if(!(inv.olasFlows?.length))return;
+  if(!(inv.olasFlows?.length))return false;
   const today=new Date();today.setHours(23,59,59,999);
   const vencidas=(inv.olasFlows||[]).filter(f=>{
     if(f.cobrado)return false;
     const d=new Date(olasDate(f)+'T12:00:00');
     return d<=today;
   });
-  if(!vencidas.length)return;
+  if(!vencidas.length)return false;
   const tc=MEP;
-  let ok=0;
-  for(const fl of vencidas){
-    const{error}=await sb.from('olas_flows').update({cobrado:true,tc_cobro:tc,monto_real_ars:fl.ars}).eq('id',fl.id);
-    if(!error){fl.cobrado=true;fl.tcCobro=tc;fl.montoRealArs=fl.ars;ok++;}
+  const ids=vencidas.map(f=>f.id);
+  const{error}=await sb.from('olas_flows').update({cobrado:true,tc_cobro:tc}).in('id',ids);
+  if(!error){
+    vencidas.forEach(fl=>{fl.cobrado=true;fl.tcCobro=tc;fl.montoRealArs=fl.ars;});
+    showToast('📥 '+vencidas.length+' cobro'+(vencidas.length>1?'s':'')+' de Olas registrado'+(vencidas.length>1?'s':'')+' automáticamente');
+    return true;
   }
-  if(ok>0)showToast('📥 '+ok+' cobro'+(ok>1?'s':'')+' de Olas registrado'+(ok>1?'s':'')+' automáticamente');
+  return false;
 }
 
 async function showApp(){
@@ -834,6 +836,7 @@ async function showApp(){
     CU_DATA=inv;
     checkObjetivoPrompt(inv);
     ITb='overview'; iTab('overview');
+    autoMarcarCobros(inv).then(changed=>{if(changed)renderInv(inv);});
   }
 }
 
@@ -843,9 +846,7 @@ function sw(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remo
 async function loadAllInvestors(){
   const {data}=await sb.from('investors').select('*').order('created_at');
   const invs=data||[];
-  for(const inv of invs.filter(i=>!i.is_admin)){
-    INV_CACHE[inv.id]=await loadInvestor(inv.id);
-  }
+  await Promise.all(invs.filter(i=>!i.is_admin).map(inv=>loadInvestor(inv.id)));
   return invs;
 }
 
@@ -867,7 +868,6 @@ async function loadInvestor(id){
   inv.last_import_date=inv.last_import_date||null;
   inv.last_import_source=inv.last_import_source||null;
   INV_CACHE[id]=inv;
-  await autoMarcarCobros(inv);
   return inv;
 }
 
@@ -1178,6 +1178,7 @@ async function viewInv(id){
   kc();
   if(!INV_CACHE[id])INV_CACHE[id]=await loadInvestor(id);
   renderInv(INV_CACHE[id]);
+  autoMarcarCobros(INV_CACHE[id]).then(changed=>{if(changed)renderInv(INV_CACHE[id]);});
 }
 
 // ── CALENDARIO ────────────────────────────────────────────────

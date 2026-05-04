@@ -326,7 +326,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
     <button class="tb" id="itb-overview" onclick="iTab('overview')">Overview</button>
     <button class="tb" id="itb-flujo" onclick="iTab('flujo')">Flujo de caja</button>
-    <button class="tb" id="itb-gastos" onclick="iTab('gastos')">Gastos</button>
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-camino" onclick="iTab('camino')">Tu camino</button>
@@ -584,32 +583,32 @@ const MON_ABR={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:1
 
 // ── TICKER MAP (sector + país automático) ─────────────────────
 const TICKER_MAP={
-  'META':  {sector:'Tecnología',    pais:'USA',       nombre:'Meta Platforms'},
-  'NVDA':  {sector:'Semiconductores',pais:'USA',      nombre:'NVIDIA Corp.'},
-  'MELI':  {sector:'Fintech',       pais:'Argentina', nombre:'Mercadolibre'},
-  'NU':    {sector:'Fintech',       pais:'Brasil',    nombre:'Nu Holdings'},
-  'IBIT':  {sector:'Cripto/Bitcoin',pais:'USA',       nombre:'iShares Bitcoin ETF'},
-  'TSM':   {sector:'Semiconductores',pais:'Taiwan',   nombre:'Taiwan Semiconductor'},
-  'ABBV':  {sector:'Salud',         pais:'USA',       nombre:'AbbVie Inc.'},
-  'GE':    {sector:'Industrial',    pais:'USA',       nombre:'General Electric'},
-  'WMT':   {sector:'Consumo',       pais:'USA',       nombre:'Walmart Inc.'},
-  'VIST':  {sector:'Energía',       pais:'Argentina', nombre:'Vista Energy'},
-  'PBR':   {sector:'Petróleo',      pais:'Brasil',    nombre:'Petrobras'},
-  'YPFD':  {sector:'Energía',       pais:'Argentina', nombre:'YPF S.A.'},
-  'ASML':  {sector:'Semiconductores',pais:'Países Bajos',nombre:'ASML Holding'},
-  'XLU':   {sector:'Utilities',     pais:'USA',       nombre:'Utilities SPDR ETF'},
-  'GGAL':  {sector:'Bancario',      pais:'Argentina', nombre:'Galicia'},
-  'PAMP':  {sector:'Energía',       pais:'Argentina', nombre:'Pampa Energía'},
-  'TGNO4': {sector:'Utilities',     pais:'Argentina', nombre:'Transportadora Gas N.'},
-  'LOMA':  {sector:'Materiales',    pais:'Argentina', nombre:'Loma Negra'},
-  'ADCAP': {sector:'Fondo/Cash',    pais:'Argentina', nombre:'ADCAP Pesos Plus A'},
-  'SPY':   {sector:'ETF USA',        pais:'USA',       nombre:'SPDR S&P 500 ETF'},
-  'GLD':   {sector:'Commodities',    pais:'USA',       nombre:'SPDR Gold Trust'},
-  'SH':    {sector:'ETF USA',        pais:'USA',       nombre:'Short S&P 500 ETF'},
-  'ETHA':  {sector:'Cripto/Bitcoin', pais:'USA',       nombre:'iShares Ethereum ETF'},
-  'GD41':  {sector:'Renta Fija',     pais:'Argentina', nombre:'Bono Global 2041'},
-  'YM34O': {sector:'Renta Fija',     pais:'Argentina', nombre:'ON YPF 2034'},
-  'IRCPO': {sector:'Renta Fija',     pais:'Argentina', nombre:'ON IRSA 2035'},
+  'META':  {sector:'Tecnología',    pais:'USA',           nombre:'Meta Platforms',        moneda:'USD'},
+  'NVDA':  {sector:'Semiconductores',pais:'USA',          nombre:'NVIDIA Corp.',          moneda:'USD'},
+  'MELI':  {sector:'Fintech',       pais:'Argentina',     nombre:'Mercadolibre',          moneda:'USD'},
+  'NU':    {sector:'Fintech',       pais:'Brasil',        nombre:'Nu Holdings',           moneda:'USD'},
+  'IBIT':  {sector:'Cripto/Bitcoin',pais:'USA',           nombre:'iShares Bitcoin ETF',   moneda:'USD'},
+  'TSM':   {sector:'Semiconductores',pais:'Taiwan',       nombre:'Taiwan Semiconductor',  moneda:'USD'},
+  'ABBV':  {sector:'Salud',         pais:'USA',           nombre:'AbbVie Inc.',           moneda:'USD'},
+  'GE':    {sector:'Industrial',    pais:'USA',           nombre:'General Electric',      moneda:'USD'},
+  'WMT':   {sector:'Consumo',       pais:'USA',           nombre:'Walmart Inc.',          moneda:'USD'},
+  'VIST':  {sector:'Energía',       pais:'Argentina',     nombre:'Vista Energy',          moneda:'USD'},
+  'PBR':   {sector:'Petróleo',      pais:'Brasil',        nombre:'Petrobras',             moneda:'USD'},
+  'YPFD':  {sector:'Energía',       pais:'Argentina',     nombre:'YPF S.A.',              moneda:'ARS'},
+  'ASML':  {sector:'Semiconductores',pais:'Países Bajos', nombre:'ASML Holding',          moneda:'USD'},
+  'XLU':   {sector:'Utilities',     pais:'USA',           nombre:'Utilities SPDR ETF',    moneda:'USD'},
+  'GGAL':  {sector:'Bancario',      pais:'Argentina',     nombre:'Galicia',               moneda:'ARS'},
+  'PAMP':  {sector:'Energía',       pais:'Argentina',     nombre:'Pampa Energía',         moneda:'ARS'},
+  'TGNO4': {sector:'Utilities',     pais:'Argentina',     nombre:'Transportadora Gas N.', moneda:'ARS'},
+  'LOMA':  {sector:'Materiales',    pais:'Argentina',     nombre:'Loma Negra',            moneda:'ARS'},
+  'ADCAP': {sector:'Fondo/Cash',    pais:'Argentina',     nombre:'ADCAP Pesos Plus A',    moneda:'ARS'},
+  'SPY':   {sector:'ETF USA',       pais:'USA',           nombre:'SPDR S&P 500 ETF',      moneda:'USD'},
+  'GLD':   {sector:'Commodities',   pais:'USA',           nombre:'SPDR Gold Trust',       moneda:'USD'},
+  'SH':    {sector:'ETF USA',       pais:'USA',           nombre:'Short S&P 500 ETF',     moneda:'USD'},
+  'ETHA':  {sector:'Cripto/Bitcoin',pais:'USA',           nombre:'iShares Ethereum ETF',  moneda:'USD'},
+  'GD41':  {sector:'Renta Fija',    pais:'Argentina',     nombre:'Bono Global 2041',      moneda:'USD'},
+  'YM34O': {sector:'Renta Fija',    pais:'Argentina',     nombre:'ON YPF 2034',           moneda:'USD'},
+  'IRCPO': {sector:'Renta Fija',    pais:'Argentina',     nombre:'ON IRSA 2035',          moneda:'USD'},
 };
 
 // ── SECTOR & COUNTRY DISPLAY CONFIG ───────────────────────────
@@ -1481,7 +1480,6 @@ function renderInv(inv){
   let body='';
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);
   else if(ITb==='flujo')body=rFlujoCaja(inv);
-  else if(ITb==='gastos')body=rGastos(inv);
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
   else if(ITb==='camino')body=rCamino(inv,tot);
@@ -1543,17 +1541,10 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   </div>`;
 
   // KPIs
-  html+=`<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
-    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px;border-left:3px solid var(--blue);">
-      <div class="kl">Última actualización</div>
-      <div style="font-family:var(--mono);font-size:16px;font-weight:600;color:var(--blue);">${inv.last_import_date||'Sin fecha'}</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;">vía ${inv.last_import_source||'importador'}</div>
-    </div>
-    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px;border-left:3px solid ${rend>=0?'var(--green)':'var(--red)'};">
-      <div class="kl">Rendimiento total</div>
-      <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'var(--green)':'var(--red)'};">${rend>=0?'+':''}${rendPct}%</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
-    </div>
+  html+=`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px;margin-bottom:12px;border-left:3px solid ${rend>=0?'var(--green)':'var(--red)'};">
+    <div class="kl">Rendimiento total</div>
+    <div style="font-family:var(--mono);font-size:28px;font-weight:700;color:${rend>=0?'var(--green)':'var(--red)'};">${rend>=0?'+':''}${rendPct}%</div>
+    <div style="font-family:var(--mono);font-size:12px;color:var(--muted);margin-top:2px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
   </div>`;
 
   // TOTAL ALLOCATION DONUT (RV + RF + Olas)
@@ -1686,80 +1677,83 @@ function olasSection(inv){
     const capitalUsd=sorted[0]?.capitalUsd||null;
     const cobradas=sorted.filter(f=>f.cobrado);
     const pendientes=sorted.filter(f=>!f.cobrado);
-    const cobradoUSD=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
-    const pendienteUSD=pendientes.reduce((s,f)=>s+(f.ars||0)/MEP,0);
-    const rendUSD=capitalUsd?cobradoUSD+pendienteUSD-capitalUsd:null;
-    const rendPct=capitalUsd&&capitalUsd>0?((cobradoUSD+pendienteUSD-capitalUsd)/capitalUsd*100).toFixed(1):null;
-    const hayHoy=pendientes.some(f=>olasDate(f)===todayStr);
+    const nextFecha=pendientes[0]?olasDate(pendientes[0]):null;
+    const esHoyProx=nextFecha===todayStr;
 
-    // Historial rows (cobradas, reverse order - most recent first)
+    // Real-time USD return: ARS cobrado / TC actual / capital
+    const cobradoARS=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0),0);
+    const cobradoUSD=cobradoARS/MEP;
+    const rendUSD=capitalUsd&&capitalUsd>0?cobradoUSD/capitalUsd-1:null;
+    const rendPct=rendUSD!==null?(rendUSD*100).toFixed(1):null;
+    const barW=rendUSD!==null?Math.min(Math.abs(rendUSD)*5*100,100):0; // scale: 20% return = full bar
+    const rendColor=rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)';
+
+    // Historial colapsable
     const histRows=[...cobradas].reverse().map(f=>{
       const ars=f.montoRealArs||f.ars||0;
-      const usd=ars/(f.tcCobro||MEP);
-      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);opacity:0.75;">
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:84px;">${olasDate(f)}</span>
-        <span style="font-family:var(--mono);font-size:11px;flex:1;">$${fmtars(ars)}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">@$${fmt(f.tcCobro||MEP)}</span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--green);min-width:70px;text-align:right;">u$s ${fmt(usd)}</span>
-        <span style="color:var(--green);font-size:12px;">✓</span>
+      const usd=ars/MEP;
+      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;">
+        <span style="color:var(--muted);min-width:82px;">${olasDate(f)}</span>
+        <span style="flex:1;">$${fmtars(ars)}</span>
+        <span style="color:var(--muted);font-size:10px;">@$${fmt(f.tcCobro||MEP)}</span>
+        <span style="color:var(--green);min-width:68px;text-align:right;">u$s ${fmt(usd)}</span>
       </div>`;
     }).join('');
 
-    // Próximos rows (pendientes)
-    const proxRows=pendientes.map(f=>{
-      const esHoy=olasDate(f)===todayStr;
-      const usdEst=(f.ars||0)/MEP;
-      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);${esHoy?'background:rgba(245,166,35,.05);border-radius:6px;padding:7px 8px;':''}">
-        <span style="font-family:var(--mono);font-size:11px;color:${esHoy?'var(--amber)':'var(--muted)'};min-width:84px;${esHoy?'font-weight:600;':''}">${olasDate(f)}${esHoy?' ← hoy':''}</span>
-        <span style="font-family:var(--mono);font-size:11px;flex:1;">$${fmtars(f.ars)}</span>
-        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">≈@$<span class="live-mep-val">${fmt(MEP)}</span></span>
-        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:70px;text-align:right;">≈ u$s ${fmt(usdEst)}</span>
-        <span style="color:var(--muted);font-size:12px;">○</span>
-      </div>`;
-    }).join('');
-
-    return `<div style="background:var(--bg3);border-radius:var(--r2);padding:14px;margin-bottom:12px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <div style="font-size:13px;font-weight:600;">📋 ${proj}</div>
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+    return `<div style="background:var(--bg3);border-radius:var(--r2);padding:16px;margin-bottom:12px;">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+        <div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px;">📋 ${proj}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${sorted.length} cuotas · ${cobradas.length} cobradas · ${pendientes.length} pendientes</div>
+        </div>
+        <div style="display:flex;align-items:center;gap:8px;">
           ${tcInicio
-            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC inicio: $${fmt(tcInicio)} ✎</button>`
-            :`<button class="ib" style="font-size:10px;padding:2px 8px;border-color:var(--amber);color:var(--amber);" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">+ TC inicio</button>`
+            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC: $${fmt(tcInicio)} ✎</button>`
+            :`<button class="ib" style="font-size:10px;padding:2px 8px;border-color:var(--amber);color:var(--amber);" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">+ TC entrada</button>`
           }
-          <button class="dbtn" title="Eliminar" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
+          <button class="dbtn" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
         </div>
       </div>
-      ${hayHoy?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);">📅 Hay un cobro programado para hoy</div>`:''}
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
-        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
-          <div class="kl">Capital USD</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:500;">${capitalUsd?'u$s '+fmt(capitalUsd):'—'}</div>
-          ${tcInicio?`<div style="font-size:9px;color:var(--muted);">TC inicio $${fmt(tcInicio)}</div>`:''}
+
+      ${!tcInicio||!capitalUsd?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">Ingresá el TC de entrada y capital para ver el rendimiento en USD →</div>`:`
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+        <div>
+          <div class="kl">Capital</div>
+          <div style="font-family:var(--mono);font-size:13px;">u$s ${fmt(capitalUsd)}</div>
         </div>
-        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
-          <div class="kl">Cobrado</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--green);">u$s ${fmt(cobradoUSD)}</div>
-          <div style="font-size:9px;color:var(--muted);">${cobradas.length}/${sorted.length} cuotas</div>
+        <div>
+          <div class="kl">TC entrada</div>
+          <div style="font-family:var(--mono);font-size:13px;">$${fmt(tcInicio)}</div>
         </div>
-        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
-          <div class="kl">Pendiente est.</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--amber);">u$s ${fmt(pendienteUSD)}</div>
-          <div style="font-size:9px;color:var(--muted);">MEP $<span class="live-mep-val">${fmt(MEP)}</span></div>
+        <div>
+          <div class="kl">TC hoy (MEP)</div>
+          <div style="font-family:var(--mono);font-size:13px;">$<span class="live-mep-val">${fmt(MEP)}</span></div>
         </div>
-        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.25);':''}">
-          <div class="kl">Rend. USD total</div>
-          <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:${rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)'};">
-            ${rendUSD===null?'—':(rendUSD>=0?'+':'')+'u$s '+fmt(Math.abs(rendUSD))}
-          </div>
-          ${rendPct!==null?`<div style="font-size:9px;color:${+rendPct>=0?'var(--green)':'var(--red)'};">${+rendPct>=0?'+':''}${rendPct}%</div>`:`<div style="font-size:9px;color:var(--muted);">ingresá capital</div>`}
+        <div>
+          <div class="kl">Devaluación desde entrada</div>
+          <div style="font-family:var(--mono);font-size:13px;color:var(--red);">-${((1-tcInicio/MEP)*100).toFixed(1)}%</div>
         </div>
       </div>
-      ${pendientes.length?`<div style="margin-bottom:10px;">
-        <div class="kl" style="margin-bottom:6px;">Próximos cobros</div>
-        ${proxRows}
-      </div>`:''}
-      ${cobradas.length?`<details style="margin-top:4px;">
-        <summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;padding:4px 0;">Historial de cobros (${cobradas.length}) ▸</summary>
+      <div style="background:var(--bg2);border-radius:var(--r2);padding:14px;margin-bottom:12px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.2);':''}">
+        <div class="kl" style="margin-bottom:6px;">Rendimiento real USD (sobre lo cobrado)</div>
+        <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:${rendColor};line-height:1;margin-bottom:8px;">
+          ${rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':'—'}
+        </div>
+        <div style="background:var(--bg4);border-radius:3px;height:6px;overflow:hidden;margin-bottom:6px;">
+          <div style="height:100%;width:${barW}%;background:${rendColor};border-radius:3px;transition:width .5s;"></div>
+        </div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">
+          u$s ${fmt(cobradoUSD)} cobrado al MEP actual · u$s ${fmt(capitalUsd)} invertido
+        </div>
+      </div>`}
+
+      ${esHoyProx?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber);margin-bottom:10px;">📅 Cobro programado hoy · $${fmtars(pendientes[0].ars)}</div>`
+        :nextFecha?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:10px;">Próximo cobro: ${nextFecha} · $${fmtars(pendientes[0]?.ars||0)}</div>`:''}
+
+      ${cobradas.length?`<details>
+        <summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;user-select:none;">
+          Historial de cobros ▸
+        </summary>
         <div style="margin-top:8px;">${histRows}</div>
       </details>`:''}
     </div>`;
@@ -1768,10 +1762,7 @@ function olasSection(inv){
   return `<div class="card" style="margin-top:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <div class="ct">Fideicomisos Olas</div>
-      <div style="display:flex;align-items:center;gap:10px;">
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">MEP: $<span class="live-mep-val">${fmt(MEP)}</span></div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--blue);">u$s ${fmt(inv.olasVal||0)} invertido</div>
-      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">MEP: $<span class="live-mep-val">${fmt(MEP)}</span> · u$s ${fmt(inv.olasVal||0)} invertido</div>
     </div>
     ${projCards}
   </div>`;
@@ -2169,11 +2160,17 @@ function buildInvCharts(tab,inv,liq){
       {id:'an-sec',entries:groupBy(all,'sector'),total:liq,cl:'sectores',positions:all,groupKey:'sector'},
       {id:'an-pai',entries:groupBy(all,'pais'),total:liq,cl:'países',positions:all,groupKey:'pais'},
     ]);
-    // Currency donut: USD (RV+RF) vs ARS (Olas)
-    const monUSD=totalRV(inv)+totalRF(inv), monARS=inv.olasVal||0;
+    // Currency donut: USD vs ARS (by TICKER_MAP moneda + Olas)
+    let monUSD=0, monARS=inv.olasVal||0;
+    all.forEach(p=>{
+      const mon=(TICKER_MAP[p.ticker]?.moneda)||'USD';
+      if(mon==='ARS') monARS+=p.valor; else monUSD+=p.valor;
+    });
+    // RF positions are USD bonds
+    (inv.rf||[]).forEach(p=>{ monUSD+=p.valor; });
     const monSegs=[];
-    if(monUSD>0)monSegs.push({lb:'USD',v:monUSD,c:'#5b9cf6'});
-    if(monARS>0)monSegs.push({lb:'Pesos (ARS)',v:monARS,c:'#f5a623'});
+    if(monUSD>0)monSegs.push({lb:'USD (CEDEARs + Bonos)',v:monUSD,c:'#5b9cf6'});
+    if(monARS>0)monSegs.push({lb:'Pesos ARS (acciones + Olas)',v:monARS,c:'#f5a623'});
     if(monSegs.length){
       mkDonut('an-mon',monSegs.map(s=>s.v),monSegs.map(s=>s.c));
       const leg=document.getElementById('an-mon-leg');
@@ -2426,7 +2423,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','flujo','gastos','analisis','simulador','camino'].forEach(name=>{
+  ['overview','flujo','analisis','simulador','camino'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });

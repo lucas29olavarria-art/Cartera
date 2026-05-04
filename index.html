@@ -774,6 +774,7 @@ async function showApp(){
   setTimeout(()=>wo.remove(), 1800);
 
   sw('s-app');
+  fetchLiveMEP().then(()=>{setTimeout(fetchLiveMEP,10*60*1000);});
   const av=document.getElementById('t-av');
   av.style.background=CU.color; av.textContent=CU.name[0].toUpperCase();
   document.getElementById('t-name').textContent=CU.name;
@@ -832,6 +833,7 @@ async function loadInvestor(id){
   inv.last_import_date=inv.last_import_date||null;
   inv.last_import_source=inv.last_import_source||null;
   INV_CACHE[id]=inv;
+  await autoMarcarCobros(inv);
   return inv;
 }
 
@@ -1641,6 +1643,7 @@ function olasSection(inv){
     if(!byProj[proj])byProj[proj]=[];
     byProj[proj].push(fl);
   });
+  const todayStr=new Date().toISOString().slice(0,10);
 
   const projCards=Object.entries(byProj).map(([proj,flows])=>{
     const sorted=flows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
@@ -1650,27 +1653,34 @@ function olasSection(inv){
     const pendientes=sorted.filter(f=>!f.cobrado);
     const cobradoUSD=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
     const pendienteUSD=pendientes.reduce((s,f)=>s+(f.ars||0)/MEP,0);
-    const totalUSD=cobradoUSD+pendienteUSD;
-    const rendUSD=capitalUsd?totalUSD-capitalUsd:null;
-    const rendPct=capitalUsd&&capitalUsd>0?(rendUSD/capitalUsd*100).toFixed(1):null;
+    const rendUSD=capitalUsd?cobradoUSD+pendienteUSD-capitalUsd:null;
+    const rendPct=capitalUsd&&capitalUsd>0?((cobradoUSD+pendienteUSD-capitalUsd)/capitalUsd*100).toFixed(1):null;
+    const hayHoy=pendientes.some(f=>olasDate(f)===todayStr);
 
-    const flowRows=sorted.map(f=>{
-      const isCob=f.cobrado;
-      const arsAmt=isCob?(f.montoRealArs||f.ars||0):(f.ars||0);
-      const usdAmt=isCob?arsAmt/(f.tcCobro||MEP):arsAmt/MEP;
-      const tcLabel=isCob?(f.tcCobro?'@$'+fmt(f.tcCobro):'@?'):'@$'+fmt(MEP)+' (MEP)';
-      return `<tr style="${isCob?'opacity:0.55;':''}">
-        <td style="font-family:var(--mono);font-size:11px;color:var(--muted);">${olasDate(f)}</td>
-        <td style="font-family:var(--mono);font-size:11px;text-align:right;">$${fmtars(arsAmt)}</td>
-        <td style="font-family:var(--mono);font-size:10px;text-align:right;color:var(--muted);">${tcLabel}</td>
-        <td style="font-family:var(--mono);font-size:11px;text-align:right;color:${isCob?'var(--green)':'var(--muted)'};">u$s ${fmt(usdAmt)}</td>
-        <td style="text-align:center;">
-          ${isCob
-            ?`<span style="color:var(--green);font-size:10px;font-family:var(--mono);">✓</span>`
-            :`<button class="ib" style="padding:2px 9px;font-size:10px;" onclick="marcarCobrado('${f.id}','${inv.id}')">Cobrar</button>`
-          }
-        </td>
-      </tr>`;
+    // Historial rows (cobradas, reverse order - most recent first)
+    const histRows=[...cobradas].reverse().map(f=>{
+      const ars=f.montoRealArs||f.ars||0;
+      const usd=ars/(f.tcCobro||MEP);
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);opacity:0.75;">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:84px;">${olasDate(f)}</span>
+        <span style="font-family:var(--mono);font-size:11px;flex:1;">$${fmtars(ars)}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">@$${fmt(f.tcCobro||MEP)}</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--green);min-width:70px;text-align:right;">u$s ${fmt(usd)}</span>
+        <span style="color:var(--green);font-size:12px;">✓</span>
+      </div>`;
+    }).join('');
+
+    // Próximos rows (pendientes)
+    const proxRows=pendientes.map(f=>{
+      const esHoy=olasDate(f)===todayStr;
+      const usdEst=(f.ars||0)/MEP;
+      return `<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--line);${esHoy?'background:rgba(245,166,35,.05);border-radius:6px;padding:7px 8px;':''}">
+        <span style="font-family:var(--mono);font-size:11px;color:${esHoy?'var(--amber)':'var(--muted)'};min-width:84px;${esHoy?'font-weight:600;':''}">${olasDate(f)}${esHoy?' ← hoy':''}</span>
+        <span style="font-family:var(--mono);font-size:11px;flex:1;">$${fmtars(f.ars)}</span>
+        <span style="font-family:var(--mono);font-size:10px;color:var(--muted);">≈@$<span class="live-mep-val">${fmt(MEP)}</span></span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:70px;text-align:right;">≈ u$s ${fmt(usdEst)}</span>
+        <span style="color:var(--muted);font-size:12px;">○</span>
+      </div>`;
     }).join('');
 
     return `<div style="background:var(--bg3);border-radius:var(--r2);padding:14px;margin-bottom:12px;">
@@ -1678,13 +1688,14 @@ function olasSection(inv){
         <div style="font-size:13px;font-weight:600;">📋 ${proj}</div>
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           ${tcInicio
-            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC: $${fmt(tcInicio)} ✎</button>`
+            ?`<button class="ib" style="font-size:10px;padding:2px 8px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">TC inicio: $${fmt(tcInicio)} ✎</button>`
             :`<button class="ib" style="font-size:10px;padding:2px 8px;border-color:var(--amber);color:var(--amber);" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">+ TC inicio</button>`
           }
           <button class="dbtn" title="Eliminar" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
         </div>
       </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:12px;">
+      ${hayHoy?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;margin-bottom:12px;font-size:12px;color:var(--amber);">📅 Hay un cobro programado para hoy</div>`:''}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:14px;">
         <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
           <div class="kl">Capital USD</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:500;">${capitalUsd?'u$s '+fmt(capitalUsd):'—'}</div>
@@ -1698,37 +1709,39 @@ function olasSection(inv){
         <div style="background:var(--bg2);border-radius:var(--r);padding:10px;">
           <div class="kl">Pendiente est.</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:var(--amber);">u$s ${fmt(pendienteUSD)}</div>
-          <div style="font-size:9px;color:var(--muted);">MEP $${fmt(MEP)}</div>
+          <div style="font-size:9px;color:var(--muted);">MEP $<span class="live-mep-val">${fmt(MEP)}</span></div>
         </div>
-        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.2);':''}">
-          <div class="kl">Rend. USD</div>
+        <div style="background:var(--bg2);border-radius:var(--r);padding:10px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.25);':''}">
+          <div class="kl">Rend. USD total</div>
           <div style="font-family:var(--mono);font-size:13px;font-weight:500;color:${rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)'};">
             ${rendUSD===null?'—':(rendUSD>=0?'+':'')+'u$s '+fmt(Math.abs(rendUSD))}
           </div>
-          ${rendPct!==null?`<div style="font-size:9px;color:${+rendPct>=0?'var(--green)':'var(--red)'};">${+rendPct>=0?'+':''}${rendPct}%</div>`:'<div style="font-size:9px;color:var(--muted);">Ingresá capital</div>'}
+          ${rendPct!==null?`<div style="font-size:9px;color:${+rendPct>=0?'var(--green)':'var(--red)'};">${+rendPct>=0?'+':''}${rendPct}%</div>`:`<div style="font-size:9px;color:var(--muted);">ingresá capital</div>`}
         </div>
       </div>
-      <div class="tw"><table style="table-layout:auto;">
-        <thead><tr>
-          <th>Fecha</th>
-          <th style="text-align:right">Monto ARS</th>
-          <th style="text-align:right">TC</th>
-          <th style="text-align:right">USD equiv.</th>
-          <th style="text-align:center">Estado</th>
-        </tr></thead>
-        <tbody>${flowRows}</tbody>
-      </table></div>
+      ${pendientes.length?`<div style="margin-bottom:10px;">
+        <div class="kl" style="margin-bottom:6px;">Próximos cobros</div>
+        ${proxRows}
+      </div>`:''}
+      ${cobradas.length?`<details style="margin-top:4px;">
+        <summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;padding:4px 0;">Historial de cobros (${cobradas.length}) ▸</summary>
+        <div style="margin-top:8px;">${histRows}</div>
+      </details>`:''}
     </div>`;
   }).join('');
 
   return `<div class="card" style="margin-top:12px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
       <div class="ct">Fideicomisos Olas</div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--blue);">u$s ${fmt(inv.olasVal||0)} total invertido</div>
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">MEP: $<span class="live-mep-val">${fmt(MEP)}</span></div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--blue);">u$s ${fmt(inv.olasVal||0)} invertido</div>
+      </div>
     </div>
     ${projCards}
   </div>`;
 }
+
 
 function marcarCobrado(flowId, invId){
   const inv=INV_CACHE[invId]||CU_DATA;

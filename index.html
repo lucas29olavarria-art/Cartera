@@ -1950,8 +1950,6 @@ async function guardarTcInicioInline(proj,invId){
   }else showToast('Error guardando TC');
 }
 
-}
-
 function olasReport(proj,invId){
   const inv=INV_CACHE[invId]||CU_DATA;
   const flows=(inv?.olasFlows||[])

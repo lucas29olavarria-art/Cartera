@@ -801,43 +801,45 @@ async function autoMarcarCobros(inv){
 }
 
 let _mepHistCache=null;
-async function _tryFetchMepList(url){
+async function _fetchWithTimeout(url,ms=7000){
+  const ctrl=new AbortController();
+  const t=setTimeout(()=>ctrl.abort(),ms);
   try{
-    const r=await fetch(url);
-    if(!r.ok){console.warn('[MEP]',url,'→ HTTP',r.status);return null;}
+    const r=await fetch(url,{signal:ctrl.signal});
+    clearTimeout(t);
+    if(!r.ok)return null;
     const d=await r.json();
-    // normalize both argentinadatos {fecha,venta} and bluelytics {date,value_sell}
-    if(Array.isArray(d)&&d.length){
-      const norm=d.map(e=>({
-        fecha:(e.fecha||e.date||'').slice(0,10),
-        venta:+(e.venta||e.value_sell||0)
-      })).filter(e=>e.fecha&&e.venta>0);
-      if(norm.length){console.log('[MEP]',url,'→',norm.length,'registros, último:',norm[norm.length-1]);return norm;}
-    }
-    console.warn('[MEP]',url,'→ respuesta vacía o formato inesperado',d);
-  }catch(e){console.warn('[MEP]',url,'→ error:',e.message);}
-  return null;
+    // normalize: argentinadatos returns [{fecha,compra,venta}], bluelytics returns [{date,value_sell,...}]
+    const arr=Array.isArray(d)?d:[d];
+    const norm=arr.map(e=>({
+      fecha:(e.fecha||e.date||'').slice(0,10),
+      venta:+(e.venta||e.value_sell||0)
+    })).filter(e=>e.fecha&&e.venta>0);
+    return norm.length?norm:null;
+  }catch(e){
+    clearTimeout(t);
+    console.warn('[MEP]',url.split('/').slice(0,4).join('/'),'→',e.name==='AbortError'?'timeout('+ms+'ms)':e.message);
+    return null;
+  }
 }
 async function fetchHistoricalMEP(dateStr){
   if(_mepHistCache===null){
-    _mepHistCache=[];
-    const PROXY='https://corsproxy.io/?';
-    const MEP_URL='https://api.argentinadatos.com/v1/cotizaciones/dolares/mep';
-    const BLUE_URL='https://api.bluelytics.com.ar/v2/evolution.json?range=800';
-    // try in order: direct, proxy, bluelytics direct, bluelytics via proxy
-    for(const url of [MEP_URL, PROXY+encodeURIComponent(MEP_URL), BLUE_URL, PROXY+encodeURIComponent(BLUE_URL)]){
-      const data=await _tryFetchMepList(url);
-      if(data){_mepHistCache=data;break;}
-    }
-    if(!_mepHistCache.length)console.error('[MEP] Todas las fuentes fallaron — no hay datos históricos');
+    // Run all sources IN PARALLEL with 7s timeout — fastest wins
+    const [ad, blue]=await Promise.all([
+      _fetchWithTimeout('https://api.argentinadatos.com/v1/cotizaciones/dolares/mep'),
+      _fetchWithTimeout('https://api.bluelytics.com.ar/v2/evolution.json?range=800')
+    ]);
+    _mepHistCache=ad||blue||[];
+    console.log('[MEP] cache listo:',_mepHistCache.length,'registros | fuente:', ad?'argentinadatos':blue?'bluelytics':'NINGUNA — TC no disponible');
+    if(!_mepHistCache.length)showToast('⚠ No se pudo cargar TC histórico. Revisá conexión a internet.');
   }
   if(!_mepHistCache.length)return null;
   const target=new Date(dateStr+'T23:59:59');
-  const found=_mepHistCache
+  const found=[..._mepHistCache]
     .filter(e=>new Date(e.fecha+'T12:00:00')<=target)
     .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-  if(found.length){console.log('[MEP] TC para',dateStr,'=>',found[0].venta,'@',found[0].fecha);return found[0].venta;}
-  console.error('[MEP] sin entrada <=',dateStr,'entre',_mepHistCache.length,'registros');
+  if(found.length){console.log('[MEP]',dateStr,'=>',found[0].venta,'@',found[0].fecha);return found[0].venta;}
+  console.error('[MEP] sin entrada <=',dateStr,'en',_mepHistCache.length,'registros');
   return null;
 }
 

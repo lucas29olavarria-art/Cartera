@@ -1785,33 +1785,18 @@ function olasSection(inv){
           <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${sorted.length} cuotas · ${cobradas.length} cobradas · ${pendientes.length} pendientes</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
-          ${tcInicio
-            ?`<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">TC inicio: $${fmt(tcInicio)}</span>`
-            :`<span style="font-family:var(--mono);font-size:10px;color:var(--amber);">⏳ Buscando TC...</span>`
-          }
+          ${tcInicio?`<span style="font-family:var(--mono);font-size:10px;color:var(--muted);">TC inicio: $${fmt(tcInicio)}</span>`:''}
           <button class="dbtn" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
         </div>
       </div>
 
-      ${!tcInicio?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">⏳ Obteniendo tipo de cambio histórico automáticamente... (revisá la consola si tarda)</div>`:`
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
-        <div>
-          <div class="kl">Capital</div>
-          <div style="font-family:var(--mono);font-size:13px;">u$s ${fmt(capitalUsd)}</div>
-        </div>
-        <div>
-          <div class="kl">TC entrada</div>
-          <div style="font-family:var(--mono);font-size:13px;">$${fmt(tcInicio)}</div>
-        </div>
-        <div>
-          <div class="kl">TC hoy (MEP)</div>
-          <div style="font-family:var(--mono);font-size:13px;">$<span class="live-mep-val">${fmt(MEP)}</span></div>
-        </div>
-        <div>
-          <div class="kl">Devaluación desde entrada</div>
-          <div style="font-family:var(--mono);font-size:13px;color:var(--red);">-${((1-tcInicio/MEP)*100).toFixed(1)}%</div>
-        </div>
-      </div>
+      ${tcInicio?`<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
+        <div><div class="kl">Capital invertido</div><div style="font-family:var(--mono);font-size:13px;">u$s ${fmt(capitalUsd)}</div></div>
+        <div><div class="kl">TC entrada</div><div style="font-family:var(--mono);font-size:13px;">$${fmt(tcInicio)}</div></div>
+        <div><div class="kl">MEP actual</div><div style="font-family:var(--mono);font-size:13px;">$<span class="live-mep-val">${fmt(MEP)}</span></div></div>
+        <div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:13px;color:var(--red);">-${((1-tcInicio/MEP)*100).toFixed(1)}%</div></div>
+      </div>`:''}
+
       <div style="background:var(--bg2);border-radius:var(--r2);padding:14px;margin-bottom:12px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.2);':''}">
         <div class="kl" style="margin-bottom:6px;">Rendimiento real USD (sobre lo cobrado)</div>
         <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:${rendColor};line-height:1;margin-bottom:8px;">
@@ -1821,9 +1806,10 @@ function olasSection(inv){
           <div style="height:100%;width:${barW}%;background:${rendColor};border-radius:3px;transition:width .5s;"></div>
         </div>
         <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">
-          u$s ${fmt(cobradoUSD)} cobrado al MEP actual · u$s ${fmt(capitalUsd)} invertido
+          u$s ${fmt(cobradoUSD)} cobrado al MEP actual · u$s ${fmt(capitalUsd||0)} invertido
+          ${!tcInicio?'· <span style="color:var(--amber)">TC inicio pendiente</span>':''}
         </div>
-      </div>`}
+      </div>
 
       ${esHoyProx?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber);margin-bottom:10px;">📅 Cobro programado hoy · $${fmtars(pendientes[0].ars)}</div>`
         :nextFecha?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:10px;">Próximo cobro: ${nextFecha} · $${fmtars(pendientes[0]?.ars||0)}</div>`:''}

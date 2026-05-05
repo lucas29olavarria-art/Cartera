@@ -1782,7 +1782,7 @@ function olasSection(inv){
     return `<div style="background:var(--bg3);border-radius:var(--r2);padding:16px;margin-bottom:12px;">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
         <div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:2px;">📋 ${proj}</div>
+          <div style="font-size:13px;font-weight:600;margin-bottom:2px;cursor:pointer;" onclick="olasReport('${proj.replace(/'/g,"\\'")}','${inv.id}')">📋 ${proj} <span style="font-size:10px;color:var(--blue);font-weight:400;">Ver informe ▸</span></div>
           <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${sorted.length} cuotas · ${cobradas.length} cobradas · ${pendientes.length} pendientes</div>
         </div>
         <div style="display:flex;align-items:center;gap:8px;">
@@ -1948,6 +1948,111 @@ async function guardarTcInicioInline(proj,invId){
     showToast('✓ TC guardado: $'+fmt(tc));
     renderInv(inv);
   }else showToast('Error guardando TC');
+}
+
+}
+
+function olasReport(proj,invId){
+  const inv=INV_CACHE[invId]||CU_DATA;
+  const flows=(inv?.olasFlows||[])
+    .filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj)
+    .sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
+  if(!flows.length)return;
+
+  const byProj=new Set((inv?.olasFlows||[]).map(f=>(f.desc||f.descripcion||'').split('·')[0].trim()));
+  const nProjs=byProj.size;
+  const capitalUsd=flows[0]?.capitalUsd||(inv?.olasVal>0&&nProjs>0?Math.round(inv.olasVal/nProjs):0);
+  const tcInicio=flows[0]?.tcInicio||null;
+
+  // Per-flow USD calculation: past cobros use real tc_cobro, future use current MEP
+  const rows=flows.map(f=>{
+    const ars=f.cobrado?(f.montoRealArs||f.ars||0):(f.ars||0);
+    const tc=f.cobrado?(f.tcCobro||MEP):MEP;
+    const usd=ars/tc;
+    return {fecha:olasDate(f),ars,tc,usd,cobrado:f.cobrado};
+  });
+
+  const cobradoArs=rows.filter(r=>r.cobrado).reduce((s,r)=>s+r.ars,0);
+  const cobradoUsd=rows.filter(r=>r.cobrado).reduce((s,r)=>s+r.usd,0);
+  const totalArs=rows.reduce((s,r)=>s+r.ars,0);
+  const totalUsd=rows.reduce((s,r)=>s+r.usd,0);
+  const rentPct=capitalUsd>0?(totalUsd/capitalUsd-1)*100:null;
+  const rentCobradoPct=capitalUsd>0?(cobradoUsd/capitalUsd-1)*100:null;
+
+  const tableRows=rows.map(r=>`
+    <tr style="border-bottom:1px solid var(--line);${r.cobrado?'':'opacity:.65;'}">
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;color:var(--muted);">${r.fecha}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;">$${fmtars(r.ars)}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted);">$${fmt(r.tc)}${!r.cobrado?'<span style="font-size:9px;color:var(--amber);margin-left:3px;">est.</span>':''}</td>
+      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:var(--green);">u$s ${fmt(r.usd)}</td>
+      <td style="padding:6px 8px;font-size:10px;text-align:center;">${r.cobrado?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--amber);">⏳</span>'}</td>
+    </tr>`).join('');
+
+  document.getElementById('olas-report-modal')?.remove();
+  const el=document.createElement('div');
+  el.id='olas-report-modal';
+  el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:600;display:flex;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto;';
+  el.innerHTML=`
+  <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);width:100%;max-width:700px;animation:up .22s ease;">
+    <div style="padding:20px 24px;border-bottom:1px solid var(--line);">
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Informe de inversión</div>
+          <div style="font-size:18px;font-weight:700;">📋 ${proj}</div>
+          <div style="font-size:11px;color:var(--muted);margin-top:2px;">${inv.name} · ${rows.length} cobros · MEP hoy: $<span class="live-mep-val">${fmt(MEP)}</span></div>
+        </div>
+        <button class="ib" onclick="document.getElementById('olas-report-modal').remove()" style="font-size:18px;padding:2px 10px;line-height:1;">✕</button>
+      </div>
+    </div>
+
+    <div style="padding:20px 24px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;border-bottom:1px solid var(--line);">
+      <div style="background:var(--bg3);border-radius:var(--r);padding:14px;">
+        <div class="kl">Capital invertido</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;margin-top:4px;">u$s ${fmt(capitalUsd)}</div>
+        ${tcInicio?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">TC inicio: $${fmt(tcInicio)}</div>`:''}
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:14px;">
+        <div class="kl">Rendimiento total proyectado</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:var(--green);margin-top:4px;">u$s ${fmt(totalUsd)}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">$${fmtars(totalArs)} en ARS</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--r);padding:14px;">
+        <div class="kl">Rentabilidad en USD</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${rentPct>=0?'var(--green)':'var(--red)'};margin-top:4px;">${rentPct!==null?(rentPct>=0?'+':'')+rentPct.toFixed(1)+'%':'—'}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">cobrado: ${cobradoUsd>0&&capitalUsd>0?(cobradoUsd/capitalUsd*100).toFixed(1)+'%':'0%'}</div>
+      </div>
+    </div>
+
+    <div style="padding:16px 24px 20px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Flujo de cobros</div>
+      <div style="overflow-x:auto;">
+        <table style="width:100%;border-collapse:collapse;">
+          <thead>
+            <tr style="border-bottom:1px solid var(--line2);">
+              <th style="padding:6px 8px;text-align:left;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Fecha</th>
+              <th style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Monto ARS</th>
+              <th style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">TC MEP</th>
+              <th style="padding:6px 8px;text-align:right;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Monto USD</th>
+              <th style="padding:6px 8px;text-align:center;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);">Estado</th>
+            </tr>
+          </thead>
+          <tbody>${tableRows}</tbody>
+          <tfoot>
+            <tr style="border-top:2px solid var(--line2);">
+              <td style="padding:8px 8px;font-family:var(--mono);font-size:11px;font-weight:600;">TOTAL</td>
+              <td style="padding:8px 8px;font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;">$${fmtars(totalArs)}</td>
+              <td></td>
+              <td style="padding:8px 8px;font-family:var(--mono);font-size:11px;font-weight:600;text-align:right;color:var(--green);">u$s ${fmt(totalUsd)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:10px;">* Cobros pendientes calculados al MEP actual ($<span class="live-mep-val">${fmt(MEP)}</span>). El valor real dependerá del TC al momento del cobro.</div>
+    </div>
+  </div>`;
+  document.body.appendChild(el);
+  el.addEventListener('click',e=>{if(e.target===el)el.remove();});
 }
 
 // ── FLUJO DE CAJA ─────────────────────────────────────────────

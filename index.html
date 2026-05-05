@@ -802,23 +802,41 @@ async function autoMarcarCobros(inv){
 
 let _mepHistCache=null;
 async function fetchHistoricalMEP(dateStr){
-  try{
-    if(!_mepHistCache){
-      console.log('[MEP] Fetching full historical list...');
+  // 1. argentinadatos.com — full MEP history list (cached for session)
+  if(_mepHistCache===null){
+    _mepHistCache=[];
+    try{
       const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/mep');
-      if(!r.ok){console.error('[MEP] API status:',r.status);return null;}
-      _mepHistCache=await r.json();
-      console.log('[MEP] Loaded',Array.isArray(_mepHistCache)?_mepHistCache.length:typeof _mepHistCache,'entries. Last:',Array.isArray(_mepHistCache)?_mepHistCache[_mepHistCache.length-1]:_mepHistCache);
-    }
-    if(!Array.isArray(_mepHistCache)||!_mepHistCache.length){console.error('[MEP] No data in cache');return null;}
+      if(r.ok){
+        const d=await r.json();
+        if(Array.isArray(d)&&d.length){_mepHistCache=d;console.log('[MEP] argentinadatos: cargados',d.length,'registros. Último:',d[d.length-1]);}
+        else console.warn('[MEP] argentinadatos: respuesta inesperada',d);
+      }else console.warn('[MEP] argentinadatos HTTP',r.status);
+    }catch(e){console.warn('[MEP] argentinadatos bloqueado/error:',e.message);}
+  }
+  if(_mepHistCache.length){
     const target=new Date(dateStr+'T23:59:59');
-    const before=_mepHistCache
+    const found=_mepHistCache
       .filter(e=>e.venta>0&&new Date((e.fecha||'').slice(0,10)+'T12:00:00')<=target)
       .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-    if(before.length){console.log('[MEP] Found TC for',dateStr,'=>',before[0].venta,'@',before[0].fecha);return before[0].venta;}
-    console.error('[MEP] No entry on or before',dateStr,'(total records:',_mepHistCache.length,')');
-    return null;
-  }catch(e){console.error('[MEP] fetchHistoricalMEP error:',e);return null;}
+    if(found.length){console.log('[MEP] encontrado:',found[0].venta,'@',found[0].fecha,'para',dateStr);return found[0].venta;}
+    console.warn('[MEP] sin dato <= ',dateStr,'en',_mepHistCache.length,'registros');
+  }
+  // 2. bluelytics.com.ar — dólar blue histórico (proxy cercano al MEP)
+  try{
+    const r=await fetch('https://api.bluelytics.com.ar/v2/evolution.json');
+    if(r.ok){
+      const d=await r.json();
+      if(Array.isArray(d)&&d.length){
+        const target=new Date(dateStr+'T23:59:59');
+        const found=d.filter(e=>e.value_sell>0&&new Date(e.date)<=target).sort((a,b)=>new Date(b.date)-new Date(a.date));
+        if(found.length){console.log('[MEP] bluelytics fallback:',found[0].value_sell,'@',found[0].date);return found[0].value_sell;}
+      }
+    }else console.warn('[MEP] bluelytics HTTP',r.status);
+  }catch(e){console.warn('[MEP] bluelytics error:',e.message);}
+  // 3. Último recurso: MEP actual (no se guarda en DB, solo para display)
+  console.warn('[MEP] sin histórico para',dateStr,'— usando MEP actual como estimación');
+  return null;
 }
 
 async function autoFetchTcInicio(inv){
@@ -831,20 +849,24 @@ async function autoFetchTcInicio(inv){
   });
   const projsNeedingTc=Object.entries(byProj).filter(([,flows])=>!flows[0]?.tcInicio);
   if(!projsNeedingTc.length)return false;
+  console.log('[Olas] Proyectos sin TC:',projsNeedingTc.map(([p])=>p));
   const nProjs=Object.keys(byProj).length;
   const totalCapUsd=inv.olasVal||0;
   let changed=false;
-  for(const [,flows] of projsNeedingTc){
+  for(const [proj,flows] of projsNeedingTc){
     const sorted=[...flows].sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
     const firstDate=olasDate(sorted[0]);
+    console.log('[Olas] Buscando TC para',proj,'— fecha inicio:',firstDate);
     const tc=await fetchHistoricalMEP(firstDate);
-    if(!tc)continue;
+    if(!tc){console.warn('[Olas] No se obtuvo TC para',proj);continue;}
     const capUsd=nProjs>0&&totalCapUsd>0?Math.round(totalCapUsd/nProjs):null;
     const upd={tc_inicio:tc};
     if(capUsd&&capUsd>0)upd.capital_usd=capUsd;
     const ids=sorted.map(f=>f.id);
+    console.log('[Olas] Guardando tc_inicio:',tc,'capital_usd:',capUsd,'en',ids.length,'flows');
     const{error}=await sb.from('olas_flows').update(upd).in('id',ids);
-    if(!error){sorted.forEach(fl=>{fl.tcInicio=tc;if(capUsd)fl.capitalUsd=capUsd;});changed=true;}
+    if(!error){sorted.forEach(fl=>{fl.tcInicio=tc;if(capUsd)fl.capitalUsd=capUsd;});changed=true;console.log('[Olas] ✓ Guardado OK para',proj);}
+    else console.error('[Olas] Error DB guardando TC:',error);
   }
   return changed;
 }

@@ -800,37 +800,25 @@ async function autoMarcarCobros(inv){
   return false;
 }
 
+let _mepHistCache=null;
 async function fetchHistoricalMEP(dateStr){
-  // Try per-day endpoint first (handles both object and array responses)
-  for(let offset=0;offset<=4;offset++){
-    const d=new Date(dateStr+'T12:00:00');
-    d.setDate(d.getDate()-offset);
-    const y=d.getFullYear();
-    const m=String(d.getMonth()+1).padStart(2,'0');
-    const day=String(d.getDate()).padStart(2,'0');
-    try{
-      const r=await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/mep/${y}/${m}/${day}`);
-      if(r.ok){
-        const data=await r.json();
-        const val=Array.isArray(data)?data[0]?.venta:data?.venta;
-        if(val&&val>0)return val;
-      }
-    }catch(e){}
-  }
-  // Fallback: fetch full historical list and find closest date <= target
   try{
-    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/mep');
-    if(r.ok){
-      const list=await r.json();
-      if(Array.isArray(list)&&list.length){
-        const target=new Date(dateStr+'T23:59:59');
-        const before=list.filter(e=>new Date(e.fecha+'T12:00:00')<=target&&e.venta>0);
-        before.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
-        if(before.length)return before[0].venta;
-      }
+    if(!_mepHistCache){
+      console.log('[MEP] Fetching full historical list...');
+      const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/mep');
+      if(!r.ok){console.error('[MEP] API status:',r.status);return null;}
+      _mepHistCache=await r.json();
+      console.log('[MEP] Loaded',Array.isArray(_mepHistCache)?_mepHistCache.length:typeof _mepHistCache,'entries. Last:',Array.isArray(_mepHistCache)?_mepHistCache[_mepHistCache.length-1]:_mepHistCache);
     }
-  }catch(e){console.warn('fetchHistoricalMEP fallback error:',e);}
-  return null;
+    if(!Array.isArray(_mepHistCache)||!_mepHistCache.length){console.error('[MEP] No data in cache');return null;}
+    const target=new Date(dateStr+'T23:59:59');
+    const before=_mepHistCache
+      .filter(e=>e.venta>0&&new Date((e.fecha||'').slice(0,10)+'T12:00:00')<=target)
+      .sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+    if(before.length){console.log('[MEP] Found TC for',dateStr,'=>',before[0].venta,'@',before[0].fecha);return before[0].venta;}
+    console.error('[MEP] No entry on or before',dateStr,'(total records:',_mepHistCache.length,')');
+    return null;
+  }catch(e){console.error('[MEP] fetchHistoricalMEP error:',e);return null;}
 }
 
 async function autoFetchTcInicio(inv){
@@ -1732,11 +1720,13 @@ function olasSection(inv){
     byProj[proj].push(fl);
   });
   const todayStr=new Date().toISOString().slice(0,10);
+  const nProjs=Object.keys(byProj).length;
 
   const projCards=Object.entries(byProj).map(([proj,flows])=>{
     const sorted=flows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
     const tcInicio=sorted[0]?.tcInicio||null;
-    const capitalUsd=sorted[0]?.capitalUsd||null;
+    // Use stored capitalUsd or estimate from total olasVal split equally across projects
+    const capitalUsd=sorted[0]?.capitalUsd||(inv.olasVal>0&&nProjs>0?Math.round(inv.olasVal/nProjs):null);
     const cobradas=sorted.filter(f=>f.cobrado);
     const pendientes=sorted.filter(f=>!f.cobrado);
     const nextFecha=pendientes[0]?olasDate(pendientes[0]):null;
@@ -1777,7 +1767,7 @@ function olasSection(inv){
         </div>
       </div>
 
-      ${!tcInicio||!capitalUsd?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">⏳ Obteniendo tipo de cambio histórico automáticamente...</div>`:`
+      ${!tcInicio?`<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--amber);margin-bottom:12px;">⏳ Obteniendo tipo de cambio histórico automáticamente... (revisá la consola si tarda)</div>`:`
       <div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
         <div>
           <div class="kl">Capital</div>

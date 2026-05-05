@@ -801,6 +801,7 @@ async function autoMarcarCobros(inv){
 }
 
 async function fetchHistoricalMEP(dateStr){
+  // Try per-day endpoint first (handles both object and array responses)
   for(let offset=0;offset<=4;offset++){
     const d=new Date(dateStr+'T12:00:00');
     d.setDate(d.getDate()-offset);
@@ -809,9 +810,26 @@ async function fetchHistoricalMEP(dateStr){
     const day=String(d.getDate()).padStart(2,'0');
     try{
       const r=await fetch(`https://api.argentinadatos.com/v1/cotizaciones/dolares/mep/${y}/${m}/${day}`);
-      if(r.ok){const data=await r.json();if(data?.venta&&data.venta>0)return data.venta;}
+      if(r.ok){
+        const data=await r.json();
+        const val=Array.isArray(data)?data[0]?.venta:data?.venta;
+        if(val&&val>0)return val;
+      }
     }catch(e){}
   }
+  // Fallback: fetch full historical list and find closest date <= target
+  try{
+    const r=await fetch('https://api.argentinadatos.com/v1/cotizaciones/dolares/mep');
+    if(r.ok){
+      const list=await r.json();
+      if(Array.isArray(list)&&list.length){
+        const target=new Date(dateStr+'T23:59:59');
+        const before=list.filter(e=>new Date(e.fecha+'T12:00:00')<=target&&e.venta>0);
+        before.sort((a,b)=>new Date(b.fecha)-new Date(a.fecha));
+        if(before.length)return before[0].venta;
+      }
+    }
+  }catch(e){console.warn('fetchHistoricalMEP fallback error:',e);}
   return null;
 }
 

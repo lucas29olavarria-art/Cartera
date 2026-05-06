@@ -1887,6 +1887,8 @@ async function confirmarCobro(flowId,invId){
   if(inv){const fl=(inv.olasFlows||[]).find(f=>f.id===flowId);if(fl){fl.cobrado=true;fl.tcCobro=tc;fl.montoRealArs=ars;}}
   showToast('✓ Cobro registrado');
   renderInv(inv);
+  // Re-open the olas report if it was open before
+  setTimeout(()=>{const m=document.getElementById('olas-report-modal');if(!m)return;const p=m.dataset.proj,i=m.dataset.invId;if(p&&i)olasReport(p,i);},100);
 }
 
 function setTcInicio(proj,invId){
@@ -1966,13 +1968,14 @@ function olasReport(proj,invId){
   const nProjs=byProj.size;
   const capitalUsd=flows[0]?.capitalUsd||(inv?.olasVal>0&&nProjs>0?Math.round(inv.olasVal/nProjs):0);
   const tcInicio=flows[0]?.tcInicio||null;
+  const isAdmin=CU?.is_admin;
 
   // Per-flow USD calculation: past cobros use real tc_cobro, future use current MEP
   const rows=flows.map(f=>{
     const ars=f.cobrado?(f.montoRealArs||f.ars||0):(f.ars||0);
     const tc=f.cobrado?(f.tcCobro||MEP):MEP;
     const usd=ars/tc;
-    return {fecha:olasDate(f),ars,tc,usd,cobrado:f.cobrado};
+    return {id:f.id,fecha:olasDate(f),ars,tc,usd,cobrado:f.cobrado};
   });
 
   const cobradoArs=rows.filter(r=>r.cobrado).reduce((s,r)=>s+r.ars,0);
@@ -1983,17 +1986,26 @@ function olasReport(proj,invId){
   const rentCobradoPct=capitalUsd>0?(cobradoUsd/capitalUsd-1)*100:null;
 
   const tableRows=rows.map(r=>`
-    <tr style="border-bottom:1px solid var(--line);${r.cobrado?'':'opacity:.65;'}">
-      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;color:var(--muted);">${r.fecha}</td>
-      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;">$${fmtars(r.ars)}</td>
-      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted);">$${fmt(r.tc)}${!r.cobrado?'<span style="font-size:9px;color:var(--amber);margin-left:3px;">est.</span>':''}</td>
-      <td style="padding:6px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:var(--green);">u$s ${fmt(r.usd)}</td>
-      <td style="padding:6px 8px;font-size:10px;text-align:center;">${r.cobrado?'<span style="color:var(--green);">✓</span>':'<span style="color:var(--amber);">⏳</span>'}</td>
+    <tr style="border-bottom:1px solid var(--line);">
+      <td style="padding:7px 8px;font-family:var(--mono);font-size:11px;color:var(--muted);white-space:nowrap;">${r.fecha}</td>
+      <td style="padding:7px 8px;font-family:var(--mono);font-size:11px;text-align:right;">$${fmtars(r.ars)}</td>
+      <td style="padding:7px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:var(--muted);">
+        $${fmt(r.tc)}${!r.cobrado?'<span style="font-size:9px;color:var(--amber);margin-left:3px;">est.</span>':''}
+      </td>
+      <td style="padding:7px 8px;font-family:var(--mono);font-size:11px;text-align:right;color:${r.cobrado?'var(--green)':'var(--muted)'};">u$s ${fmt(r.usd)}</td>
+      <td style="padding:7px 8px;text-align:center;white-space:nowrap;">
+        ${r.cobrado
+          ?'<span style="color:var(--green);font-size:12px;">✓ Cobrado</span>'
+          :isAdmin
+            ?`<button class="ib" style="font-size:10px;padding:3px 8px;border-color:var(--amber);color:var(--amber);" onclick="document.getElementById('olas-report-modal').remove();marcarCobrado('${r.id}','${invId}')">Marcar cobrado</button>`
+            :'<span style="color:var(--amber);font-size:11px;">⏳ Pendiente</span>'
+        }
+      </td>
     </tr>`).join('');
 
   document.getElementById('olas-report-modal')?.remove();
   const el=document.createElement('div');
-  el.id='olas-report-modal';
+  el.id='olas-report-modal';el.dataset.proj=proj;el.dataset.invId=invId;
   el.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.88);z-index:600;display:flex;align-items:flex-start;justify-content:center;padding:20px 16px;overflow-y:auto;';
   el.innerHTML=`
   <div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);width:100%;max-width:700px;animation:up .22s ease;">

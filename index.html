@@ -946,8 +946,10 @@ async function loadInvestor(id){
   ]);
   const inv=invR.data||{};
   // Merge positions from different brokers: same ticker → sum qty, weighted avg price
+  // Keep raw DB rows for price updates (must update each row individually, not merged)
+  inv._dbRv=rvR.data||[];
   const rvMerged={};
-  for(const p of (rvR.data||[])){
+  for(const p of inv._dbRv){
     if(!rvMerged[p.ticker]){
       rvMerged[p.ticker]={...p};
     }else{
@@ -956,7 +958,7 @@ async function loadInvestor(id){
       e.valor=(e.valor||0)+(p.valor||0);
       e.vinicial=(e.vinicial||0)+(p.vinicial||0);
       e.last_price=e.last_price||p.last_price;
-      e.broker=(e.broker||'')+(e.broker?'+':'')+p.broker;
+      e.broker=(e.broker&&e.broker!==p.broker?(e.broker+'+'+p.broker):p.broker)||e.broker;
     }
   }
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
@@ -1051,14 +1053,14 @@ async function refreshPrices(){
 
   let count=0;
   for(const inv of allInvs){
-    for(const p of (inv.rv||[])){
-      if(!p.auto_price&&!p.autoPrice)continue;
+    // Use raw DB rows (_dbRv) so merged tickers get updated individually per broker
+    for(const p of (inv._dbRv||inv.rv||[])){
+      if(!p.auto_price)continue;
       const yt=YAHOO_MAP[p.ticker]||p.ticker;
       const r=prices[yt]; if(!r)continue;
-      // Apply % change to existing valor — no ratio needed
       const chg=+r.changePercent.toFixed(2);
-      // Actualizamos valor acumulativamente: valor_nuevo = valor_anterior * (1 + chg%)
-      // NO usamos el precio NYSE directamente — eso rompe los CEDEARs
+      // Apply % change to THIS row's own valor (not the merged sum)
+      const oldValor=p.valor;
       const newValor=p.valor>0?+(p.valor*(1+chg/100)).toFixed(2):p.valor;
       await sb.from('positions_rv').update({
         valor:newValor,
@@ -1066,10 +1068,9 @@ async function refreshPrices(){
         price_change:chg
       }).eq('id',p.id);
       p.valor=newValor;
-      p.rend=+(newValor-p.vinicial).toFixed(2);
-      p.lastPrice=r.price;
-      p.priceChange=chg;
-      p.price_change=chg;
+      // Reflect the delta in the merged inv.rv entry for immediate display
+      const merged=inv.rv?.find(m=>m.ticker===p.ticker);
+      if(merged){const delta=newValor-oldValor;merged.valor=+(merged.valor+delta).toFixed(2);merged.rend=+(merged.valor-merged.vinicial).toFixed(2);merged.lastPrice=r.price;merged.priceChange=chg;merged.price_change=chg;}
       count++;
     }
     const snap={investor_id:inv.id,snapshot_date:new Date().toISOString().slice(0,10),total_patrimonio:grand(inv),total_liquido:totalLiq(inv),total_rend:totalRend(inv)};

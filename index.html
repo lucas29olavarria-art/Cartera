@@ -3250,8 +3250,8 @@ async function impConfirm(){
     let imported=0;
 
     if(impCurrentTab==='balanz'&&impParsedBalanz.length){
-      // Delete only Balanz positions, keep Inviu
-      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Balanz');
+      // Delete all non-Inviu positions (Balanz + any old rows with wrong/null broker)
+      await sb.from('positions_rv').delete().eq('investor_id',invId).neq('broker','Inviu');
       const rows=impParsedBalanz.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
@@ -3268,8 +3268,8 @@ async function impConfirm(){
     }
 
     if(impCurrentTab==='rv'&&impParsedRV.length){
-      // Delete only Inviu positions, keep Balanz
-      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Inviu');
+      // Delete all non-Balanz positions (Inviu + any old rows with wrong/null broker)
+      await sb.from('positions_rv').delete().eq('investor_id',invId).neq('broker','Balanz');
       const rows=impParsedRV.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,

@@ -861,7 +861,12 @@ async function autoFetchTcInicio(inv){
     const sorted=[...flows].sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
     const firstDate=olasDate(sorted[0]);
     console.log('[Olas] Buscando TC para',proj,'— fecha inicio:',firstDate);
-    const tc=await fetchHistoricalMEP(firstDate);
+    // Try external API first, then fall back to oldest recorded tc_cobro
+    let tc=await fetchHistoricalMEP(firstDate);
+    if(!tc){
+      const firstCobro=sorted.find(f=>f.cobrado&&f.tcCobro);
+      if(firstCobro?.tcCobro){tc=firstCobro.tcCobro;console.log('[Olas] usando tc_cobro como fallback:',tc);}
+    }
     if(!tc){console.warn('[Olas] No se obtuvo TC para',proj);continue;}
     const capUsd=nProjs>0&&totalCapUsd>0?Math.round(totalCapUsd/nProjs):null;
     const upd={tc_inicio:tc};
@@ -2996,83 +3001,108 @@ function impBalanzDrop(e){
 async function impBalanzFile(file){
   if(!file)return;
   document.getElementById('imp-balanz-preview').innerHTML='<div style="color:var(--blue);font-size:12px;padding:8px;"><span class="spinner"></span> Leyendo PDF...</div>';
-  
   try{
-    // Set PDF.js worker
     pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-    
-    const arrayBuffer=await file.arrayBuffer();
-    const pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+    const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise;
     let fullText='';
     for(let i=1;i<=pdf.numPages;i++){
-      const page=await pdf.getPage(i);
-      const content=await page.getTextContent();
-      fullText+=content.items.map(item=>item.str).join(' ')+'\n';
+      const content=await (await pdf.getPage(i)).getTextContent();
+      // Group text items by Y coordinate to reconstruct lines properly
+      const byY={};
+      for(const item of content.items){
+        if(!item.str.trim())continue;
+        const y=Math.round(item.transform[5]/2)*2;
+        if(!byY[y])byY[y]=[];
+        byY[y].push({x:item.transform[4],str:item.str});
+      }
+      // Sort each line left-to-right, then lines top-to-bottom
+      const lines=Object.keys(byY).sort((a,b)=>b-a)
+        .map(y=>byY[y].sort((a,b)=>a.x-b.x).map(i=>i.str).join(' '));
+      fullText+=lines.join('\n')+'\n';
     }
+    console.log('[Balanz] PDF texto extraído, chars:',fullText.length);
     impParseBalanz(fullText);
   }catch(e){
+    console.error('[Balanz] Error:',e);
     document.getElementById('imp-balanz-preview').innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error leyendo PDF: ${e.message}</div>`;
   }
 }
 
 function impParseBalanz(text){
-  // Extract TC MEP
+  // Helper: parse Argentine number format (1.234,56 → 1234.56)
+  const parseAR=s=>{
+    if(!s)return 0;
+    const clean=s.replace(/\./g,'').replace(',','.');
+    return parseFloat(clean)||0;
+  };
+
+  // Try to extract TC MEP from PDF text
   let tcMep=impTcMep;
-  const parts=text.split('MEP');
-  if(parts.length>1){
-    const after=parts[1].replace(/[^\d.,]/g,' ').trim().split(' ')[0];
-    const val=parseFloat(after.replace(',','.'));
-    if(val>100)tcMep=val;
-  }
+  const mepMatch=text.match(/MEP[^0-9]*([0-9]{3,4}[.,][0-9]{2})/i);
+  if(mepMatch){const v=parseAR(mepMatch[1]);if(v>100)tcMep=v;}
 
   const positions=[];
+  const SKIP=['THE','AND','FOR','DEL','LAS','LOS','USD','ARS','COM','INC','PLC','ETF','ADR','SA','SRL'];
   const lines=text.split('\n');
 
-  for(const line of lines){
+  for(let li=0;li<lines.length;li++){
+    const line=lines[li];
     const tokens=line.trim().split(/\s+/);
-    if(tokens.length<5)continue;
+    if(!tokens.length)continue;
+
+    // Ticker: 2-7 uppercase letters, not in skip list
     const ticker=tokens[0];
-    if(!/^[A-Z]{2,6}$/.test(ticker))continue;
-    if(['THE','AND','FOR','DEL','LAS','LOS','USD','ARS'].includes(ticker))continue;
+    if(!/^[A-Z]{2,7}$/.test(ticker)||SKIP.includes(ticker))continue;
+    if(!(TICKER_MAP[ticker]||YAHOO_MAP[ticker])&&!/^[A-Z]{2,5}$/.test(ticker))continue;
 
-    // Find u$s values in line
-    const usdMatches=line.match(/u\$s\s+([\d.,]+)/g);
-    if(!usdMatches||usdMatches.length<2)continue;
+    // Merge this line with next if needed (some PDFs split data across 2 lines)
+    const combined=line+(li+1<lines.length?' '+lines[li+1]:'');
 
-    // Find quantity (number before 0.00)
-    const qtyMatch=line.match(/(\d+),00\s+0,00|^[A-Z]+\s+.+?\s+(\d+(?:,\d+)?)\s+0/);
-    let qty=0;
-    if(qtyMatch){
-      qty=parseInt((qtyMatch[1]||qtyMatch[2]||'0').replace(',',''));
-    }
+    // Extract all numeric values that look like USD amounts (u$s X or plain after ticker)
+    const usdRaw=combined.match(/u\$s\s*([\d.,]+)/gi)||[];
+    const usdVals=usdRaw.map(m=>parseAR(m.replace(/u\$s\s*/i,'')));
+
+    // Also find plain big numbers (could be ARS amounts to skip, or USD)
+    const nums=combined.match(/(?<!\w)([\d]{1,3}(?:\.\d{3})*,\d{2})(?!\w)/g)||[];
+    const parsed=nums.map(parseAR);
+
+    // Need at least price + total USD
+    if(usdVals.length<2&&parsed.length<3)continue;
+
+    // Quantity: look for integer,00 pattern (Argentine format for whole numbers)
+    const qtyMatch=combined.match(/\b(\d{1,6}),00\b/);
+    const qty=qtyMatch?parseInt(qtyMatch[1]):0;
     if(!qty)continue;
 
-    const precio=parseFloat(usdMatches[0].replace('u$s','').trim().replace(',','.'));
-    const valorRaw=usdMatches[usdMatches.length-1].replace('u$s','').trim().replace('.','').replace(',','.');
-    const valor=parseFloat(valorRaw);
+    // Price USD = first u$s value, total = last u$s value
+    let precioUSD=0,valor=0;
+    if(usdVals.length>=2){
+      precioUSD=usdVals[0];
+      valor=usdVals[usdVals.length-1];
+    }else if(parsed.length>=2){
+      precioUSD=parsed[0];
+      valor=parsed[parsed.length-1];
+    }
+    if(!precioUSD||!valor||valor<precioUSD)continue;
 
-    if(!precio||!valor||valor<=0)continue;
-
-    const nombre=line.replace(ticker,'').replace(/\d+,00.+/,'').trim()
-      .replace(/CEDEAR/i,'').trim().substring(0,40);
     const tm=TICKER_MAP[ticker]||{};
+    const nombre=combined.replace(ticker,'').replace(/[\d.,]+,00.*/,'').trim()
+      .replace(/cedear/i,'').replace(/u\$s[\d.,]+/gi,'').trim().substring(0,40)||ticker;
 
     positions.push({
       ticker,
       nombre:tm.nombre||nombre||ticker,
-      qty,
-      precioUSD:precio,
-      valor,
-      vinicial:+(qty*precio).toFixed(2),
+      qty,precioUSD,valor,
+      vinicial:+(qty*precioUSD).toFixed(2),
       sector:tm.sector||'Otro',
       pais:tm.pais||'Argentina',
-      tipo:tm.tipo||'CEDEAR',
-      riesgo:3,
+      tipo:'CEDEAR',riesgo:3,
       auto_price:!!YAHOO_MAP[ticker],
-      ppcUSD:precio,
+      ppcUSD:precioUSD,
     });
   }
 
+  console.log('[Balanz] posiciones detectadas:',positions.length,positions.map(p=>p.ticker));
   impParsedBalanz=positions;
   impShowBalanzPreview(tcMep);
 }

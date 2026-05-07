@@ -3315,25 +3315,26 @@ async function impConfirm(){
     let imported=0;
 
     if(impCurrentTab==='balanz'&&impParsedBalanz.length){
-      // Delete Balanz rows + legacy rows with no broker tag (NULL = old Balanz)
-      await sb.from('positions_rv').delete().eq('investor_id',invId).or('broker.eq.Balanz,broker.is.null');
+      // Two explicit deletes (avoid .or() which can behave unexpectedly with .eq())
+      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Balanz');
+      await sb.from('positions_rv').delete().eq('investor_id',invId).is('broker',null);
       const rows=impParsedBalanz.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
         vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD,
         broker:'Balanz'
       }));
-      await sb.from('positions_rv').insert(rows);
+      const {error:eB}=await sb.from('positions_rv').insert(rows);
+      if(eB)throw new Error('Insert Balanz: '+eB.message);
       imported=rows.length;
       await sb.from('investors').update({
         last_import_date:new Date().toISOString().slice(0,10),
         last_import_source:'Balanz'
       }).eq('id',invId);
-      showToast(`✓ ${imported} posiciones de Balanz importadas (Inviu sin cambios)`);
     }
 
     if(impCurrentTab==='rv'&&impParsedRV.length){
-      // Delete only Inviu rows (Balanz rows stay untouched)
+      // Delete only Inviu rows — Balanz rows stay untouched
       await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Inviu');
       const rows=impParsedRV.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
@@ -3341,13 +3342,13 @@ async function impConfirm(){
         vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD,
         broker:'Inviu'
       }));
-      await sb.from('positions_rv').insert(rows);
+      const {error:eI}=await sb.from('positions_rv').insert(rows);
+      if(eI)throw new Error('Insert Inviu: '+eI.message);
       imported=rows.length;
       await sb.from('investors').update({
         last_import_date:new Date().toISOString().slice(0,10),
         last_import_source:'Inviu'
       }).eq('id',invId);
-      showToast(`✓ ${imported} posiciones de Inviu importadas (Balanz sin cambios)`);
     }
 
     if(impCurrentTab==='olas'&&impParsedOlas.length){
@@ -3365,25 +3366,32 @@ async function impConfirm(){
       showToast(`✓ ${imported} flujos de Olas importados`);
     }
 
-    // Reload investor
+    // Reload investor data from DB
     INV_CACHE[invId]=await loadInvestor(invId);
 
-    // Verify DB state — show broker totals so user can confirm both are saved
+    // Verify DB state — show inside modal so it's unmissable
     if(impCurrentTab!=='olas'){
-      const {data:dbRows}=await sb.from('positions_rv').select('broker,valor,ticker').eq('investor_id',invId);
-      if(dbRows?.length){
-        const byBroker={};
-        dbRows.forEach(p=>{const b=p.broker||'Sin broker';byBroker[b]=(byBroker[b]||0)+p.valor;});
-        const lines=Object.entries(byBroker).map(([b,v])=>`${b} u$s ${fmt(v)}`).join(' + ');
-        const total=Object.values(byBroker).reduce((s,v)=>s+v,0);
-        console.log('[DB verificación]',byBroker);
-        showToast(`DB: ${lines} = u$s ${fmt(total)}`,5000);
-      }
+      const {data:dbRows,error:eQ}=await sb.from('positions_rv').select('broker,valor,ticker').eq('investor_id',invId);
+      const byBroker={};
+      (dbRows||[]).forEach(p=>{const b=p.broker||'Sin broker';byBroker[b]=(byBroker[b]||0)+p.valor;});
+      const total=Object.values(byBroker).reduce((s,v)=>s+v,0);
+      const brokerLines=Object.entries(byBroker).map(([b,v])=>`<b>${b}</b>: u$s ${fmt(v)}`).join(' &nbsp;+&nbsp; ');
+      const verDiv=document.getElementById('imp-confirm-btn');
+      const msg=eQ?`Error consultando DB: ${eQ.message}`:(total>0?`✓ DB: ${brokerLines} = u$s ${fmt(total)}`:'⚠ No hay posiciones en la DB. Algo falló.');
+      const color=eQ||total===0?'var(--red)':'var(--green)';
+      verDiv.insertAdjacentHTML('beforebegin',`<div id="imp-db-ver" style="background:rgba(0,0,0,.3);border:1px solid ${color};border-radius:var(--r);padding:10px 14px;font-size:12px;color:${color};margin-bottom:10px;">${msg}</div>`);
+      console.log('[DB verificación]',byBroker,'total:',total);
     }
 
-    co('m-import');
+    // Refresh whichever view is currently showing
     if(ATb==='inversores')rInversores();
     else if(ATb==='consolidado')rConsolidado();
+    else if(ATb==='dashboard'&&AVId)renderInv(INV_CACHE[AVId]);
+    else if(!CU?.is_admin&&CU?.id)renderInv(INV_CACHE[CU.id]);
+
+    btn.disabled=false;btn.textContent='✓ Confirmar e importar';
+    // Give user 3s to read the DB verification before auto-closing
+    setTimeout(()=>{co('m-import');document.getElementById('imp-db-ver')?.remove();},3000);
 
   }catch(e){
     showToast('Error: '+e.message);

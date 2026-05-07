@@ -2305,6 +2305,8 @@ function rAnalisis(inv,liq){
         const c=SECTOR_CFG[grp]||SECTOR_CFG['Otro'];
         const flag=COUNTRY_FLAGS[p.pais]||'';
         const allocPct=totalValor>0?(valorUSD/totalValor*100).toFixed(1):0;
+        const brokerRows=(inv._dbRv||[]).filter(r=>r.ticker===p.ticker);
+        const brokerDetail=brokerRows.length>1?brokerRows.map(r=>`<span style="font-family:var(--mono);font-size:9px;color:var(--muted);">${r.broker||'?'} ${r.qty}</span>`).join('<span style="color:var(--muted);margin:0 2px;">·</span>'):'';
         return `<tr>
           <td>
             <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
@@ -2312,6 +2314,7 @@ function rAnalisis(inv,liq){
               ${flag?`<span style="font-size:13px;">${flag}</span>`:''}
               ${(p.auto_price||p.autoPrice)?`<span class="ldot"></span>`:''}
             </div>
+            ${brokerDetail?`<div style="margin-top:2px;display:flex;align-items:center;gap:2px;">${brokerDetail}</div>`:''}
           </td>
           <td style="color:var(--soft);max-width:110px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</td>
           <td><span class="tag" style="background:${c.bg};color:${c.cl};font-size:9px;">${c.ic} ${grp}</span></td>
@@ -2652,7 +2655,7 @@ function totalRF(inv){return (inv.rf||[]).reduce((s,p)=>s+p.valor,0);}
 function totalLiq(inv){return totalRV(inv)+totalRF(inv);}
 function totalRend(inv){return [...(inv.rv||[]),...(inv.rf||[])].reduce((s,p)=>s+p.rend,0);}
 function grand(inv){return totalLiq(inv)+(inv.olasVal||inv.olas_val||0);}
-function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500);}
+function showToast(msg,ms=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
 document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
 
 // ── TAB SWITCH ────────────────────────────────────────────────
@@ -2942,8 +2945,31 @@ function impHandleFile(file){
 
 function impParseInviu(rows){
   // Extract TC MEP
-  const tcRow=rows.find(r=>r[0]==='TC USD MEP:');
+  const tcRow=rows.find(r=>r[0]==='TC USD MEP:'||r[0]==='TC MEP:');
   if(tcRow&&tcRow[1])impTcMep=+tcRow[1];
+  if(!impTcMep||impTcMep<100)impTcMep=MEP;
+
+  // Detect column positions from the header row ("Ticker" in col A)
+  const norm=s=>(s||'').toString().toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').trim();
+  let qtyCol=-1,precioCol=-1,ppcCol=-1,valCol=-1;
+  const hdrRow=rows.find(r=>r&&norm(r[0])==='ticker');
+  if(hdrRow){
+    hdrRow.forEach((cell,i)=>{
+      const c=norm(cell);
+      if(!c)return;
+      if((c.includes('disponib')||c==='cantidad'||c.includes('cant. disp'))&&qtyCol<0)qtyCol=i;
+      else if(c.includes('cantidad')&&qtyCol<0)qtyCol=i;
+      if((c.includes('cotiz')||c==='precio actual'||c.includes('precio unit')&&!c.includes('prom'))&&precioCol<0)precioCol=i;
+      if((c.includes('valuaci')||c.includes('total ars')||c.includes('valor ars'))&&valCol<0)valCol=i;
+      if((c.includes('ppc')||c.includes('precio prom')||c.includes('p.p.c')||c.includes('compra'))&&ppcCol<0)ppcCol=i;
+    });
+    console.log('[Inviu] Header:',hdrRow.filter(Boolean));
+    console.log('[Inviu] Cols detectadas → qty:'+qtyCol+' precio:'+precioCol+' val:'+valCol+' ppc:'+ppcCol);
+  }
+  // Fallback to previously known defaults if detection failed
+  if(qtyCol<0)qtyCol=4;
+  if(precioCol<0&&valCol<0)precioCol=6;
+  if(ppcCol<0)ppcCol=9;
 
   const positions=[];
   let currentTipo='CEDEAR';
@@ -2952,7 +2978,6 @@ function impParseInviu(rows){
     if(!row||!row[0])return;
     const col0=row[0]?.toString().trim();
 
-    // Detect asset type section headers
     if(col0.startsWith('Tipo de Activo:')){
       const t=col0.replace('Tipo de Activo:','').trim();
       if(t==='Acciones')currentTipo='Acción local';
@@ -2960,39 +2985,43 @@ function impParseInviu(rows){
       else if(t==='Renta Fija')currentTipo='Bono';
       return;
     }
-
-    // Skip headers and subtotals
     if(col0==='Ticker'||col0.startsWith('Subtotal')||col0==='Total')return;
-
-    // Skip non-ticker rows
     if(['ARS','USD','USDC'].includes(col0))return;
     if(col0.length>10||!/^[A-Z0-9]+$/.test(col0))return;
 
-    // col5 = Disponibles (cantidad), col6 = Precio actual ARS, col9 = PPC ARS
-    const qty=row[4]||0;      // col E = Disponibles
-    const precioARS=row[6]||0;
-    const ppcARS=row[9]||0;
-    const nombre=row[1]?.toString().trim()||col0;
-
+    const qty=+(row[qtyCol]||0);
     if(!qty||qty<=0)return;
 
-    const precioUSD=precioARS/impTcMep;
-    const ppcUSD=ppcARS/impTcMep;
-    const valorUSD=qty*precioUSD;
-    const vinicialUSD=qty*ppcUSD;
+    // Prefer total valuación column; fall back to unit price × qty
+    let valorARS=0,ppcARS=0;
+    if(valCol>=0&&row[valCol]>0){
+      valorARS=+(row[valCol]||0);           // total ARS directo
+      ppcARS=+(row[ppcCol]||0)*qty||valorARS; // ppc total
+    }else{
+      const precioARS=+(row[precioCol]||0);
+      valorARS=qty*precioARS;
+      ppcARS=qty*(+(row[ppcCol]||0)||precioARS);
+    }
+
+    const valorUSD=valorARS/impTcMep;
+    const vinicialUSD=ppcARS/impTcMep;
+    const precioUSD=qty>0?valorUSD/qty:0;
+    const ppcUSD=qty>0?vinicialUSD/qty:0;
+    const nombre=row[1]?.toString().trim()||col0;
     const tm=TICKER_MAP[col0]||{};
 
-    // USD values: valor = qty × (precioARS/MEP), vinicial = qty × (ppcARS/MEP)
+    console.log('[Inviu]',col0,'qty='+qty,'valorARS='+valorARS.toFixed(0),'valorUSD='+valorUSD.toFixed(0));
+
     positions.push({
       ticker:col0,
       nombre:tm.nombre||nombre,
-      qty:+qty.toFixed(0),            // integer nominales
-      precioARS:+precioARS.toFixed(2),
+      qty:Math.round(qty),
+      precioARS:+valorARS.toFixed(2),
       ppcARS:+ppcARS.toFixed(2),
-      precioUSD:+precioUSD.toFixed(4),  // precio actual por CEDEAR en USD
-      ppcUSD:+ppcUSD.toFixed(4),        // precio promedio compra por CEDEAR en USD
-      valor:+valorUSD.toFixed(2),       // qty × precioUSD = monto actual USD
-      vinicial:+vinicialUSD.toFixed(2), // qty × ppcUSD = monto invertido USD
+      precioUSD:+precioUSD.toFixed(4),
+      ppcUSD:+ppcUSD.toFixed(4),
+      valor:+valorUSD.toFixed(2),
+      vinicial:+vinicialUSD.toFixed(2),
       rend:+(valorUSD-vinicialUSD).toFixed(2),
       sector:tm.sector||'Otro',
       pais:tm.pais||'Argentina',
@@ -3002,6 +3031,7 @@ function impParseInviu(rows){
     });
   });
 
+  console.log('[Inviu] Total parseado: u$s',positions.reduce((s,p)=>s+p.valor,0).toFixed(0),'('+positions.length+' pos)');
   impParsedRV=positions;
   impShowRVPreview();
 }
@@ -3303,6 +3333,20 @@ async function impConfirm(){
 
     // Reload investor
     INV_CACHE[invId]=await loadInvestor(invId);
+
+    // Verify DB state — show broker totals so user can confirm both are saved
+    if(impCurrentTab!=='olas'){
+      const {data:dbRows}=await sb.from('positions_rv').select('broker,valor,ticker').eq('investor_id',invId);
+      if(dbRows?.length){
+        const byBroker={};
+        dbRows.forEach(p=>{const b=p.broker||'Sin broker';byBroker[b]=(byBroker[b]||0)+p.valor;});
+        const lines=Object.entries(byBroker).map(([b,v])=>`${b} u$s ${fmt(v)}`).join(' + ');
+        const total=Object.values(byBroker).reduce((s,v)=>s+v,0);
+        console.log('[DB verificación]',byBroker);
+        showToast(`DB: ${lines} = u$s ${fmt(total)}`,5000);
+      }
+    }
+
     co('m-import');
     if(ATb==='inversores')rInversores();
     else if(ATb==='consolidado')rConsolidado();

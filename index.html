@@ -2946,20 +2946,21 @@ function impHandleFile(file){
 function impParseInviu(rows){
   const nc=s=>(s||'').toString().toLowerCase().replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').trim();
 
-  // TC MEP: search any cell that contains "mep" (format varies by Inviu version)
+  // TC MEP: search any cell containing "mep" and "tc" (format varies by Inviu version)
+  // IMPORTANT: use local tcFound flag — do NOT check impTcMep which starts pre-set to MEP
+  let tcFound=false;
   for(const r of rows){
     if(!r)continue;
     for(let ci=0;ci<r.length;ci++){
       const cs=nc(r[ci]);
       if(cs.includes('mep')&&cs.includes('tc')){
-        // Value is in the same cell ("TC USD MEP: 1415") or the next cell
         const inCell=parseFloat((r[ci]||'').toString().replace(/[^0-9.,]/g,'').replace(',','.'));
         const nextCell=+(r[ci+1]||0);
         const v=nextCell>100?nextCell:inCell>100?inCell:0;
-        if(v>100){impTcMep=v;break;}
+        if(v>100){impTcMep=v;tcFound=true;break;}
       }
     }
-    if(impTcMep&&impTcMep>=100)break;
+    if(tcFound)break;
   }
   if(!impTcMep||impTcMep<100)impTcMep=MEP;
 
@@ -2978,7 +2979,9 @@ function impParseInviu(rows){
       r.forEach((cell,i)=>{
         const c=nc(cell);
         if(!c||i===ti)return;
-        if(c.includes('disponib')||c==='cantidad'||c.includes('cant')||c==='tenencia')qtyCol=qtyCol<0?i:qtyCol;
+        // "Disponibles" always wins over "Cantidad" (Inviu has both; Cantidad is always empty)
+        if(c.includes('disponib')||c==='tenencia')qtyCol=i;
+        else if((c==='cantidad'||c.includes('cant'))&&qtyCol<0)qtyCol=i;
         if(c.includes('cotiz')||(c.includes('precio')&&!c.includes('prom')&&!c.includes('ppc')&&!c.includes('comp')))precioCol=precioCol<0?i:precioCol;
         if(c.includes('valuaci')||c.includes('importe')||c==='total')valCol=valCol<0?i:valCol;
         if(c.includes('ppc')||c.includes('prom')||c.includes('comp'))ppcCol=ppcCol<0?i:ppcCol;
@@ -2989,10 +2992,11 @@ function impParseInviu(rows){
     }
   }
   // Fallbacks relative to tickerCol if not detected from header
+  // Based on actual Inviu format: Ticker|Nombre|Cantidad|Garantia|Disponibles|Moneda|Precio|Monto$|EquivUSD|PPC
   if(nombreCol<0)nombreCol=tickerCol+1;
-  if(qtyCol<0)qtyCol=tickerCol+2;
-  if(precioCol<0)precioCol=tickerCol+4;
-  if(ppcCol<0)ppcCol=tickerCol+5;
+  if(qtyCol<0)qtyCol=tickerCol+4;   // Disponibles
+  if(precioCol<0)precioCol=tickerCol+6; // Precio actual
+  if(ppcCol<0)ppcCol=tickerCol+9;   // Costo (PPC)
   console.log('[Inviu] cols: ticker='+tickerCol+' qty='+qtyCol+' precio='+precioCol+' val='+valCol+' ppc='+ppcCol+' TC='+impTcMep);
 
   const positions=[];

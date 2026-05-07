@@ -583,7 +583,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 // ── CONSTANTS ─────────────────────────────────────────────────
 const PAL=['#5b9cf6','#2dd4a0','#f5a623','#f06c6c','#9b7ff4','#1ecbe1','#fb923c','#f06292','#86efac','#818cf8'];
 const CHC=['#5b9cf6','#2dd4a0','#f5a623','#9b7ff4','#1ecbe1','#fb923c','#f06292','#86efac','#818cf8','#f06c6c','#fcd34d','#6ee7b7'];
-const MEP = 1415;
+let MEP = 1415;
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MON_ABR={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
 
@@ -2893,7 +2893,7 @@ function openImport(){
   const sel=document.getElementById('imp-inv');
   sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
   sel.disabled=!CU.is_admin; // investors can't change who they import for
-  impParsedRV=[]; impParsedOlas=[];
+  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
   document.getElementById('imp-confirm-btn').style.display='none';
@@ -2944,45 +2944,79 @@ function impHandleFile(file){
 }
 
 function impParseInviu(rows){
-  const tcRow=rows.find(r=>r[0]==='TC USD MEP:'||r[0]==='TC MEP:');
-  if(tcRow&&tcRow[1])impTcMep=+tcRow[1];
+  const nc=s=>(s||'').toString().toLowerCase().replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').trim();
+
+  // TC MEP: search any cell that contains "mep" (format varies by Inviu version)
+  for(const r of rows){
+    if(!r)continue;
+    for(let ci=0;ci<r.length;ci++){
+      const cs=nc(r[ci]);
+      if(cs.includes('mep')&&cs.includes('tc')){
+        // Value is in the same cell ("TC USD MEP: 1415") or the next cell
+        const inCell=parseFloat((r[ci]||'').toString().replace(/[^0-9.,]/g,'').replace(',','.'));
+        const nextCell=+(r[ci+1]||0);
+        const v=nextCell>100?nextCell:inCell>100?inCell:0;
+        if(v>100){impTcMep=v;break;}
+      }
+    }
+    if(impTcMep&&impTcMep>=100)break;
+  }
   if(!impTcMep||impTcMep<100)impTcMep=MEP;
 
-  // Detect column positions from header row ("Ticker" in col A)
-  const nc=s=>(s||'').toString().toLowerCase().replace(/á/g,'a').replace(/é/g,'e').replace(/í/g,'i').replace(/ó/g,'o').replace(/ú/g,'u').trim();
-  let qtyCol=4,precioCol=6,ppcCol=9,valCol=-1; // safe defaults
-  const hdrRow=rows.find(r=>r&&nc(r[0])==='ticker');
-  if(hdrRow){
-    hdrRow.forEach((cell,i)=>{
-      const c=nc(cell);
-      if(!c)return;
-      if(c.includes('disponib')||c.includes('cant'))qtyCol=qtyCol===4?i:qtyCol;
-      if(c.includes('cotiz')||(c.includes('precio')&&!c.includes('prom')&&!c.includes('ppc')&&!c.includes('comp')))precioCol=precioCol===6?i:precioCol;
-      if(c.includes('valuaci')||c.includes('total $')||c.includes('valor $'))valCol=valCol<0?i:valCol;
-      if(c.includes('ppc')||c.includes('prom')||c.includes('comp'))ppcCol=ppcCol===9?i:ppcCol;
-    });
-    console.log('[Inviu] cols: qty='+qtyCol+' precio='+precioCol+' val='+valCol+' ppc='+ppcCol);
+  // Detect header row: find row containing "ticker" in ANY column
+  let tickerCol=0,qtyCol=-1,precioCol=-1,ppcCol=-1,valCol=-1,nombreCol=1;
+  let hdrRowIdx=-1;
+  for(let ri=0;ri<rows.length;ri++){
+    const r=rows[ri];
+    if(!r)continue;
+    const ti=r.findIndex(cell=>nc(cell)==='ticker');
+    if(ti>=0){
+      tickerCol=ti;
+      hdrRowIdx=ri;
+      r.forEach((cell,i)=>{
+        const c=nc(cell);
+        if(!c||i===ti)return;
+        if(c.includes('disponib')||c==='cantidad'||c.includes('cant.'))qtyCol=qtyCol<0?i:qtyCol;
+        if(c.includes('cotiz')||(c.includes('precio')&&!c.includes('prom')&&!c.includes('ppc')&&!c.includes('comp')))precioCol=precioCol<0?i:precioCol;
+        if(c.includes('valuaci')||c.includes('total'))valCol=valCol<0?i:valCol;
+        if(c.includes('ppc')||c.includes('prom')||c.includes('comp'))ppcCol=ppcCol<0?i:ppcCol;
+        if(c==='nombre'||c.includes('denominac')||c.includes('descripc'))nombreCol=i;
+      });
+      break;
+    }
   }
+  // Fallbacks if header not found or columns not detected
+  if(qtyCol<0)qtyCol=tickerCol+4;
+  if(precioCol<0)precioCol=tickerCol+6;
+  if(ppcCol<0)ppcCol=tickerCol+9;
+  console.log('[Inviu] hdrRow='+hdrRowIdx+' tickerCol='+tickerCol+' qtyCol='+qtyCol+' precioCol='+precioCol+' valCol='+valCol+' ppcCol='+ppcCol+' TC='+impTcMep);
 
   const positions=[];
   let currentTipo='CEDEAR';
+  const startRow=hdrRowIdx>=0?hdrRowIdx+1:0;
 
-  rows.forEach(row=>{
-    if(!row||!row[0])return;
-    const col0=row[0]?.toString().trim();
-    if(col0.startsWith('Tipo de Activo:')){
-      const t=col0.replace('Tipo de Activo:','').trim();
-      if(t==='Acciones')currentTipo='Acción local';
-      else if(t==='Cedear')currentTipo='CEDEAR';
-      else if(t==='Renta Fija')currentTipo='Bono';
-      return;
+  for(let ri=startRow;ri<rows.length;ri++){
+    const row=rows[ri];
+    if(!row)continue;
+    const rawTicker=(row[tickerCol]||'').toString().trim();
+    if(!rawTicker)continue;
+
+    // Type category rows
+    const rawLower=nc(rawTicker);
+    if(rawLower.includes('tipo de activo')||rawTicker.startsWith('Tipo de Activo:')){
+      const t=rawTicker.replace(/tipo de activo\s*:\s*/i,'').trim();
+      if(/accion/i.test(t))currentTipo='Acción local';
+      else if(/cedear/i.test(t))currentTipo='CEDEAR';
+      else if(/renta fija/i.test(t))currentTipo='Bono';
+      continue;
     }
-    if(col0==='Ticker'||col0.startsWith('Subtotal')||col0==='Total')return;
-    if(['ARS','USD','USDC'].includes(col0))return;
-    if(col0.length>10||!/^[A-Z0-9]+$/.test(col0))return;
+    if(rawLower==='ticker'||rawLower.startsWith('subtotal')||rawLower==='total')continue;
+    if(['ars','usd','usdc','usdt'].includes(rawLower))continue;
+    // Must be uppercase alphanumeric ticker (2-12 chars)
+    if(rawTicker.length<2||rawTicker.length>12||!/^[A-Z][A-Z0-9./]+$/.test(rawTicker))continue;
 
     const qty=+(row[qtyCol]||0);
-    if(!qty||qty<=0)return;
+    if(!qty||qty<=0)continue;
 
     let valorARS=0,ppcARS=0;
     if(valCol>=0&&+(row[valCol]||0)>0){
@@ -2994,14 +3028,14 @@ function impParseInviu(rows){
       ppcARS=qty*(+(row[ppcCol]||0)||pARS);
     }
 
-    if(!valorARS)return;
+    if(!valorARS)continue;
     const valorUSD=valorARS/impTcMep;
     const vinicialUSD=ppcARS/impTcMep;
-    const nombre=row[1]?.toString().trim()||col0;
-    const tm=TICKER_MAP[col0]||{};
-    console.log('[Inviu]',col0,'qty='+qty,'valorUSD='+(valorUSD).toFixed(0));
+    const nombre=(row[nombreCol]||'').toString().trim()||rawTicker;
+    const tm=TICKER_MAP[rawTicker]||{};
+    console.log('[Inviu]',rawTicker,'qty='+qty,'valorUSD='+(valorUSD).toFixed(0));
     positions.push({
-      ticker:col0,nombre:tm.nombre||nombre,
+      ticker:rawTicker,nombre:tm.nombre||nombre,
       qty:Math.round(qty),
       precioARS:+valorARS.toFixed(2),ppcARS:+ppcARS.toFixed(2),
       precioUSD:+((qty>0?valorUSD/qty:0)).toFixed(4),
@@ -3009,9 +3043,9 @@ function impParseInviu(rows){
       valor:+valorUSD.toFixed(2),vinicial:+vinicialUSD.toFixed(2),
       rend:+(valorUSD-vinicialUSD).toFixed(2),
       sector:tm.sector||'Otro',pais:tm.pais||'Argentina',
-      tipo:tm.tipo||currentTipo,riesgo:3,auto_price:!!YAHOO_MAP[col0],
+      tipo:tm.tipo||currentTipo,riesgo:3,auto_price:!!YAHOO_MAP[rawTicker],
     });
-  });
+  }
 
   console.log('[Inviu] total parseado: u$s',positions.reduce((s,p)=>s+p.valor,0).toFixed(0),'('+positions.length+' pos)');
   impParsedRV=positions;
@@ -3020,7 +3054,7 @@ function impParseInviu(rows){
 
 function impShowRVPreview(){
   const el=document.getElementById('imp-rv-preview');
-  if(!impParsedRV.length){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el Excel correcto de Inviu.</div>';return;}
+  if(!impParsedRV.length){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el Excel correcto de Inviu. (Revisá la consola del navegador para más detalle — F12 → Consola)</div>';return;}
   const totalInviu=impParsedRV.reduce((s,p)=>s+p.valor,0);
   el.innerHTML=`
   <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--green);display:flex;justify-content:space-between;align-items:center;">
@@ -3263,8 +3297,8 @@ async function impConfirm(){
     let imported=0;
 
     if(impCurrentTab==='balanz'&&impParsedBalanz.length){
-      // Delete all non-Inviu positions (Balanz + any old rows with wrong/null broker)
-      await sb.from('positions_rv').delete().eq('investor_id',invId).neq('broker','Inviu');
+      // Delete Balanz rows + legacy rows with no broker tag (NULL = old Balanz)
+      await sb.from('positions_rv').delete().eq('investor_id',invId).or('broker.eq.Balanz,broker.is.null');
       const rows=impParsedBalanz.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
@@ -3281,8 +3315,8 @@ async function impConfirm(){
     }
 
     if(impCurrentTab==='rv'&&impParsedRV.length){
-      // Delete all non-Balanz positions (Inviu + any old rows with wrong/null broker)
-      await sb.from('positions_rv').delete().eq('investor_id',invId).neq('broker','Balanz');
+      // Delete only Inviu rows (Balanz rows stay untouched)
+      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Inviu');
       const rows=impParsedRV.map(p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,

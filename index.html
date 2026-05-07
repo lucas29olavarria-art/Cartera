@@ -2880,7 +2880,7 @@ async function cancelarOperacion(movId, invId){
   }
 }
 // ── IMPORTADOR ────────────────────────────────────────────────
-let impParsedRV=[], impParsedOlas=[], impCurrentTab='rv', impTcMep=MEP;
+let impParsedRV=[], impParsedOlas=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
 
 function openImport(){
   // If investor (not admin), pre-select themselves
@@ -2963,33 +2963,37 @@ function impParseInviu(rows){
   }
   if(!impTcMep||impTcMep<100)impTcMep=MEP;
 
-  // Detect header row: find row containing "ticker" in ANY column
-  let tickerCol=0,qtyCol=-1,precioCol=-1,ppcCol=-1,valCol=-1,nombreCol=1;
+  // Detect header row: find row containing ticker-like label in ANY column
+  // Inviu uses "Especie", other brokers use "Ticker", "Papel", "Símbolo", etc.
+  const TICKER_LABELS=['ticker','especie','papel','simbolo','instrumento','activo','codigo'];
+  let tickerCol=0,qtyCol=-1,precioCol=-1,ppcCol=-1,valCol=-1,nombreCol=-1;
   let hdrRowIdx=-1;
   for(let ri=0;ri<rows.length;ri++){
     const r=rows[ri];
     if(!r)continue;
-    const ti=r.findIndex(cell=>nc(cell)==='ticker');
+    const ti=r.findIndex(cell=>TICKER_LABELS.includes(nc(cell)));
     if(ti>=0){
       tickerCol=ti;
       hdrRowIdx=ri;
       r.forEach((cell,i)=>{
         const c=nc(cell);
         if(!c||i===ti)return;
-        if(c.includes('disponib')||c==='cantidad'||c.includes('cant.'))qtyCol=qtyCol<0?i:qtyCol;
+        if(c.includes('disponib')||c==='cantidad'||c.includes('cant')||c==='tenencia')qtyCol=qtyCol<0?i:qtyCol;
         if(c.includes('cotiz')||(c.includes('precio')&&!c.includes('prom')&&!c.includes('ppc')&&!c.includes('comp')))precioCol=precioCol<0?i:precioCol;
-        if(c.includes('valuaci')||c.includes('total'))valCol=valCol<0?i:valCol;
+        if(c.includes('valuaci')||c.includes('importe')||c==='total')valCol=valCol<0?i:valCol;
         if(c.includes('ppc')||c.includes('prom')||c.includes('comp'))ppcCol=ppcCol<0?i:ppcCol;
-        if(c==='nombre'||c.includes('denominac')||c.includes('descripc'))nombreCol=i;
+        if(c==='nombre'||c==='descripcion'||c.includes('denominac')||c==='descripcion')nombreCol=nombreCol<0?i:nombreCol;
       });
+      console.log('[Inviu] hdrRow='+ri+' tickerLabel="'+r[ti]+'" tickerCol='+ti);
       break;
     }
   }
-  // Fallbacks if header not found or columns not detected
-  if(qtyCol<0)qtyCol=tickerCol+4;
-  if(precioCol<0)precioCol=tickerCol+6;
-  if(ppcCol<0)ppcCol=tickerCol+9;
-  console.log('[Inviu] hdrRow='+hdrRowIdx+' tickerCol='+tickerCol+' qtyCol='+qtyCol+' precioCol='+precioCol+' valCol='+valCol+' ppcCol='+ppcCol+' TC='+impTcMep);
+  // Fallbacks relative to tickerCol if not detected from header
+  if(nombreCol<0)nombreCol=tickerCol+1;
+  if(qtyCol<0)qtyCol=tickerCol+2;
+  if(precioCol<0)precioCol=tickerCol+4;
+  if(ppcCol<0)ppcCol=tickerCol+5;
+  console.log('[Inviu] cols: ticker='+tickerCol+' qty='+qtyCol+' precio='+precioCol+' val='+valCol+' ppc='+ppcCol+' TC='+impTcMep);
 
   const positions=[];
   let currentTipo='CEDEAR';
@@ -2998,22 +3002,24 @@ function impParseInviu(rows){
   for(let ri=startRow;ri<rows.length;ri++){
     const row=rows[ri];
     if(!row)continue;
-    const rawTicker=(row[tickerCol]||'').toString().trim();
+    // Ticker cell — strip common suffixes Inviu appends (" D", " C", " CI")
+    let rawTicker=(row[tickerCol]||'').toString().trim().replace(/\s+(D|C|CI)$/,'');
     if(!rawTicker)continue;
 
-    // Type category rows
+    // Type category rows (sometimes appear in the ticker column)
     const rawLower=nc(rawTicker);
-    if(rawLower.includes('tipo de activo')||rawTicker.startsWith('Tipo de Activo:')){
-      const t=rawTicker.replace(/tipo de activo\s*:\s*/i,'').trim();
+    if(rawLower.includes('tipo de activo')||rawLower.includes('tipo activo')){
+      const t=rawTicker.replace(/tipo\s+de?\s+activo\s*:?\s*/i,'').trim();
       if(/accion/i.test(t))currentTipo='Acción local';
       else if(/cedear/i.test(t))currentTipo='CEDEAR';
-      else if(/renta fija/i.test(t))currentTipo='Bono';
+      else if(/renta\s*fija/i.test(t))currentTipo='Bono';
       continue;
     }
-    if(rawLower==='ticker'||rawLower.startsWith('subtotal')||rawLower==='total')continue;
-    if(['ars','usd','usdc','usdt'].includes(rawLower))continue;
-    // Must be uppercase alphanumeric ticker (2-12 chars)
-    if(rawTicker.length<2||rawTicker.length>12||!/^[A-Z][A-Z0-9./]+$/.test(rawTicker))continue;
+    // Skip header/footer labels
+    if(TICKER_LABELS.includes(rawLower)||rawLower.startsWith('subtotal')||rawLower==='total')continue;
+    if(['ars','usd','usdc','usdt','pesos','dolares'].includes(rawLower))continue;
+    // Must look like a ticker: uppercase, 2-12 chars
+    if(rawTicker.length<2||rawTicker.length>12||!/^[A-Z][A-Z0-9./]{1,11}$/.test(rawTicker))continue;
 
     const qty=+(row[qtyCol]||0);
     if(!qty||qty<=0)continue;
@@ -3049,12 +3055,20 @@ function impParseInviu(rows){
 
   console.log('[Inviu] total parseado: u$s',positions.reduce((s,p)=>s+p.valor,0).toFixed(0),'('+positions.length+' pos)');
   impParsedRV=positions;
+  // Store debug info for preview
+  impInviuDebug={hdrRowIdx,tickerCol,qtyCol,precioCol,valCol,ppcCol,tc:impTcMep,
+    sample:rows.slice(0,8).map(r=>(r||[]).slice(0,6).map(c=>(c||'').toString().slice(0,20)).join(' | ')).join('\n')};
   impShowRVPreview();
 }
 
 function impShowRVPreview(){
   const el=document.getElementById('imp-rv-preview');
-  if(!impParsedRV.length){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el Excel correcto de Inviu. (Revisá la consola del navegador para más detalle — F12 → Consola)</div>';return;}
+  if(!impParsedRV.length){
+    const d=impInviuDebug;
+    const dbg=d.sample?`<pre style="font-size:9px;color:var(--muted);margin-top:6px;white-space:pre-wrap;word-break:break-all;">Encabezado detectado: fila ${d.hdrRowIdx} · col ticker=${d.tickerCol} qty=${d.qtyCol} precio=${d.precioCol} val=${d.valCol} ppc=${d.ppcCol} TC=${d.tc}\nPrimeras filas del archivo:\n${d.sample}</pre>`:'';
+    el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el Excel correcto de Inviu.${dbg}</div>`;
+    return;
+  }
   const totalInviu=impParsedRV.reduce((s,p)=>s+p.valor,0);
   el.innerHTML=`
   <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--green);display:flex;justify-content:space-between;align-items:center;">

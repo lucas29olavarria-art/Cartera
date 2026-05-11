@@ -506,37 +506,39 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 
     <!-- TABS -->
     <div style="display:flex;gap:1px;border-bottom:1px solid var(--line);margin-bottom:16px;">
-      <button class="tb active" id="imp-tab-rv" onclick="impTab('rv')">Inviu (.xlsx)</button>
-      <button class="tb" id="imp-tab-balanz" onclick="impTab('balanz')">Balanz (.pdf)</button>
+      <button class="tb active" id="imp-tab-rv" onclick="impTab('rv')">Renta Variable</button>
       <button class="tb" id="imp-tab-olas" onclick="impTab('olas')">Olas (Yont)</button>
     </div>
 
-    <!-- BALANZ PANEL -->
-    <div id="imp-balanz-panel" style="display:none;">
-      <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.15);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--amber);margin-bottom:12px;">
-        Arrastrá o seleccioná el PDF de Balanz (Resumen de Cuenta). El sistema detecta automáticamente todas las posiciones en USD.
-      </div>
-      <div id="imp-balanz-drop" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:32px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-balanz-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--amber)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impBalanzDrop(event)">
-        <div style="font-size:28px;margin-bottom:8px;">📄</div>
-        <div style="font-size:13px;color:var(--soft);">Arrastrá el PDF de Balanz acá o hacé click</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">ResumenDeCuenta_YYYYMMDD.pdf</div>
-      </div>
-      <input type="file" id="imp-balanz-file" accept=".pdf" style="display:none;" onchange="impBalanzFile(this.files[0])">
-      <div id="imp-balanz-preview" style="margin-top:12px;"></div>
-    </div>
-
-    <!-- RV PANEL -->
+    <!-- RV PANEL — ambos brokers juntos -->
     <div id="imp-rv-panel">
-      <div style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--blue);margin-bottom:12px;">
-        Arrastrá o seleccioná el Excel de Inviu (.xlsx). El sistema detecta automáticamente todas las posiciones y convierte ARS → USD usando el TC MEP del archivo.
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
+        <!-- Inviu -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;">Inviu (.xlsx)</div>
+          <div id="imp-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impHandleDrop(event)">
+            <div style="font-size:22px;margin-bottom:4px;">📂</div>
+            <div style="font-size:11px;color:var(--soft);">Arrastrá el Excel o hacé click</div>
+          </div>
+          <input type="file" id="imp-file" accept=".xlsx" style="display:none;" onchange="impHandleFile(this.files[0])">
+          <div id="imp-rv-preview" style="margin-top:8px;"></div>
+        </div>
+        <!-- Balanz -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:6px;">Balanz (.pdf)</div>
+          <div id="imp-balanz-drop" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-balanz-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--amber)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impBalanzDrop(event)">
+            <div style="font-size:22px;margin-bottom:4px;">📄</div>
+            <div style="font-size:11px;color:var(--soft);">Arrastrá el PDF o hacé click</div>
+          </div>
+          <input type="file" id="imp-balanz-file" accept=".pdf" style="display:none;" onchange="impBalanzFile(this.files[0])">
+          <div id="imp-balanz-preview" style="margin-top:8px;"></div>
+        </div>
       </div>
-      <div id="imp-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:32px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impHandleDrop(event)">
-        <div style="font-size:28px;margin-bottom:8px;">📂</div>
-        <div style="font-size:13px;color:var(--soft);">Arrastrá el Excel acá o hacé click para seleccionar</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:4px;">Tenencias-XXXXXX_NOMBRE-FECHA.xlsx</div>
+      <!-- Combined total bar — se muestra cuando hay data de ambos -->
+      <div id="imp-rv-combined" style="display:none;background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--green);display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+        <span id="imp-rv-combined-detail"></span>
+        <span id="imp-rv-combined-total" style="font-family:var(--mono);font-weight:700;"></span>
       </div>
-      <input type="file" id="imp-file" accept=".xlsx" style="display:none;" onchange="impHandleFile(this.files[0])">
-      <div id="imp-rv-preview" style="margin-top:12px;"></div>
     </div>
 
     <!-- OLAS PANEL -->
@@ -958,7 +960,7 @@ async function loadInvestor(id){
       e.valor=(e.valor||0)+(p.valor||0);
       e.vinicial=(e.vinicial||0)+(p.vinicial||0);
       e.last_price=e.last_price||p.last_price;
-      e.broker=(e.broker&&e.broker!==p.broker?(e.broker+'+'+p.broker):p.broker)||e.broker;
+      // broker column removed from schema; skip merge
     }
   }
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
@@ -2895,9 +2897,11 @@ function openImport(){
   sel.disabled=!CU.is_admin; // investors can't change who they import for
   impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[];
   document.getElementById('imp-rv-preview').innerHTML='';
+  document.getElementById('imp-balanz-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
   document.getElementById('imp-confirm-btn').style.display='none';
-  document.getElementById('imp-preview-btn').style.display='block';
+  document.getElementById('imp-preview-btn').style.display='none';
+  impUpdateCombined();
   impTab('rv');
   oo('m-import');
 }
@@ -2905,18 +2909,40 @@ function openImport(){
 function impTab(tab){
   impCurrentTab=tab;
   document.getElementById('imp-rv-panel').style.display=tab==='rv'?'block':'none';
-  document.getElementById('imp-balanz-panel').style.display=tab==='balanz'?'block':'none';
   document.getElementById('imp-olas-panel').style.display=tab==='olas'?'block':'none';
   document.getElementById('imp-tab-rv').classList.toggle('active',tab==='rv');
-  document.getElementById('imp-tab-balanz')?.classList.toggle('active',tab==='balanz');
   document.getElementById('imp-tab-olas').classList.toggle('active',tab==='olas');
-  document.getElementById('imp-confirm-btn').style.display='none';
-  document.getElementById('imp-preview-btn').style.display='block';
+  document.getElementById('imp-confirm-btn').style.display=(tab==='rv'&&(impParsedRV.length||impParsedBalanz.length))?'block':'none';
+  document.getElementById('imp-preview-btn').style.display=tab==='olas'?'block':'none';
   if(tab==='olas'&&MEP>0){
     const tcField=document.getElementById('imp-olas-tc');
     const tcHint=document.getElementById('imp-olas-tc-hint');
     if(tcField&&!tcField.value)tcField.value=MEP;
     if(tcHint)tcHint.textContent=fmt(MEP);
+  }
+}
+
+function impUpdateCombined(){
+  const hasInviu=impParsedRV.length>0;
+  const hasBalanz=impParsedBalanz.length>0;
+  const combined=document.getElementById('imp-rv-combined');
+  if(!combined)return;
+  if(hasInviu||hasBalanz){
+    const totalInviu=impParsedRV.reduce((s,p)=>s+p.valor,0);
+    const totalBalanz=impParsedBalanz.reduce((s,p)=>s+p.valor,0);
+    const total=totalInviu+totalBalanz;
+    let detail='';
+    if(hasInviu)detail+=`Inviu: ${impParsedRV.length} pos · u$s ${fmt(totalInviu)}`;
+    if(hasInviu&&hasBalanz)detail+=' &nbsp;+&nbsp; ';
+    if(hasBalanz)detail+=`Balanz: ${impParsedBalanz.length} pos · u$s ${fmt(totalBalanz)}`;
+    combined.style.display='flex';
+    document.getElementById('imp-rv-combined-detail').innerHTML=detail;
+    document.getElementById('imp-rv-combined-total').textContent=`TOTAL u$s ${fmt(total)}`;
+    document.getElementById('imp-confirm-btn').style.display='block';
+    document.getElementById('imp-preview-btn').style.display='none';
+  }else{
+    combined.style.display='none';
+    document.getElementById('imp-confirm-btn').style.display='none';
   }
 }
 
@@ -3092,8 +3118,7 @@ function impShowRVPreview(){
       <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${p.rend>=0?'var(--green)':'var(--red)'};">${p.rend>=0?'+':''}u$s ${fmt(Math.abs(p.rend))}</td>
     </tr>`).join('')}</tbody>
   </table></div>`;
-  document.getElementById('imp-confirm-btn').style.display='block';
-  document.getElementById('imp-preview-btn').style.display='none';
+  impUpdateCombined();
 }
 
 
@@ -3239,8 +3264,7 @@ function impShowBalanzPreview(tcMep){
       <td style="text-align:right;font-family:var(--mono);font-size:11px;">u$s ${fmt(p.valor)}</td>
     </tr>`).join('')}</tbody>
   </table></div>`;
-  document.getElementById('imp-confirm-btn').style.display='block';
-  document.getElementById('imp-preview-btn').style.display='none';
+  impUpdateCombined();
 }
 
 function impAddOlaRow(){
@@ -3314,40 +3338,24 @@ async function impConfirm(){
   try{
     let imported=0;
 
-    if(impCurrentTab==='balanz'&&impParsedBalanz.length){
-      // Two explicit deletes (avoid .or() which can behave unexpectedly with .eq())
-      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Balanz');
-      await sb.from('positions_rv').delete().eq('investor_id',invId).is('broker',null);
-      const rows=impParsedBalanz.map(p=>({
+    if(impCurrentTab==='rv'){
+      if(!impParsedBalanz.length&&!impParsedRV.length){showToast('No hay posiciones para importar');btn.disabled=false;btn.textContent='✓ Confirmar e importar';return;}
+      // Delete ALL positions for this investor (no broker filter needed)
+      const {error:eDel}=await sb.from('positions_rv').delete().eq('investor_id',invId);
+      if(eDel)throw new Error('Delete: '+eDel.message);
+      const mkRow=p=>({
         investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
         sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
-        vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD,
-        broker:'Balanz'
-      }));
-      const {error:eB}=await sb.from('positions_rv').insert(rows);
-      if(eB)throw new Error('Insert Balanz: '+eB.message);
-      imported=rows.length;
+        vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD
+      });
+      const allRows=[...impParsedBalanz.map(mkRow),...impParsedRV.map(mkRow)];
+      const {error:eIns}=await sb.from('positions_rv').insert(allRows);
+      if(eIns)throw new Error('Insert: '+eIns.message);
+      imported=allRows.length;
+      const sources=[impParsedBalanz.length?'Balanz':'',impParsedRV.length?'Inviu':''].filter(Boolean).join('+');
       await sb.from('investors').update({
         last_import_date:new Date().toISOString().slice(0,10),
-        last_import_source:'Balanz'
-      }).eq('id',invId);
-    }
-
-    if(impCurrentTab==='rv'&&impParsedRV.length){
-      // Delete only Inviu rows — Balanz rows stay untouched
-      await sb.from('positions_rv').delete().eq('investor_id',invId).eq('broker','Inviu');
-      const rows=impParsedRV.map(p=>({
-        investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
-        sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
-        vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD,
-        broker:'Inviu'
-      }));
-      const {error:eI}=await sb.from('positions_rv').insert(rows);
-      if(eI)throw new Error('Insert Inviu: '+eI.message);
-      imported=rows.length;
-      await sb.from('investors').update({
-        last_import_date:new Date().toISOString().slice(0,10),
-        last_import_source:'Inviu'
+        last_import_source:sources
       }).eq('id',invId);
     }
 
@@ -3371,16 +3379,14 @@ async function impConfirm(){
 
     // Verify DB state — show inside modal so it's unmissable
     if(impCurrentTab!=='olas'){
-      const {data:dbRows,error:eQ}=await sb.from('positions_rv').select('broker,valor,ticker').eq('investor_id',invId);
-      const byBroker={};
-      (dbRows||[]).forEach(p=>{const b=p.broker||'Sin broker';byBroker[b]=(byBroker[b]||0)+p.valor;});
-      const total=Object.values(byBroker).reduce((s,v)=>s+v,0);
-      const brokerLines=Object.entries(byBroker).map(([b,v])=>`<b>${b}</b>: u$s ${fmt(v)}`).join(' &nbsp;+&nbsp; ');
+      const {data:dbRows,error:eQ}=await sb.from('positions_rv').select('valor,ticker').eq('investor_id',invId);
+      const total=(dbRows||[]).reduce((s,p)=>s+p.valor,0);
+      const count=(dbRows||[]).length;
       const verDiv=document.getElementById('imp-confirm-btn');
-      const msg=eQ?`Error consultando DB: ${eQ.message}`:(total>0?`✓ DB: ${brokerLines} = u$s ${fmt(total)}`:'⚠ No hay posiciones en la DB. Algo falló.');
+      const msg=eQ?`Error consultando DB: ${eQ.message}`:(total>0?`✓ DB: u$s ${fmt(total)} (${count} posiciones)`:'⚠ No hay posiciones en la DB. Algo falló.');
       const color=eQ||total===0?'var(--red)':'var(--green)';
       verDiv.insertAdjacentHTML('beforebegin',`<div id="imp-db-ver" style="background:rgba(0,0,0,.3);border:1px solid ${color};border-radius:var(--r);padding:10px 14px;font-size:12px;color:${color};margin-bottom:10px;">${msg}</div>`);
-      console.log('[DB verificación]',byBroker,'total:',total);
+      console.log('[DB verificación] total:',total,'posiciones:',count);
     }
 
     // Refresh whichever view is currently showing

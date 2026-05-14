@@ -219,7 +219,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   .krow{grid-template-columns:1fr 1fr;}
   .g2,.g3{grid-template-columns:1fr;}
   .topbar{padding:10px 12px;}
-  .content{padding:12px 10px;}
+  .content{padding:16px 14px;}
   .tabbar{padding:0 10px;}
   .tlogo{font-size:10px;}
   .pst{display:none!important;}
@@ -235,6 +235,8 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   .rpt-kpis{grid-template-columns:1fr 1fr;}
   .ihdr{flex-direction:column;align-items:flex-start;gap:10px;}
   .ihdr-r{flex-wrap:wrap;}
+  .drow{flex-direction:column;align-items:flex-start;}
+  .dslot{width:100% !important;height:160px !important;margin-bottom:12px;}
 }
 @media(max-width:480px){
   .krow{grid-template-columns:1fr;}
@@ -1616,117 +1618,165 @@ function getMilestone(tot){
 }
 
 function rOverview(inv,liq,rend,tot,rendPct,best){
-  const movers=(inv.rv||[]).filter(p=>p.price_change!=null&&p.price_change!==0).sort((a,b)=>Math.abs(b.price_change)-Math.abs(a.price_change)).slice(0,3);
   const rendDia=(inv.rv||[]).reduce((s,p)=>{if(p.price_change==null||!p.qty||!p.lastPrice)return s;return s+p.qty*p.lastPrice*(p.price_change/100);},0);
   const rendDiaPct=liq>0?(rendDia/liq*100).toFixed(2):'0.00';
+  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0,tot0=rv0+rf0+ol0;
+  const advisorMsg=inv.advisor_msg||'';
+  const hasObjetivo=inv.objetivo_desc&&inv.objetivo_monto>0;
+
+  // Perfil de riesgo: promedio ponderado de riesgo de posiciones RV
+  const rvPos=inv.rv||[];
+  const rvTot=rvPos.reduce((s,p)=>s+p.valor,0);
+  let riskLb='Moderado',riskC='#5b9cf6',riskSub='Equilibrio entre crecimiento y protección';
+  if(rvTot>0){
+    const wAvg=rvPos.reduce((s,p)=>s+(p.riesgo||3)*p.valor,0)/rvTot;
+    if(wAvg<=1.8){riskLb='Conservador';riskC='#2dd4a0';riskSub='Preservación del capital en primer lugar';}
+    else if(wAvg<=2.5){riskLb='Moderado';riskC='#5b9cf6';riskSub='Equilibrio entre crecimiento y protección';}
+    else if(wAvg<=3.5){riskLb='Crecimiento';riskC='#f5a623';riskSub='Mayor exposición para capturar upside';}
+    else{riskLb='Dinámico';riskC='#f06c6c';riskSub='Alta exposición buscando máximo crecimiento';}
+  }
+
   const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50);
   const olasF=(inv.olasFlows||[]).filter(fl=>olasMonto(fl)/MEP>=50);
   const nextCobro=rfFlows[0]||null;
   const nextOlas=olasF[0]||null;
   const nextAny=nextCobro&&nextOlas?(new Date(nextCobro.fecha)<new Date(olasDate(nextOlas))?nextCobro:null):nextCobro||null;
   const nextOlasFirst=!nextAny?nextOlas:null;
-  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\n\nSaludos,\nLucas Olavarria\nAsesor Financiero · Mat. CNV 2062';
+
+  const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):0;
+  const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
+
+  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · Asesor Financiero · Mat. CNV 2062';
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
-  const rv0=totalRV(inv), rf0=totalRF(inv), ol0=inv.olasVal||0, tot0=rv0+rf0+ol0;
-  const staleAlert=(()=>{if(!inv.last_import_date)return'';const days=Math.floor((new Date()-new Date(inv.last_import_date))/(1000*60*60*24));return days>=7?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.2);border-radius:20px;padding:3px 10px;font-size:10px;color:var(--amber);display:inline-block;margin-top:8px;">Datos de hace ${days} días · Contactá a tu asesor</div>`:'';})();
 
   let html='';
 
-  // ── HERO: patrimony + rendimiento en una sola tarjeta ──
-  html+=`<div style="background:linear-gradient(145deg,#131a24,#0d0f14);border-radius:20px;padding:24px 22px 20px;margin-bottom:10px;position:relative;overflow:hidden;">
-    <div style="position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 80% 50%,rgba(91,156,246,0.07),transparent 70%);pointer-events:none;"></div>
-    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">${inv.name}</div>
-    <div style="display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;">
-      <div>
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Patrimonio</div>
-        <div style="font-size:40px;font-weight:700;color:var(--text);letter-spacing:-1.5px;line-height:1;font-family:var(--mono);" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
+  // ── HERO ──────────────────────────────────────────────────────
+  html+=`
+  <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.1);border-radius:22px;padding:30px 24px 24px;margin-bottom:14px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:-80px;right:-60px;width:260px;height:260px;background:radial-gradient(circle,rgba(91,156,246,.07),transparent 65%);pointer-events:none;"></div>
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:18px;">${inv.name}</div>
+    <div style="margin-bottom:20px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:8px;">Patrimonio total</div>
+      <div style="font-family:var(--mono);font-size:48px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Rendimiento</div>
+        <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
+        <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
       </div>
-      <div style="padding-bottom:4px;">
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:3px;">Rendimiento</div>
-        <div style="font-family:var(--mono);font-size:26px;font-weight:700;color:${rend>=0?'var(--green)':'var(--red)'};">${rend>=0?'+':''}${rendPct}%</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
+        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Perfil</div>
+        <div style="font-size:17px;font-weight:600;color:${riskC};">${riskLb}</div>
+        <div style="font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;line-height:1.3;">${riskSub}</div>
       </div>
     </div>
-    ${rendDia!==0?`<div style="margin-top:10px;display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,0.04);border-radius:20px;padding:4px 10px;">
-      <span style="font-family:var(--mono);font-size:10px;color:${rendDia>=0?'var(--green)':'var(--red)'};">${rendDia>=0?'▲':'▼'} ${rendDia>=0?'+':''}${rendDiaPct}% hoy</span>
-    </div>`:''}
-    ${inv.last_import_date?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:8px;">Actualizado ${inv.last_import_date} · ${inv.last_import_source||'importador'}</div>`:''}
-    ${staleAlert}
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+      ${rendDia!==0?`<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border-radius:20px;padding:5px 12px;">
+        <span style="width:5px;height:5px;border-radius:50%;background:${rendDia>=0?'#2dd4a0':'#f06c6c'};display:inline-block;flex-shrink:0;"></span>
+        <span style="font-family:var(--mono);font-size:10px;color:${rendDia>=0?'#2dd4a0':'#f06c6c'};">${rendDia>=0?'+':''}${rendDiaPct}% hoy</span>
+      </div>`:''}
+      ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.7)':'rgba(255,255,255,.22)'};">${staleInfo}</div>`:''}
+    </div>
   </div>`;
 
-  // ── ALLOCACIÓN: donut + leyenda ──
-  if(tot0>0){
-    const allocs=[];
-    if(rv0>0)allocs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
-    if(rf0>0)allocs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
-    if(ol0>0)allocs.push({lb:'Olas',v:ol0,c:'#f5a623'});
-    html+=`<div class="card" style="margin-bottom:10px;">
-      <div class="ct">Distribución del portfolio</div>
-      <div class="drow">
-        <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Distribución"></canvas>
-          <div class="dmid"><div class="dmv" style="font-size:9px;text-align:center;line-height:1.4;">u$s<br>${fmt(tot0)}</div></div>
+  // ── MENSAJE DEL ASESOR ────────────────────────────────────────
+  if(advisorMsg){
+    html+=`
+    <div style="background:rgba(91,156,246,.04);border:1px solid rgba(91,156,246,.1);border-radius:18px;padding:24px;margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(91,156,246,.5);margin-bottom:16px;">Nota de tu asesor</div>
+      <div style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:rgba(255,255,255,.8);line-height:1.8;margin-bottom:18px;">&ldquo;${advisorMsg}&rdquo;</div>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);">
+        <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#5b9cf6,#4080e0);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">L</div>
+        <div>
+          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,.7);">Lucas Olavarria</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.28);">Asesor Financiero &middot; Mat. CNV 2062</div>
         </div>
-        <div class="leg">${allocs.map(a=>`<div class="lr"><div class="ld" style="background:${a.c}"></div><span class="ln">${a.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(a.v)}</span><span class="lp">${(a.v/tot0*100).toFixed(0)}%</span></div>`).join('')}</div>
       </div>
     </div>`;
   }
 
-  // ── PRÓXIMO COBRO ──
+  // ── DISTRIBUCIÓN ──────────────────────────────────────────────
+  if(tot0>0){
+    const allocs=[];
+    if(rv0>0)allocs.push({lb:'Renta Variable',sub:'CEDEARs y acciones',v:rv0,c:'#5b9cf6'});
+    if(rf0>0)allocs.push({lb:'Renta Fija',sub:'Bonos y ONs',v:rf0,c:'#2dd4a0'});
+    if(ol0>0)allocs.push({lb:'Olas (Yont)',sub:'Fideicomiso ARS',v:ol0,c:'#f5a623'});
+    html+=`
+    <div class="card" style="margin-bottom:14px;">
+      <div class="ct" style="margin-bottom:18px;">¿Dónde está tu dinero?</div>
+      <div class="drow">
+        <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Distribución"></canvas>
+          <div class="dmid"><div style="font-family:var(--mono);font-size:9px;text-align:center;line-height:1.5;color:rgba(255,255,255,.35);">u$s<br>${fmt(tot0)}</div></div>
+        </div>
+        <div class="leg">${allocs.map(a=>`<div class="lr" style="padding:10px 0;">
+          <div style="width:8px;height:8px;border-radius:2px;background:${a.c};flex-shrink:0;margin-right:10px;"></div>
+          <div style="flex:1;">
+            <div style="font-size:12px;font-weight:500;">${a.lb}</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:1px;">${a.sub}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${a.c};">${(a.v/tot0*100).toFixed(0)}%</div>
+            <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(a.v)}</div>
+          </div>
+        </div>`).join('')}</div>
+      </div>
+    </div>`;
+  }
+
+  // ── OBJETIVO ──────────────────────────────────────────────────
+  if(hasObjetivo){
+    const objPct=Math.min(100,Math.round(tot/inv.objetivo_monto*100));
+    const objFalta=Math.max(0,inv.objetivo_monto-tot);
+    html+=`
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:14px;cursor:pointer;" onclick="iTab('camino')">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Tu objetivo</div>
+      <div style="font-size:16px;font-weight:500;margin-bottom:16px;">${inv.objetivo_desc}</div>
+      <div style="background:var(--bg4);border-radius:4px;height:6px;overflow:hidden;margin-bottom:12px;">
+        <div style="height:100%;width:${objPct}%;background:linear-gradient(90deg,#5b9cf6,#2dd4a0);border-radius:4px;transition:width .8s ease;"></div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);">${objPct>=100?'Meta alcanzada':'u$s '+fmt(tot)+' de u$s '+fmt(inv.objetivo_monto)}</div>
+        <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${objPct>=100?'#2dd4a0':'#5b9cf6'};">${objPct}%</div>
+      </div>
+    </div>`;
+  } else {
+    html+=`<button onclick="iTab('camino')" style="width:100%;background:transparent;border:1px dashed rgba(255,255,255,.1);border-radius:14px;padding:15px;color:rgba(255,255,255,.3);font-size:12px;cursor:pointer;margin-bottom:14px;text-align:center;font-family:var(--font);">Definir tu objetivo de inversión &rarr;</button>`;
+  }
+
+  // ── PRÓXIMO COBRO ─────────────────────────────────────────────
   if(nextAny||nextOlasFirst){
     const cobroVal=nextAny?'u$s '+fmt(nextAny.monto):'$'+fmtars(olasMonto(nextOlasFirst));
     const cobroDate=nextAny?nextAny.fecha:olasDate(nextOlasFirst);
     const cobroTipo=nextAny?nextAny.tipo:'Olas';
-    const daysTo=Math.ceil((new Date(cobroDate+'T12:00:00')-new Date())/(1000*60*60*24));
+    const daysTo=Math.ceil((new Date(cobroDate+'T12:00:00')-new Date())/(864e5));
     const daysLabel=daysTo<=0?'Hoy':daysTo===1?'Mañana':'En '+daysTo+' días';
-    html+=`<div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.18);border-radius:var(--r2);padding:14px 16px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    html+=`
+    <div style="background:rgba(245,166,35,.04);border:1px solid rgba(245,166,35,.14);border-radius:18px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div>
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Próximo cobro · ${cobroTipo}</div>
-        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber);">${cobroVal}</div>
-        <div style="font-size:11px;color:var(--muted);margin-top:2px;">${cobroDate}</div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(245,166,35,.5);margin-bottom:7px;">Próximo cobro &middot; ${cobroTipo}</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#f5a623;">${cobroVal}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.32);margin-top:4px;">${cobroDate}</div>
       </div>
-      <div style="text-align:right;flex-shrink:0;">
-        <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:var(--amber);">${daysLabel}</div>
-      </div>
+      <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:#f5a623;background:rgba(245,166,35,.1);border-radius:20px;padding:7px 16px;white-space:nowrap;flex-shrink:0;">${daysLabel}</div>
     </div>`;
   }
 
-  // ── OBJETIVO ──
-  const hasObjetivo=inv.objetivo_desc&&inv.objetivo_monto>0;
-  if(hasObjetivo){
-    const objPct=Math.min(100,Math.round(tot/inv.objetivo_monto*100));
-    const objFalta=Math.max(0,inv.objetivo_monto-tot);
-    html+=`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:12px 14px;margin-bottom:10px;cursor:pointer;" onclick="iTab('camino')">
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:7px;">
-        <div style="font-size:12px;font-weight:500;">${inv.objetivo_desc}</div>
-        <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${objPct>=100?'var(--green)':objPct>=50?'var(--blue)':'var(--amber)'};">${objPct}%</div>
-      </div>
-      <div style="background:var(--bg3);border-radius:3px;height:4px;overflow:hidden;margin-bottom:5px;">
-        <div style="height:100%;width:${objPct}%;background:linear-gradient(90deg,var(--blue),var(--green));border-radius:3px;transition:width .6s;"></div>
-      </div>
-      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);">${objPct>=100?'Meta alcanzada':'Falta u$s '+fmt(objFalta)+' · Ver detalle →'}</div>
-    </div>`;
-  } else {
-    html+=`<button onclick="iTab('camino')" style="width:100%;background:var(--bg2);border:1px dashed var(--line2);border-radius:var(--r2);padding:11px;color:var(--muted);font-size:12px;cursor:pointer;margin-bottom:10px;text-align:center;">Definir objetivo personal →</button>`;
-  }
-
-  // ── MOVERS del día (si hay) ──
-  if(movers.length){
-    html+=`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:12px 14px;margin-bottom:10px;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:8px;">Movimientos hoy</div>
-      ${movers.map(p=>`<div style="display:flex;align-items:center;justify-content:space-between;padding:4px 0;border-bottom:1px solid var(--line);">
-        <div style="font-size:12px;font-weight:500;">${p.ticker}</div>
-        <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${p.price_change>=0?'var(--green)':'var(--red)'};">${p.price_change>=0?'+':''}${p.price_change?.toFixed(1)}%</div>
-      </div>`).join('')}
-    </div>`;
-  }
-
-  // ── WHATSAPP (solo admin) ──
+  // ── WHATSAPP (solo admin) ─────────────────────────────────────
   if(CU.is_admin){
-    html+=`<a href="${waUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:rgba(37,211,102,.08);border:1px solid rgba(37,211,102,.2);border-radius:var(--r2);padding:13px;color:#25d366;font-size:13px;font-weight:500;text-decoration:none;margin-bottom:10px;">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="#25d366"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
+    html+=`
+    <a href="${waUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.14);border-radius:12px;padding:13px;color:rgba(37,211,102,.8);font-size:12px;font-weight:500;text-decoration:none;margin-bottom:14px;">
+      <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
       Enviar resumen por WhatsApp
     </a>`;
   }
+
+  // ── LINK A ANÁLISIS DETALLADO ─────────────────────────────────
+  html+=`
+  <button onclick="iTab('analisis')" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:14px;color:rgba(255,255,255,.32);font-size:12px;cursor:pointer;margin-bottom:4px;text-align:center;font-family:var(--font);transition:border-color .18s,color .18s;" onmouseover="this.style.borderColor='rgba(91,156,246,.25)';this.style.color='rgba(91,156,246,.75)'" onmouseout="this.style.borderColor='rgba(255,255,255,.07)';this.style.color='rgba(255,255,255,.32)'">
+    Ver análisis detallado de posiciones &rarr;
+  </button>`;
 
   return html;
 }
@@ -2470,9 +2520,9 @@ async function editNotes(invId){
   const existing=data?.notes||'';
   const div=document.createElement('div');
   div.id='notes-panel';div.className='card';div.style.marginBottom='14px';
-  div.innerHTML=`<div class="ct">📝 Notas privadas — ${inv.name}</div>
-  <div style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--blue);margin-bottom:12px;">Solo vos las ves. El inversor no tiene acceso.</div>
-  <textarea class="notes-area" id="inv-notes" placeholder="Perfil del cliente, cosas a recordar, próximas acciones...">${existing}</textarea>
+  div.innerHTML=`<div class="ct">💬 Mensaje para el cliente — ${inv.name}</div>
+  <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:10px 12px;font-size:11px;color:var(--green);margin-bottom:12px;">Este mensaje se muestra al cliente en su overview como "Nota de tu asesor". Escribí algo breve y tranquilizador.</div>
+  <textarea class="notes-area" id="inv-notes" placeholder="Ej: La cartera continúa sólida. Seguimos posicionados defensivamente en renta fija y dólar...">${existing}</textarea>
   <div style="display:flex;gap:8px;margin-top:10px;">
     <button class="ib pri" onclick="saveNotes('${invId}')">Guardar</button>
     <button class="ib" onclick="document.getElementById('notes-panel').remove()">Cerrar</button>

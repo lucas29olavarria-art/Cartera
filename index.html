@@ -2289,7 +2289,7 @@ function rGastos(inv){
 
 // ── ANALISIS ──────────────────────────────────────────────────
 function rAnalisis(inv,liq){
-  const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]].sort((a,b)=>b.valor-a.valor);
+  const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]];
   const uid=CU.is_admin?AVId:CU.id;
   if(!all.length)return`<div class="card"><div class="empty">Agregá posiciones para ver el análisis.</div></div>`;
   const totalValor=all.reduce((s,p)=>s+p.valor,0);
@@ -2297,111 +2297,93 @@ function rAnalisis(inv,liq){
   const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);
   const totalRendPct=totalVinicial>0?((totalRend2/totalVinicial)*100).toFixed(1):'—';
 
-  // Sector summary cards
-  const byGroup={};
-  all.forEach(p=>{const g=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';byGroup[g]=(byGroup[g]||0)+p.valor;});
-  const sectorCards=Object.entries(byGroup).sort((a,b)=>b[1]-a[1]).map(([g,v])=>{
-    const c=SECTOR_CFG[g]||SECTOR_CFG['Otro'];
-    const pct=totalValor>0?(v/totalValor*100).toFixed(0):0;
-    return `<div style="flex-shrink:0;background:${c.bg};border:1px solid ${c.cl}44;border-radius:10px;padding:10px 14px;min-width:88px;">
-      <div style="font-size:18px;margin-bottom:4px;">${c.ic}</div>
-      <div style="font-size:10px;font-weight:600;color:${c.cl};margin-bottom:3px;white-space:nowrap;">${g}</div>
-      <div style="font-family:var(--mono);font-size:11px;font-weight:500;">u$s ${fmt(v)}</div>
-      <div style="font-family:var(--mono);font-size:9px;color:var(--muted);">${pct}%</div>
+  const sorted=[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
+    const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
+    return sortAsc?v[0]-v[1]:v[1]-v[0];
+  });
+
+  const posRows=sorted.map(p=>{
+    const qty=p.qty||1;
+    const valorUSD=p.valor||0;
+    const vinicialUSD=p.vinicial||0;
+    const ganancia=valorUSD-vinicialUSD;
+    const rpStr=vinicialUSD>0?((ganancia/vinicialUSD)*100).toFixed(1):'—';
+    const pAct=qty>0?fmtd(valorUSD/qty):'—';
+    const pProm=qty>0&&vinicialUSD>0?fmtd(vinicialUSD/qty):'—';
+    const allocPct=totalValor>0?(valorUSD/totalValor*100):0;
+    const grp=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';
+    const c=SECTOR_CFG[grp]||SECTOR_CFG['Otro'];
+    const flag=COUNTRY_FLAGS[p.pais]||'';
+    const gc=ganancia>=0?'#2dd4a0':'#f06c6c';
+    const safeId='pd-'+p.ticker.replace(/[^a-zA-Z0-9]/g,'');
+    return `<div style="border-bottom:1px solid rgba(255,255,255,.04);">
+      <div style="display:flex;align-items:center;gap:10px;padding:13px 0;cursor:pointer;" onclick="const d=document.getElementById('${safeId}');d.style.display=d.style.display==='none'?'grid':'none'">
+        <div style="width:3px;height:38px;border-radius:2px;background:${c.cl};flex-shrink:0;"></div>
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:5px;margin-bottom:3px;flex-wrap:wrap;">
+            <span style="font-family:var(--mono);font-size:12px;font-weight:700;">${p.ticker}</span>
+            ${flag?`<span style="font-size:12px;">${flag}</span>`:''}
+            <span style="font-size:9px;color:${c.cl};background:${c.bg};border-radius:20px;padding:1px 8px;white-space:nowrap;">${c.ic} ${grp}</span>
+          </div>
+          <div style="font-size:11px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:160px;">${p.nombre}</div>
+        </div>
+        <div style="min-width:50px;">
+          <div style="background:rgba(255,255,255,.06);border-radius:2px;height:2px;margin-bottom:3px;overflow:hidden;">
+            <div style="width:${Math.min(allocPct*3.5,100)}%;height:100%;background:${c.cl};border-radius:2px;"></div>
+          </div>
+          <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;">${allocPct.toFixed(0)}%</div>
+        </div>
+        <div style="text-align:right;flex-shrink:0;min-width:96px;">
+          <div style="font-family:var(--mono);font-size:13px;font-weight:600;">u$s ${fmt(valorUSD)}</div>
+          <div style="font-family:var(--mono);font-size:11px;color:${gc};font-weight:500;">${ganancia>=0?'+':''}${rpStr}%</div>
+        </div>
+      </div>
+      <div id="${safeId}" style="display:none;grid-template-columns:repeat(auto-fit,minmax(88px,1fr));gap:8px;padding:8px 14px 14px;background:rgba(255,255,255,.025);border-radius:var(--r);margin-bottom:6px;">
+        <div><div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.08em;">CANTIDAD</div><div style="font-family:var(--mono);font-size:13px;">${qty}</div></div>
+        <div><div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.08em;">PRECIO HOY</div><div style="font-family:var(--mono);font-size:13px;">u$s ${pAct}</div></div>
+        <div><div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.08em;">P. PROMEDIO</div><div style="font-family:var(--mono);font-size:13px;">u$s ${pProm}</div></div>
+        <div><div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.08em;">INVERTIDO</div><div style="font-family:var(--mono);font-size:13px;">u$s ${fmt(vinicialUSD)}</div></div>
+        <div><div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-bottom:3px;letter-spacing:.08em;">GANANCIA</div><div style="font-family:var(--mono);font-size:13px;color:${gc};">${ganancia>=0?'+':''}u$s ${fmt(Math.abs(ganancia))}</div></div>
+        ${CU.is_admin?`<div style="display:flex;align-items:flex-end;"><button class="dbtn" onclick="delPos('${uid}','${p.id}','${p.cat}')" style="font-size:11px;color:var(--red);">✕ Eliminar</button></div>`:''}
+      </div>
     </div>`;
   }).join('');
 
+  const sBtn=(col,lb)=>`<button class="ib" onclick="sortPos('${col}',inv_ref,${liq})" style="font-size:10px;padding:4px 10px;${sortCol===col?'background:rgba(91,156,246,.15);color:#5b9cf6;border-color:rgba(91,156,246,.3);':''}">${lb}${sortCol===col?(sortAsc?' ↑':' ↓'):''}</button>`;
+
   return `
-  <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:16px;-webkit-overflow-scrolling:touch;">${sectorCards}</div>
-  <div class="g2" style="margin-bottom:12px;">
-    ${dCard('Asignaci\xf3n · RV / RF / Olas','an-alloc')}
-    ${dCard('Por moneda','an-mon')}
+  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
+      <div class="kl">Invertido</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(totalVinicial)}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
+      <div class="kl">Valor hoy</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(totalValor)}</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid rgba(${totalRend2>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
+      <div class="kl">Ganancia total</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:2px;">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${totalRend2>=0?'+':''}${totalRendPct}%</div>
+    </div>
   </div>
-  <div class="g2" style="margin-bottom:12px;">
-    ${dCard('Por sector \xb7 click\xe9 para ver detalle','an-sec')}
-    ${dCard('Por pa\xeds \xb7 click\xe9 para ver detalle','an-pai')}
-  </div>
-  <div class="g2" style="margin-bottom:12px;">
-    <div class="card"><div class="ct">Concentración por ticker (%)</div><div style="height:260px;position:relative;"><canvas id="an-conc" role="img" aria-label="Concentración"></canvas></div></div>
-    <div class="card"><div class="ct">Ganadores vs. perdedores</div><div style="height:260px;position:relative;"><canvas id="an-wf" role="img" aria-label="Waterfall"></canvas></div></div>
-  </div>
-  <div class="g2" style="margin-bottom:16px;">
-    <div class="card"><div class="ct">Ranking por rendimiento total</div><div id="an-rank"></div></div>
-    ${CU.is_admin?`<div class="card"><div class="ct">Alertas · solo admin</div><div>${buildAlerts(all,liq)}</div></div>`:''}
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;">
+    ${dCard('Asignaci\xf3n','an-alloc')}
+    ${dCard('Sector','an-sec')}
+    ${dCard('Moneda','an-mon')}
   </div>
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;gap:20px;flex-wrap:wrap;">
-        <div><div class="kl">Valor total</div><div style="font-family:var(--mono);font-size:16px;">u$s ${fmt(totalValor)}</div></div>
-        <div><div class="kl">Rendimiento total</div><div style="font-family:var(--mono);font-size:16px;color:${totalRend2>=0?'var(--green)':'var(--red)'};">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))} <span style="font-size:12px;">(${totalRend2>=0?'+':''}${totalRendPct}%)</span></div></div>
-      </div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+      <div class="ct" style="margin-bottom:0;">${all.length} posiciones &middot; tap para detalle</div>
+      <div style="display:flex;gap:5px;">${sBtn('valor','Monto')}${sBtn('rend','Ganancia')}${sBtn('rendPct','%')}</div>
     </div>
-    <div class="tw"><table style="table-layout:auto;">
-      <thead><tr>
-        <th onclick="sortPos('ticker',inv,liq)" style="cursor:pointer;">Ticker ${sortCol==='ticker'?(sortAsc?'↑':'↓'):''}</th>
-        <th>Nombre</th>
-        <th>Sector</th>
-        <th style="text-align:right">Cant.</th>
-        <th style="text-align:right">P. Prom.</th>
-        <th style="text-align:right">Último</th>
-        <th onclick="sortPos('valor',inv,liq)" style="cursor:pointer;text-align:right;">Monto ${sortCol==='valor'?(sortAsc?'↑':'↓'):''}</th>
-        <th style="text-align:right">Invertido</th>
-        <th onclick="sortPos('rend',inv,liq)" style="cursor:pointer;text-align:right;">Ganancia ${sortCol==='rend'?(sortAsc?'↑':'↓'):''}</th>
-        <th onclick="sortPos('rendPct',inv,liq)" style="cursor:pointer;text-align:right;">Rend. % ${sortCol==='rendPct'?(sortAsc?'↑':'↓'):''}</th>
-        <th></th>
-      </tr></thead>
-      <tbody>${[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
-        const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
-        return sortAsc?v[0]-v[1]:v[1]-v[0];
-      }).map(p=>{
-        const qty=p.qty||1;
-        const valorUSD=p.valorDisplay||p.valor||0;
-        const vinicialUSD=p.vinicial||0;
-        const ganancia=valorUSD-vinicialUSD;
-        const rendPct=vinicialUSD>0?((ganancia/vinicialUSD)*100).toFixed(2):'—';
-        const precioActual=qty>0?fmtd(valorUSD/qty):'—';
-        const precioPromedio=qty>0&&vinicialUSD>0?fmtd(vinicialUSD/qty):'—';
-        const grp=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';
-        const c=SECTOR_CFG[grp]||SECTOR_CFG['Otro'];
-        const flag=COUNTRY_FLAGS[p.pais]||'';
-        const allocPct=totalValor>0?(valorUSD/totalValor*100).toFixed(1):0;
-        const brokerRows=(inv._dbRv||[]).filter(r=>r.ticker===p.ticker);
-        const brokerDetail=brokerRows.length>1?brokerRows.map(r=>`<span style="font-family:var(--mono);font-size:9px;color:var(--muted);">${r.broker||'?'} ${r.qty}</span>`).join('<span style="color:var(--muted);margin:0 2px;">·</span>'):'';
-        return `<tr>
-          <td>
-            <div style="display:flex;align-items:center;gap:5px;flex-wrap:wrap;">
-              <span class="bdg">${p.ticker}</span>
-              ${flag?`<span style="font-size:13px;">${flag}</span>`:''}
-              ${(p.auto_price||p.autoPrice)?`<span class="ldot"></span>`:''}
-            </div>
-            ${brokerDetail?`<div style="margin-top:2px;display:flex;align-items:center;gap:2px;">${brokerDetail}</div>`:''}
-          </td>
-          <td style="color:var(--soft);max-width:110px;font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${p.nombre}</td>
-          <td><span class="tag" style="background:${c.bg};color:${c.cl};font-size:9px;">${c.ic} ${grp}</span></td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;">${qty}</td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s ${precioPromedio}</td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s ${precioActual}</td>
-          <td style="text-align:right;padding:6px 10px;">
-            <div style="font-family:var(--mono);font-size:12px;font-weight:500;">u$s ${fmt(valorUSD)}</div>
-            <div style="margin-top:3px;height:2px;background:var(--bg4);border-radius:2px;overflow:hidden;"><div style="width:${allocPct}%;height:100%;background:${c.cl};border-radius:2px;"></div></div>
-            <div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px;">${allocPct}%</div>
-          </td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);">u$s ${fmt(vinicialUSD)}</td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;" class="${ganancia>=0?'pos':'neg'}">${ganancia>=0?'+':''}u$s ${fmt(Math.abs(ganancia))}</td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;" class="${ganancia>=0?'pos':'neg'}">${rendPct}%</td>
-          <td><button class="dbtn" onclick="delPos('${uid}','${p.id}','${p.cat}')">✕</button></td>
-        </tr>`;
-      }).join('')}</tbody>
-      <tfoot><tr style="border-top:2px solid var(--line2);background:var(--bg3);">
-        <td colspan="6" style="font-family:var(--mono);font-size:11px;color:var(--muted);padding:10px 10px;">TOTALES · ${all.length} posiciones</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:500;padding:10px;">u$s ${fmt(totalValor)}</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--muted);padding:10px;">u$s ${fmt(totalVinicial)}</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:13px;font-weight:500;padding:10px;" class="${totalRend2>=0?'pos':'neg'}">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))}</td>
-        <td style="text-align:right;font-family:var(--mono);font-size:12px;padding:10px;" class="${totalRend2>=0?'pos':'neg'}">${totalRend2>=0?'+':''}${totalRendPct}%</td>
-        <td></td>
-      </tr></tfoot>
-    </table></div>
+    ${posRows}
+    <div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:6px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted);">
+      <span>${all.length} posiciones</span>
+      <span>u$s ${fmt(totalValor)}</span>
+    </div>
   </div>
+  ${CU.is_admin?`<div class="card" style="margin-top:14px;"><div class="ct">Alertas</div>${buildAlerts(all,liq)}</div>`:''}
   ${inv.olasFlows&&inv.olasFlows.length>0?olasSection(inv):''}
   `;}
 function buildAlerts(pos,liq){
@@ -2466,49 +2448,38 @@ function buildInvCharts(tab,inv,liq){
       const totA=allocSegs.reduce((t,s)=>t+s.v,0);
       if(legA)legA.innerHTML=allocSegs.map(s=>`<div class="lr"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(s.v)}</span><span class="lp">${totA>0?(s.v/totA*100).toFixed(0):0}%</span></div>`).join('');
     }
-    buildDonuts([
-      {id:'an-sec',entries:groupBy(all,'sector'),total:liq,cl:'sectores',positions:all,groupKey:'sector'},
-      {id:'an-pai',entries:groupBy(all,'pais'),total:liq,cl:'países',positions:all,groupKey:'pais'},
-    ]);
+    // Sector donut with SECTOR_CFG colors
+    const secMap={};
+    all.forEach(function(p){var g=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';secMap[g]=(secMap[g]||0)+p.valor;});
+    const secEnts=Object.entries(secMap).sort(function(a,b){return b[1]-a[1];});
+    if(secEnts.length){
+      mkDonut('an-sec',secEnts.map(function(e){return +e[1].toFixed(0);}),secEnts.map(function(e){return (SECTOR_CFG[e[0]]||SECTOR_CFG['Otro']).cl;}));
+      const legSec=document.getElementById('an-sec-leg');
+      if(legSec){
+        const totSec=secEnts.reduce(function(s,e){return s+e[1];},0);
+        legSec.innerHTML=secEnts.map(function(e){
+          const sc=SECTOR_CFG[e[0]]||SECTOR_CFG['Otro'];
+          const grpPos=all.filter(function(p){return (SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro')===e[0];});
+          const dk=storeDrill(grpPos);
+          return '<div class="lr" style="cursor:pointer;" onclick="showDrillDown(\''+e[0]+'\',DRILL_STORE[\''+dk+'\'],'+liq+')"><div class="ld" style="background:'+sc.cl+'"></div><span class="ln">'+sc.ic+' '+e[0]+'</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(e[1])+'</span><span class="lp">'+(totSec>0?(e[1]/totSec*100).toFixed(0):0)+'%</span></div>';
+        }).join('');
+      }
+    }
     // Currency donut: USD vs ARS (by TICKER_MAP moneda + Olas)
     let monUSD=0, monARS=inv.olasVal||0;
-    all.forEach(p=>{
-      const mon=(TICKER_MAP[p.ticker]?.moneda)||'USD';
+    all.forEach(function(p){
+      const mon=(TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD';
       if(mon==='ARS') monARS+=p.valor; else monUSD+=p.valor;
     });
-    // RF positions are USD bonds
-    (inv.rf||[]).forEach(p=>{ monUSD+=p.valor; });
+    (inv.rf||[]).forEach(function(p){monUSD+=p.valor;});
     const monSegs=[];
     if(monUSD>0)monSegs.push({lb:'USD (CEDEARs + Bonos)',v:monUSD,c:'#5b9cf6'});
     if(monARS>0)monSegs.push({lb:'Pesos ARS (acciones + Olas)',v:monARS,c:'#f5a623'});
     if(monSegs.length){
-      mkDonut('an-mon',monSegs.map(s=>s.v),monSegs.map(s=>s.c));
-      const leg=document.getElementById('an-mon-leg');
+      mkDonut('an-mon',monSegs.map(function(s){return s.v;}),monSegs.map(function(s){return s.c;}));
+      const legMon=document.getElementById('an-mon-leg');
       const tot2=monUSD+monARS;
-      if(leg)leg.innerHTML=monSegs.map(s=>`<div class="lr"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(s.v)}</span><span class="lp">${(s.v/tot2*100).toFixed(0)}%</span></div>`).join('');
-    }
-    const top=[...all].sort((a,b)=>b.valor-a.valor).slice(0,10);
-    mkHBarPct('an-conc',top.map(p=>p.ticker),top.map(p=>liq>0?+(p.valor/liq*100).toFixed(1):0),CHC);
-    const br=[...all].filter(p=>p.rend!==0).sort((a,b)=>b.rend-a.rend);
-    mkBar('an-wf',br.map(p=>p.ticker),br.map(p=>p.rend),br.map(p=>p.rend>=0?'rgba(45,212,160,.65)':'rgba(240,108,108,.65)'),'u$s ','');
-    // Ranking por rendimiento %
-    const rankEl=document.getElementById('an-rank');
-    if(rankEl){
-      const rc2={1:'#2dd4a0',2:'#5b9cf6',3:'#f5a623',4:'#fb923c',5:'#f06c6c'};
-      const rl2={1:'Bajo',2:'Mod-bajo',3:'Moderado',4:'Alto',5:'M.alto'};
-      const ranked=[...all].filter(p=>p.vinicial>0).map(p=>({...p,rendPct:+(p.rend/p.vinicial*100).toFixed(1)})).sort((a,b)=>b.rendPct-a.rendPct);
-      rankEl.innerHTML=ranked.map((p,i)=>{
-        const bar=Math.min(Math.abs(p.rendPct)/50*100,100);
-        return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);">
-          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);min-width:18px;">${i+1}</span>
-          <span style="font-family:var(--mono);font-size:11px;font-weight:500;min-width:50px;">${p.ticker}</span>
-          <div style="flex:1;height:4px;background:var(--bg5);border-radius:2px;overflow:hidden;">
-            <div style="height:100%;width:${bar}%;background:${p.rendPct>=0?'#2dd4a0':'#f06c6c'};border-radius:2px;"></div>
-          </div>
-          <span style="font-family:var(--mono);font-size:11px;min-width:55px;text-align:right;color:${p.rendPct>=0?'var(--green)':'var(--red)'};">${p.rendPct>=0?'+':''}${p.rendPct}%</span>
-          <div style="width:6px;height:6px;border-radius:50%;background:${rc2[p.riesgo||3]};flex-shrink:0;" title="${rl2[p.riesgo||3]}"></div>
-        </div>`;
-      }).join('');
+      if(legMon)legMon.innerHTML=monSegs.map(function(s){return '<div class="lr"><div class="ld" style="background:'+s.c+'"></div><span class="ln">'+s.lb+'</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(s.v)+'</span><span class="lp">'+(tot2>0?(s.v/tot2*100).toFixed(0):0)+'%</span></div>';}).join('');
     }
   }
 }

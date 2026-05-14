@@ -588,7 +588,7 @@ const sb = supabase.createClient(SB_URL, SB_KEY);
 
 // ── CONSTANTS ─────────────────────────────────────────────────
 const PAL=['#5b9cf6','#2dd4a0','#f5a623','#f06c6c','#9b7ff4','#1ecbe1','#fb923c','#f06292','#86efac','#818cf8'];
-const CHC=['#5b9cf6','#2dd4a0','#f5a623','#9b7ff4','#1ecbe1','#fb923c','#f06292','#86efac','#818cf8','#f06c6c','#fcd34d','#6ee7b7'];
+const CHC=['#5b9cf6','#2dd4a0','#818cf8','#38bdf8','#6ee7b7','#93c5fd','#a5b4fc','#5eead4','#86efac','#7dd3fc','#34d399','#60a5fa'];
 let MEP = 1415;
 const MONTHS=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 const MON_ABR={ene:0,feb:1,mar:2,abr:3,may:4,jun:5,jul:6,ago:7,sep:8,oct:9,nov:10,dic:11};
@@ -1654,19 +1654,20 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     ${staleAlert}
   </div>`;
 
-  // ── ALLOCACIÓN: 3 cajas simples ──
+  // ── ALLOCACIÓN: donut + leyenda ──
   if(tot0>0){
     const allocs=[];
-    if(rv0>0)allocs.push({lb:'R. Variable',v:rv0,c:'var(--blue)',icon:'📈'});
-    if(rf0>0)allocs.push({lb:'R. Fija',v:rf0,c:'var(--green)',icon:'🏦'});
-    if(ol0>0)allocs.push({lb:'Olas',v:ol0,c:'var(--amber)',icon:'〰'});
-    html+=`<div style="display:grid;grid-template-columns:repeat(${allocs.length},1fr);gap:8px;margin-bottom:10px;">
-      ${allocs.map(a=>`<div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:12px 10px;text-align:center;">
-        <div style="font-size:16px;margin-bottom:4px;">${a.icon}</div>
-        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${a.c};">${(a.v/tot0*100).toFixed(0)}%</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:2px;">${a.lb}</div>
-        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);">u$s ${fmt(a.v)}</div>
-      </div>`).join('')}
+    if(rv0>0)allocs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
+    if(rf0>0)allocs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
+    if(ol0>0)allocs.push({lb:'Olas',v:ol0,c:'#f5a623'});
+    html+=`<div class="card" style="margin-bottom:10px;">
+      <div class="ct">Distribución del portfolio</div>
+      <div class="drow">
+        <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Distribución"></canvas>
+          <div class="dmid"><div class="dmv" style="font-size:9px;text-align:center;line-height:1.4;">u$s<br>${fmt(tot0)}</div></div>
+        </div>
+        <div class="leg">${allocs.map(a=>`<div class="lr"><div class="ld" style="background:${a.c}"></div><span class="ln">${a.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(a.v)}</span><span class="lp">${(a.v/tot0*100).toFixed(0)}%</span></div>`).join('')}</div>
+      </div>
     </div>`;
   }
 
@@ -2262,10 +2263,13 @@ function rAnalisis(inv,liq){
 
   return `
   <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:10px;margin-bottom:16px;-webkit-overflow-scrolling:touch;">${sectorCards}</div>
-  <div class="g3" style="margin-bottom:12px;">
-    ${dCard('Por sector · clickeá para ver detalle','an-sec')}
-    ${dCard('Por país · clickeá para ver detalle','an-pai')}
+  <div class="g2" style="margin-bottom:12px;">
+    ${dCard('Asignaci\xf3n · RV / RF / Olas','an-alloc')}
     ${dCard('Por moneda','an-mon')}
+  </div>
+  <div class="g2" style="margin-bottom:12px;">
+    ${dCard('Por sector \xb7 click\xe9 para ver detalle','an-sec')}
+    ${dCard('Por pa\xeds \xb7 click\xe9 para ver detalle','an-pai')}
   </div>
   <div class="g2" style="margin-bottom:12px;">
     <div class="card"><div class="ct">Concentración por ticker (%)</div><div style="height:260px;position:relative;"><canvas id="an-conc" role="img" aria-label="Concentración"></canvas></div></div>
@@ -2400,6 +2404,18 @@ function buildInvCharts(tab,inv,liq){
     if(mk.length)mkBar('g-bar',mk,mk.map(k=>bm[k]),CHC,'$','');
   }
   else if(tab==='analisis'){
+    // Allocation donut: RV vs RF vs Olas
+    const rv0a=totalRV(inv), rf0a=totalRF(inv), ol0a=inv.olasVal||0;
+    const allocSegs=[];
+    if(rv0a>0)allocSegs.push({lb:'Renta Variable',v:rv0a,c:'#5b9cf6'});
+    if(rf0a>0)allocSegs.push({lb:'Renta Fija',v:rf0a,c:'#2dd4a0'});
+    if(ol0a>0)allocSegs.push({lb:'Olas',v:ol0a,c:'#f5a623'});
+    if(allocSegs.length){
+      mkDonut('an-alloc',allocSegs.map(s=>s.v),allocSegs.map(s=>s.c));
+      const legA=document.getElementById('an-alloc-leg');
+      const totA=allocSegs.reduce((t,s)=>t+s.v,0);
+      if(legA)legA.innerHTML=allocSegs.map(s=>`<div class="lr"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s ${fmt(s.v)}</span><span class="lp">${totA>0?(s.v/totA*100).toFixed(0):0}%</span></div>`).join('');
+    }
     buildDonuts([
       {id:'an-sec',entries:groupBy(all,'sector'),total:liq,cl:'sectores',positions:all,groupKey:'sector'},
       {id:'an-pai',entries:groupBy(all,'pais'),total:liq,cl:'países',positions:all,groupKey:'pais'},

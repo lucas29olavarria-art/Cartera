@@ -512,6 +512,10 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 
     <!-- RV PANEL — ambos brokers juntos -->
     <div id="imp-rv-panel">
+      <div style="background:rgba(45,212,160,.05);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--green);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
+        <span>&#8853; <strong>Modo merge:</strong> las posiciones que ya existen se suman (multi-broker). Si quer&#233;s reemplazar desde cero, limpi&#225; primero.</span>
+        <button onclick="impLimpiarBroker()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);color:var(--red);border-radius:4px;font-size:10px;padding:3px 8px;cursor:pointer;white-space:nowrap;">&#128465; Limpiar posiciones</button>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
         <!-- Inviu -->
         <div>
@@ -3328,6 +3332,27 @@ function impParseOlas(){
   document.getElementById('imp-preview-btn').style.display='none';
 }
 
+async function impLimpiarBroker(){
+  const invId=document.getElementById('imp-inv').value;
+  if(!invId){showToast('Seleccioná un inversor primero');return;}
+  const inv=INV_CACHE[invId];
+  const nombre=inv?.name||'este inversor';
+  const cant=(inv?.rv||[]).length;
+  if(!cant){showToast('No hay posiciones RV para limpiar');return;}
+  if(!confirm('Borrar las '+cant+' posiciones RV de '+nombre+'?\n\nEsto no se puede deshacer. Despu\xe9s import\xe1 de nuevo desde Inviu y/o Balanz.'))return;
+  try{
+    const {error}=await sb.from('positions_rv').delete().eq('investor_id',invId);
+    if(error)throw new Error(error.message);
+    INV_CACHE[invId]=await loadInvestor(invId);
+    impParsedRV=[];
+    impParsedBalanz=[];
+    document.getElementById('imp-rv-preview').innerHTML='';
+    document.getElementById('imp-balanz-preview').innerHTML='';
+    impUpdateCombined();
+    showToast('✓ Posiciones de '+nombre+' eliminadas. Pod\xe9s importar de nuevo.');
+  }catch(e){showToast('Error: '+e.message);}
+}
+
 async function impConfirm(){
   const invId=document.getElementById('imp-inv').value;
   if(!invId){showToast('Seleccioná un inversor primero');return;}
@@ -3340,18 +3365,44 @@ async function impConfirm(){
 
     if(impCurrentTab==='rv'){
       if(!impParsedBalanz.length&&!impParsedRV.length){showToast('No hay posiciones para importar');btn.disabled=false;btn.textContent='✓ Confirmar e importar';return;}
-      // Delete ALL positions for this investor (no broker filter needed)
-      const {error:eDel}=await sb.from('positions_rv').delete().eq('investor_id',invId);
-      if(eDel)throw new Error('Delete: '+eDel.message);
-      const mkRow=p=>({
-        investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,
-        sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,
-        vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD
-      });
-      const allRows=[...impParsedBalanz.map(mkRow),...impParsedRV.map(mkRow)];
-      const {error:eIns}=await sb.from('positions_rv').insert(allRows);
-      if(eIns)throw new Error('Insert: '+eIns.message);
-      imported=allRows.length;
+      // Load current DB state for merge
+      const {data:existingRows}=await sb.from('positions_rv').select('*').eq('investor_id',invId);
+      const dbRows=existingRows||[];
+
+      // Process Balanz — merge with existing tickers
+      for(const p of impParsedBalanz){
+        const existing=dbRows.find(r=>r.ticker===p.ticker);
+        if(existing){
+          const newQty=+(existing.qty+p.qty).toFixed(0);
+          const newValor=+(existing.valor+p.valor).toFixed(2);
+          const newVinicial=+(existing.vinicial+p.vinicial).toFixed(2);
+          const newLastPrice=p.qty>0?+(p.valor/p.qty).toFixed(4):existing.last_price;
+          await sb.from('positions_rv').update({qty:newQty,valor:newValor,vinicial:newVinicial,last_price:newLastPrice}).eq('id',existing.id);
+          existing.qty=newQty;existing.valor=newValor;existing.vinicial=newVinicial;existing.last_price=newLastPrice;
+        }else{
+          const row={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
+          const {data:ins}=await sb.from('positions_rv').insert(row).select();
+          if(ins&&ins[0])dbRows.push(ins[0]);
+        }
+        imported++;
+      }
+
+      // Process Inviu — merge with same in-memory DB state (already updated by Balanz pass)
+      for(const p of impParsedRV){
+        const existing=dbRows.find(r=>r.ticker===p.ticker);
+        if(existing){
+          const newQty=+(existing.qty+p.qty).toFixed(0);
+          const newValor=+(existing.valor+p.valor).toFixed(2);
+          const newVinicial=+(existing.vinicial+p.vinicial).toFixed(2);
+          await sb.from('positions_rv').update({qty:newQty,valor:newValor,vinicial:newVinicial,last_price:p.precioUSD}).eq('id',existing.id);
+          existing.qty=newQty;existing.valor=newValor;existing.vinicial=newVinicial;
+        }else{
+          const row={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
+          await sb.from('positions_rv').insert(row);
+        }
+        imported++;
+      }
+
       const sources=[impParsedBalanz.length?'Balanz':'',impParsedRV.length?'Inviu':''].filter(Boolean).join('+');
       await sb.from('investors').update({
         last_import_date:new Date().toISOString().slice(0,10),

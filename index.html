@@ -1280,6 +1280,10 @@ function rConsolidado(){
 function rInversores(){
   const invs=Object.values(INV_CACHE);
   sc(`<div class="sec-hdr"><h3>Inversores (${invs.length})</h3><button class="ib" onclick="openNewInv()">+ Nuevo</button></div>
+  <div style="background:rgba(240,108,108,.08);border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:12px 16px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <span style="font-size:12px;color:var(--red);">⚠ Herramienta temporal — borra TODAS las posiciones RV de todos los inversores</span>
+    <button class="ib" style="background:rgba(240,108,108,.15);border-color:rgba(240,108,108,.4);color:var(--red);white-space:nowrap;" onclick="borrarTodoRV()">🗑 Borrar TODO RV</button>
+  </div>
   <div class="igrid">
     ${invs.map(inv=>{
       const rend=totalRend(inv),tot=grand(inv);
@@ -1297,6 +1301,20 @@ function rInversores(){
     }).join('')}
     <div class="addcard" onclick="openNewInv()"><div style="font-size:22px;font-weight:300;">+</div><span style="font-size:11px;font-weight:600;">Nuevo inversor</span></div>
   </div>`);
+}
+
+async function borrarTodoRV(){
+  const clientes=Object.values(INV_CACHE).filter(i=>!i.is_admin);
+  const nombres=clientes.map(i=>i.name).join(', ');
+  if(!confirm('Borrar TODAS las posiciones RV de:\n'+nombres+'\n\nEsto no se puede deshacer.'))return;
+  let ok=0,fail=0;
+  for(const inv of clientes){
+    const {error}=await sb.from('positions_rv').delete().eq('investor_id',inv.id);
+    if(error){fail++;console.error(inv.name,error);}
+    else{INV_CACHE[inv.id]=await loadInvestor(inv.id);ok++;}
+  }
+  showToast(ok+' inversores limpiados'+(fail?' · '+fail+' errores':''));
+  rInversores();
 }
 
 async function viewInv(id){

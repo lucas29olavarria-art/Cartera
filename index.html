@@ -3593,43 +3593,32 @@ async function impConfirm(){
 
     if(impCurrentTab==='rv'){
       if(!impParsedBalanz.length&&!impParsedRV.length){showToast('No hay posiciones para importar');btn.disabled=false;btn.textContent='✓ Confirmar e importar';return;}
-      // Load current DB state for merge
-      const {data:existingRows}=await sb.from('positions_rv').select('*').eq('investor_id',invId);
-      const dbRows=existingRows||[];
 
-      // Process Balanz — update existing tickers, insert new ones
+      // Build combined in-memory map: merge shared tickers from both parsers
+      const combined={};
       for(const p of impParsedBalanz){
-        const existing=dbRows.find(r=>r.ticker===p.ticker);
-        if(existing){
-          const newQty=+(existing.qty+p.qty).toFixed(0);
-          const newValor=+(existing.valor+p.valor).toFixed(2);
-          const newVinicial=+(existing.vinicial+p.vinicial).toFixed(2);
-          const newLastPrice=p.qty>0?+(p.valor/p.qty).toFixed(4):existing.last_price;
-          await sb.from('positions_rv').update({qty:newQty,valor:newValor,vinicial:newVinicial,last_price:newLastPrice}).eq('id',existing.id);
-          existing.qty=newQty;existing.valor=newValor;existing.vinicial=newVinicial;existing.last_price=newLastPrice;
-        }else{
-          const row={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
-          const {data:ins}=await sb.from('positions_rv').insert(row).select();
-          if(ins&&ins[0])dbRows.push(ins[0]);
-        }
-        imported++;
+        combined[p.ticker]={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
       }
-
-      // Process Inviu — merge with same in-memory DB state (already updated by Balanz pass)
       for(const p of impParsedRV){
-        const existing=dbRows.find(r=>r.ticker===p.ticker);
-        if(existing){
-          const newQty=+(existing.qty+p.qty).toFixed(0);
-          const newValor=+(existing.valor+p.valor).toFixed(2);
-          const newVinicial=+(existing.vinicial+p.vinicial).toFixed(2);
-          await sb.from('positions_rv').update({qty:newQty,valor:newValor,vinicial:newVinicial,last_price:p.precioUSD}).eq('id',existing.id);
-          existing.qty=newQty;existing.valor=newValor;existing.vinicial=newVinicial;
+        if(combined[p.ticker]){
+          const e=combined[p.ticker];
+          e.qty=+(e.qty+p.qty).toFixed(0);
+          e.valor=+(e.valor+p.valor).toFixed(2);
+          e.vinicial=+(e.vinicial+p.vinicial).toFixed(2);
+          e.last_price=p.precioUSD;
         }else{
-          const row={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
-          await sb.from('positions_rv').insert(row);
+          combined[p.ticker]={investor_id:invId,ticker:p.ticker,nombre:p.nombre,tipo:p.tipo,sector:p.sector,pais:p.pais,riesgo:p.riesgo,valor:p.valor,vinicial:p.vinicial,qty:p.qty,auto_price:p.auto_price,last_price:p.precioUSD};
         }
-        imported++;
       }
+      const newTickers=Object.keys(combined);
+      if(newTickers.length){
+        // Per-ticker replace: delete only the tickers being imported, leave other broker's tickers untouched
+        const {error:eDel}=await sb.from('positions_rv').delete().eq('investor_id',invId).in('ticker',newTickers);
+        if(eDel)throw new Error('Delete: '+eDel.message);
+        const {error:eIns}=await sb.from('positions_rv').insert(Object.values(combined));
+        if(eIns)throw new Error('Insert: '+eIns.message);
+      }
+      imported=newTickers.length;
 
       const sources=[impParsedBalanz.length?'Balanz':'',impParsedRV.length?'Inviu':''].filter(Boolean).join('+');
       await sb.from('investors').update({

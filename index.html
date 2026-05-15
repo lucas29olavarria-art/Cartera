@@ -324,6 +324,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="atb-historial" onclick="aTab('historial')">Historial</button>
     <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
     <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
+    <button class="tb" id="atb-snapshots" onclick="aTab('snapshots')">Snapshots</button>
     <button class="tb" onclick="openImport()">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
@@ -332,6 +333,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-camino" onclick="iTab('camino')">Tu camino</button>
+    <button class="tb" id="itb-rendimiento" onclick="iTab('rendimiento')">Rendimiento</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -1103,7 +1105,7 @@ async function refreshPrices(){
 // ── ADMIN ─────────────────────────────────────────────────────
 function aTab(t){
   ATb=t;
-  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte'].forEach(name=>{
+  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte','snapshots'].forEach(name=>{
     const el=document.getElementById('atb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -1117,6 +1119,7 @@ function renderAdmin(){
   else if(ATb==='historial')rHistorial();
   else if(ATb==='notas')rNotas();
   else if(ATb==='reporte')rReporte();
+  else if(ATb==='snapshots')rAdminSnaps();
 }
 
 // ── CONSOLIDADO ───────────────────────────────────────────────
@@ -1172,10 +1175,21 @@ function rConsolidado(){
   <div class="card" style="margin-bottom:12px;">
     <div class="ct">Inversores</div>
     <div class="tw"><table>
-      <thead><tr><th>Nombre</th><th style="text-align:right">RV</th><th style="text-align:right">RF</th><th style="text-align:right">Olas</th><th style="text-align:right">Total</th><th style="text-align:right">Rend.</th><th style="text-align:right">%</th><th></th></tr></thead>
+      <thead><tr><th>Nombre</th><th style="text-align:right">RV</th><th style="text-align:right">RF</th><th style="text-align:right">Olas</th><th style="text-align:right">Total</th><th style="text-align:right">Rend.</th><th style="text-align:right">%</th><th style="text-align:right" class="mv">1M</th><th style="text-align:right" class="mv">3M</th><th style="text-align:right" class="mv">6M</th><th style="text-align:right" class="mv">1A</th><th></th></tr></thead>
       <tbody>${invs.map(inv=>{
         const rv=totalRV(inv),rf=totalRF(inv),ov=inv.olasVal||0,t=grand(inv),r=totalRend(inv);
         const rp2=totalLiq(inv)>0?(r/Math.abs(totalLiq(inv)-r)*100).toFixed(1):'—';
+        const iSnaps=snapForInv(inv.id);
+        const iLast=iSnaps.length?iSnaps[iSnaps.length-1]:null;
+        function iPct(months){
+          if(!iLast||iSnaps.length<2)return'—';
+          const s=snapAtPeriod(iSnaps,months);
+          if(!s||s.id===iLast.id)return'—';
+          const d=iLast.totalValueUSD-s.totalValueUSD;
+          const p=s.totalValueUSD>0?(d/s.totalValueUSD*100):0;
+          const c=d>=0?'var(--green)':'var(--red)';
+          return'<span style="color:'+c+';">'+(p>=0?'+':'')+p.toFixed(1)+'%</span>';
+        }
         return `<tr style="cursor:pointer;" onclick="viewInv('${inv.id}')">
           <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:${inv.color};"></div><span style="font-weight:500;">${inv.name}</span></div></td>
           <td style="text-align:right" class="mv">${rv>0?'u$s '+fmt(rv):'—'}</td>
@@ -1184,6 +1198,10 @@ function rConsolidado(){
           <td style="text-align:right" class="mv" style="font-weight:500;">u$s ${fmt(t)}</td>
           <td style="text-align:right" class="${r>=0?'pos':'neg'}">${r>=0?'+':''}u$s ${fmt(Math.abs(r))}</td>
           <td style="text-align:right" class="${r>=0?'pos':'neg'}">${rp2}%</td>
+          <td style="text-align:right;font-family:var(--mono);font-size:11px;" class="mv">${iPct(1)}</td>
+          <td style="text-align:right;font-family:var(--mono);font-size:11px;" class="mv">${iPct(3)}</td>
+          <td style="text-align:right;font-family:var(--mono);font-size:11px;" class="mv">${iPct(6)}</td>
+          <td style="text-align:right;font-family:var(--mono);font-size:11px;" class="mv">${iPct(12)}</td>
           <td style="font-family:var(--mono);font-size:10px;color:var(--muted);">→</td>
         </tr>`;
       }).join('')}</tbody>
@@ -1593,6 +1611,7 @@ function renderInv(inv){
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
   else if(ITb==='camino')body=rCamino(inv,tot);
+  else if(ITb==='rendimiento')body=rRendimiento(inv);
 
   sc(hdr+body);
 
@@ -2482,6 +2501,15 @@ function buildInvCharts(tab,inv,liq){
       if(legMon)legMon.innerHTML=monSegs.map(function(s){return '<div class="lr"><div class="ld" style="background:'+s.c+'"></div><span class="ln">'+s.lb+'</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(s.v)+'</span><span class="lp">'+(tot2>0?(s.v/tot2*100).toFixed(0):0)+'%</span></div>';}).join('');
     }
   }
+  else if(tab==='rendimiento'){
+    const rSnaps=snapForInv(inv.id);
+    if(rSnaps.length<2)return;
+    const rLabels=rSnaps.map(function(s){
+      const d=new Date(s.date);
+      return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+    });
+    mkLine('rend-line',rLabels,rSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),inv.color||'#5b9cf6');
+  }
 }
 
 // ── NOTAS ─────────────────────────────────────────────────────
@@ -2704,7 +2732,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','flujo','analisis','simulador','camino'].forEach(name=>{
+  ['overview','flujo','analisis','simulador','camino','rendimiento'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -2713,6 +2741,169 @@ function iTab(t){
   if(inv)renderInv(inv);
 }
 let CU_DATA=null;
+let rendPeriod=3;
+
+// ── SNAPSHOTS ─────────────────────────────────────────────────
+const SNAP_KEY='cartera_snapshots_v1';
+function snapAll(){try{return JSON.parse(localStorage.getItem(SNAP_KEY)||'[]');}catch(e){return[];}}
+function snapSave(arr){localStorage.setItem(SNAP_KEY,JSON.stringify(arr));}
+function snapAdd(inv){
+  const arr=snapAll();
+  arr.push({
+    id:Date.now()+'_'+inv.id,
+    investorId:inv.id,
+    date:new Date().toISOString(),
+    totalValueUSD:+grand(inv).toFixed(2),
+    rvValueUSD:+totalRV(inv).toFixed(2),
+    rfValueUSD:+totalRF(inv).toFixed(2),
+    olasValueUSD:+(inv.olasVal||0),
+    positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})
+  });
+  snapSave(arr);
+}
+function snapForInv(invId){
+  return snapAll().filter(function(s){return s.investorId===invId;}).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+}
+function snapAtPeriod(snaps,months){
+  if(!snaps.length)return null;
+  const target=Date.now()-months*30*24*60*60*1000;
+  let best=null,bestDiff=Infinity;
+  snaps.forEach(function(s){
+    const d=Math.abs(new Date(s.date).getTime()-target);
+    if(d<bestDiff){bestDiff=d;best=s;}
+  });
+  // Don't use a snapshot newer than target by more than 3 days (would give misleading period)
+  if(best&&new Date(best.date).getTime()>target+3*24*60*60*1000)return null;
+  return best;
+}
+function snapDelete(id){snapSave(snapAll().filter(function(s){return s.id!==id;}));}
+function snapDelAndRefresh(snapId,invId){
+  snapDelete(snapId);
+  const inv=INV_CACHE[invId]||CU_DATA;
+  if(inv){kc();renderInv(inv);iTab('rendimiento');}
+}
+
+// ── RENDIMIENTO ───────────────────────────────────────────────
+function rRendimiento(inv){
+  const snaps=snapForInv(inv.id);
+  if(snaps.length<2){
+    return '<div style="padding:48px 20px;text-align:center;color:var(--muted);">'+
+      '<div style="font-size:40px;margin-bottom:16px;">📈</div>'+
+      '<div style="font-size:14px;font-weight:500;margin-bottom:8px;">Todav\xeda no hay historial suficiente</div>'+
+      '<div style="font-size:12px;">Import\xe1 datos al menos 2 veces para ver la evoluci\xf3n del portafolio.</div>'+
+      '<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;">Snapshots guardados: '+snaps.length+'</div>'+
+      '</div>';
+  }
+  const last=snaps[snaps.length-1];
+  const curVal=last.totalValueUSD;
+  const periods=[1,3,6,12];
+  const pLabel={1:'1M',3:'3M',6:'6M',12:'1A'};
+  const pBtns=periods.map(function(m){
+    return '<button class="ib'+(rendPeriod===m?' pri':'')+'" style="padding:5px 14px;" '+
+      'onclick="rendPeriod='+m+';kc();renderInv(inv_ref);iTab(\'rendimiento\');">'+pLabel[m]+'</button>';
+  }).join('');
+  const startSnap=snapAtPeriod(snaps,rendPeriod);
+  let diffVal='—',diffPct='—',diffC='var(--muted)',startValStr='—';
+  if(startSnap&&startSnap.id!==last.id){
+    const sv=startSnap.totalValueUSD;
+    startValStr='u$s '+fmt(sv);
+    const d=curVal-sv;
+    const p=sv>0?(d/sv*100):0;
+    diffVal=(d>=0?'+ u$s ':'− u$s ')+fmt(Math.abs(d));
+    diffPct=(p>=0?'+':'')+p.toFixed(1)+'%';
+    diffC=d>=0?'var(--green)':'var(--red)';
+  }
+  const isA=CU&&CU.is_admin;
+  const reversed=snaps.slice().reverse();
+  const histRows=reversed.map(function(s,i){
+    const prev=reversed[i+1];
+    let vv='—',vp='—',vc='var(--muted)';
+    if(prev){
+      const d=s.totalValueUSD-prev.totalValueUSD;
+      const p2=prev.totalValueUSD>0?(d/prev.totalValueUSD*100):0;
+      vv=(d>=0?'+':'−')+' u$s '+fmt(Math.abs(d));
+      vp=(p2>=0?'+':'')+p2.toFixed(1)+'%';
+      vc=d>=0?'var(--green)':'var(--red)';
+    }
+    const dt=new Date(s.date);
+    const ds=dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})+
+      ' '+dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+    return '<tr>'+
+      '<td style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+ds+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s '+fmt(s.totalValueUSD)+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:'+vc+';">'+vv+'</td>'+
+      '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:'+vc+';">'+vp+'</td>'+
+      (isA?'<td style="text-align:center;padding:0 4px;"><button class="ib" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="snapDelAndRefresh(\''+s.id+'\',\''+inv.id+'\')">✕</button></td>':'')+
+      '</tr>';
+  }).join('');
+  const admTh=isA?'<th></th>':'';
+  return '<div class="card" style="margin-bottom:12px;">'+
+    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'+
+    '<div class="ct" style="margin:0;">Rendimiento hist\xf3rico</div>'+
+    '<div style="display:flex;gap:6px;">'+pBtns+'</div>'+
+    '</div>'+
+    '<div class="krow" style="margin-bottom:16px;">'+
+    '<div class="kpi"><div class="kl">Valor actual</div><div class="kv">u$s '+fmt(curVal)+'</div></div>'+
+    '<div class="kpi"><div class="kl">Hace '+pLabel[rendPeriod]+'</div><div class="kv">'+startValStr+'</div></div>'+
+    '<div class="kpi"><div class="kl">Diferencia</div><div class="kv" style="color:'+diffC+';">'+diffVal+'</div></div>'+
+    '<div class="kpi"><div class="kl">Rendimiento</div><div class="kv" style="color:'+diffC+';">'+diffPct+'</div></div>'+
+    '</div>'+
+    '<div style="height:220px;position:relative;"><canvas id="rend-line" role="img" aria-label="Evoluci\xf3n del valor"></canvas></div>'+
+    '</div>'+
+    '<div class="card">'+
+    '<div class="ct">Historial ('+snaps.length+' snapshots)</div>'+
+    '<div class="tw"><table>'+
+    '<thead><tr><th>Fecha</th><th style="text-align:right">Valor total</th><th style="text-align:right">Variaci\xf3n</th><th style="text-align:right">%</th>'+admTh+'</tr></thead>'+
+    '<tbody>'+histRows+'</tbody>'+
+    '</table></div>'+
+    '</div>';
+}
+
+// ── ADMIN SNAPSHOTS ──────────────────────────────────────────
+function rAdminSnaps(){
+  const all=snapAll();
+  if(!all.length){
+    sc('<div class="empty">No hay snapshots guardados todav\xeda.<br><span style="font-size:12px;color:var(--muted);">Se guardan autom\xe1ticamente al importar datos.</span></div>');
+    return;
+  }
+  const byInv={};
+  all.forEach(function(s){if(!byInv[s.investorId])byInv[s.investorId]=[];byInv[s.investorId].push(s);});
+  const invIds=Object.keys(byInv);
+  const kb=+(JSON.stringify(all).length/1024).toFixed(1);
+  let html='<div class="krow" style="margin-bottom:12px;">'+
+    '<div class="kpi"><div class="kl">Total snapshots</div><div class="kv">'+all.length+'</div></div>'+
+    '<div class="kpi"><div class="kl">Inversores</div><div class="kv">'+invIds.length+'</div></div>'+
+    '<div class="kpi"><div class="kl">Almacenamiento</div><div class="kv" style="font-size:14px;">'+kb+' KB</div></div>'+
+    '</div>';
+  invIds.forEach(function(id){
+    const inv=INV_CACHE[id];
+    const name=inv?inv.name:('Inversor '+id.slice(0,8));
+    const snaps=byInv[id].slice().sort(function(a,b){return new Date(b.date)-new Date(a.date);});
+    const dot=inv?'<div style="width:8px;height:8px;border-radius:50%;background:'+inv.color+';flex-shrink:0;"></div>':'';
+    html+='<div class="card" style="margin-bottom:12px;">'+
+      '<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">'+
+      '<div class="ct" style="margin:0;display:flex;align-items:center;gap:8px;">'+dot+'<span>'+name+'</span></div>'+
+      '<span style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+snaps.length+' snapshots</span>'+
+      '</div>'+
+      '<div class="tw"><table>'+
+      '<thead><tr><th>Fecha</th><th style="text-align:right">Total</th><th style="text-align:right">RV</th><th style="text-align:right">RF</th><th style="text-align:right">Olas</th><th></th></tr></thead>'+
+      '<tbody>'+snaps.map(function(s){
+        const dt=new Date(s.date);
+        const ds=dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})+
+          ' '+dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+        return '<tr>'+
+          '<td style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+ds+'</td>'+
+          '<td style="text-align:right;font-family:var(--mono);font-size:12px;font-weight:500;">u$s '+fmt(s.totalValueUSD)+'</td>'+
+          '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">'+fmt(s.rvValueUSD)+'</td>'+
+          '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">'+fmt(s.rfValueUSD)+'</td>'+
+          '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:var(--muted);">'+fmt(s.olasValueUSD||0)+'</td>'+
+          '<td style="text-align:center;padding:0 4px;"><button class="ib" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="snapDelete(\''+s.id+'\');aTab(\'snapshots\')">✕</button></td>'+
+          '</tr>';
+      }).join('')+
+      '</tbody></table></div></div>';
+  });
+  sc(html);
+}
 
 // ── OPERACIONES ───────────────────────────────────────────────
 function openOperacion(){
@@ -3464,6 +3655,8 @@ async function impConfirm(){
 
     // Reload investor data from DB
     INV_CACHE[invId]=await loadInvestor(invId);
+    // Auto-snapshot: save portfolio state to localStorage for historical tracking
+    snapAdd(INV_CACHE[invId]);
 
     // Verify DB state — show inside modal so it's unmissable
     if(impCurrentTab!=='olas'){

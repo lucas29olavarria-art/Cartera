@@ -2818,15 +2818,22 @@ function rReporteMensual(inv){
   const tickerDeltas=[];
   allTkSet.forEach(function(tk){
     const p0=startPos[tk];const p1=endPos[tk];
+    const q0=p0?(p0.qty||0):0;const q1=p1?(p1.qty||0):0;
     const v0=p0?p0.valueUSD:0;const v1=p1?p1.valueUSD:0;
-    const delta=v1-v0;
-    const pct=v0>0?(delta/v0*100):(v1>0?100:0);
-    tickerDeltas.push({ticker:tk,nombre:(p1||p0).nombre||tk,v0:v0,v1:v1,delta:delta,pct:pct});
+    // only measure price performance on positions held at BOTH start and end
+    if(q0===0||q1===0)return;
+    const pr0=v0/q0;const pr1=v1/q1;
+    const held=Math.min(q0,q1); // ignore new capital added mid-month
+    const priceDelta=held*(pr1-pr0);
+    const baseVal=held*pr0;
+    const pct=baseVal>0?(priceDelta/baseVal*100):0;
+    tickerDeltas.push({ticker:tk,nombre:(p1||p0).nombre||tk,v0:v0,v1:v1,delta:priceDelta,pct:pct});
   });
   tickerDeltas.sort(function(a,b){return b.delta-a.delta;});
   const gainers=tickerDeltas.filter(function(t){return t.delta>=0;});
   const losers=tickerDeltas.filter(function(t){return t.delta<0;}).reverse();
-  const rvDelta=s1.totalValueUSD-s0.totalValueUSD;
+  // total = sum of price deltas (excludes new capital injected)
+  const rvDelta=tickerDeltas.reduce(function(acc,t){return acc+t.delta;},0);
   const rvPct=s0.totalValueUSD>0?(rvDelta/s0.totalValueUSD*100):0;
   const rvC=rvDelta>=0?'var(--green)':'var(--red)';
   const rvSign=rvDelta>=0?'+':'−';
@@ -2859,7 +2866,7 @@ function rReporteMensual(inv){
     '<div class="krow">'+
     '<div class="kpi"><div class="kl">Inicio del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s0.totalValueUSD)+'</div></div>'+
     '<div class="kpi"><div class="kl">Fin del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s1.totalValueUSD)+'</div></div>'+
-    '<div class="kpi"><div class="kl">Variaci\xf3n RV</div><div class="kv" style="color:'+rvC+';font-family:var(--mono);">'+rvSign+' u$s '+fmt(Math.abs(rvDelta))+' ('+rvPct.toFixed(1)+'%)</div></div>'+
+    '<div class="kpi"><div class="kl">Rendimiento de precios</div><div class="kv" style="color:'+rvC+';font-family:var(--mono);">'+rvSign+' u$s '+fmt(Math.abs(rvDelta))+' ('+rvPct.toFixed(1)+'%)</div></div>'+
     (cobroTotal>0?'<div class="kpi"><div class="kl">Cobros Olas/RF</div><div class="kv" style="color:var(--green);font-family:var(--mono);">+ u$s '+fmt(cobroTotal)+'</div></div>':'')+
     '<div class="kpi" style="background:rgba(91,156,246,.07);border-radius:8px;padding:8px 10px;"><div class="kl">Total del mes</div><div class="kv" style="color:'+totalC+';font-size:18px;">'+totalSign+' u$s '+fmt(Math.abs(totalMes))+'</div></div>'+
     '</div></div>';

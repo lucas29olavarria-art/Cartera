@@ -2837,11 +2837,15 @@ function rReporteMensual(inv){
   const rvPct=s0.totalValueUSD>0?(rvDelta/s0.totalValueUSD*100):0;
   const rvC=rvDelta>=0?'var(--green)':'var(--red)';
   const rvSign=rvDelta>=0?'+':'−';
-  const cobros=(inv.flujos||[]).filter(function(f){
+  const cobros=(inv.olasFlows||[]).filter(function(f){
     if(!f.cobrado)return false;
-    const fd=new Date(f.fecha);return fd>=monthStart&&fd<monthEnd;
+    const fd=new Date(olasDate(f)+'T12:00:00');return fd>=monthStart&&fd<monthEnd;
   });
-  const cobroTotal=cobros.reduce(function(acc,f){return acc+(f.monto_usd||0);},0);
+  const cobroTotal=cobros.reduce(function(acc,f){
+    const tc=f.tcCobro||MEP;
+    const ars=f.montoRealArs||olasMonto(f);
+    return acc+parseFloat((ars/tc).toFixed(2));
+  },0);
   const totalMes=rvDelta+cobroTotal;
   const totalC=totalMes>=0?'var(--green)':'var(--red)';
   const totalSign=totalMes>=0?'+':'−';
@@ -2885,8 +2889,8 @@ function rReporteMensual(inv){
       const fd=new Date(f.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
       return '<tr>'+
         '<td style="font-size:12px;">'+fd+'</td>'+
-        '<td style="font-size:12px;">'+(f.ticker||f.instrumento||'—')+'</td>'+
-        '<td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--green);">+ u$s '+fmt(f.monto_usd||0)+'</td>'+
+        '<td style="font-size:12px;">'+(olasDesc(f)||'—')+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--green);">+ u$s '+fmt(+(((f.montoRealArs||olasMonto(f))/(f.tcCobro||MEP)).toFixed(2)))+'</td>'+
         '</tr>';
     }).join('');
     html+='<div class="card" style="margin-bottom:12px;">'+

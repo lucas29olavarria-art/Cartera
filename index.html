@@ -333,7 +333,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-camino" onclick="iTab('camino')">Tu camino</button>
-    <button class="tb" id="itb-rendimiento" onclick="iTab('rendimiento')">Rendimiento</button>
+    <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -1611,7 +1611,7 @@ function renderInv(inv){
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
   else if(ITb==='camino')body=rCamino(inv,tot);
-  else if(ITb==='rendimiento')body=rRendimiento(inv);
+  else if(ITb==='reporte')body=rReporteMensual(inv);
 
   sc(hdr+body);
 
@@ -2501,14 +2501,8 @@ function buildInvCharts(tab,inv,liq){
       if(legMon)legMon.innerHTML=monSegs.map(function(s){return '<div class="lr"><div class="ld" style="background:'+s.c+'"></div><span class="ln">'+s.lb+'</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(s.v)+'</span><span class="lp">'+(tot2>0?(s.v/tot2*100).toFixed(0):0)+'%</span></div>';}).join('');
     }
   }
-  else if(tab==='rendimiento'){
-    const rSnaps=snapForInv(inv.id);
-    if(rSnaps.length<2)return;
-    const rLabels=rSnaps.map(function(s){
-      const d=new Date(s.date);
-      return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-    });
-    mkLine('rend-line',rLabels,rSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),inv.color||'#5b9cf6');
+  else if(tab==='reporte'){
+    // no canvas needed for reporte mensual
   }
 }
 
@@ -2732,7 +2726,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','flujo','analisis','simulador','camino','rendimiento'].forEach(name=>{
+  ['overview','flujo','analisis','simulador','camino','reporte'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -2741,16 +2735,18 @@ function iTab(t){
   if(inv)renderInv(inv);
 }
 let CU_DATA=null;
-let rendPeriod=3;
+let reportMonthKey=new Date().toISOString().slice(0,7);
 
 // ── SNAPSHOTS ─────────────────────────────────────────────────
 const SNAP_KEY='cartera_snapshots_v1';
 function snapAll(){try{return JSON.parse(localStorage.getItem(SNAP_KEY)||'[]');}catch(e){return[];}}
 function snapSave(arr){localStorage.setItem(SNAP_KEY,JSON.stringify(arr));}
 function snapAdd(inv){
-  const arr=snapAll();
+  const todayKey=new Date().toISOString().slice(0,10);
+  const snapId=todayKey+'_'+inv.id;
+  const arr=snapAll().filter(function(s){return s.id!==snapId;});
   arr.push({
-    id:Date.now()+'_'+inv.id,
+    id:snapId,
     investorId:inv.id,
     date:new Date().toISOString(),
     totalValueUSD:+grand(inv).toFixed(2),
@@ -2780,83 +2776,135 @@ function snapDelete(id){snapSave(snapAll().filter(function(s){return s.id!==id;}
 function snapDelAndRefresh(snapId,invId){
   snapDelete(snapId);
   const inv=INV_CACHE[invId]||CU_DATA;
-  if(inv){kc();renderInv(inv);iTab('rendimiento');}
+  if(inv){kc();renderInv(inv);iTab('reporte');}
 }
 
-// ── RENDIMIENTO ───────────────────────────────────────────────
-function rRendimiento(inv){
-  const snaps=snapForInv(inv.id);
-  if(snaps.length<2){
-    return '<div style="padding:48px 20px;text-align:center;color:var(--muted);">'+
-      '<div style="font-size:40px;margin-bottom:16px;">📈</div>'+
-      '<div style="font-size:14px;font-weight:500;margin-bottom:8px;">Todav\xeda no hay historial suficiente</div>'+
-      '<div style="font-size:12px;">Import\xe1 datos al menos 2 veces para ver la evoluci\xf3n del portafolio.</div>'+
-      '<div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:10px;">Snapshots guardados: '+snaps.length+'</div>'+
+// ── REPORTE MENSUAL ───────────────────────────────────────────
+function rReporteMensual(inv){
+  const mk=reportMonthKey;
+  const parts=mk.split('-');
+  const Y=+parts[0],M=+parts[1];
+  const prevMk=(M===1)?(Y-1)+'-12':Y+'-'+(M-1<10?'0':'')+(M-1);
+  const nextMk=(M===12)?(Y+1)+'-01':Y+'-'+(M+1<10?'0':'')+(M+1);
+  const nowMk=new Date().toISOString().slice(0,7);
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const monthLabel=mNames[M-1]+' '+Y;
+  const allSnaps=snapForInv(inv.id);
+  const monthStart=new Date(Y,M-1,1);
+  const monthEnd=new Date(Y,M,1);
+  const monthSnaps=allSnaps.filter(function(s){
+    const d=new Date(s.date);return d>=monthStart&&d<monthEnd;
+  }).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  const navHtml='<div style="display:flex;align-items:center;gap:16px;margin-bottom:20px;">'+
+    '<button class="ib" onclick="reportMonthKey=\''+prevMk+'\';kc();renderInv(inv_ref);iTab(\'reporte\');">◀</button>'+
+    '<div style="font-size:16px;font-weight:600;min-width:170px;text-align:center;">'+monthLabel+'</div>'+
+    (mk<nowMk?'<button class="ib" onclick="reportMonthKey=\''+nextMk+'\';kc();renderInv(inv_ref);iTab(\'reporte\');">▶</button>':'<button class="ib" disabled style="opacity:.3">▶</button>')+
+    '</div>';
+  if(monthSnaps.length<2){
+    const msg=mk===nowMk?'Import\xe1 datos a fin de mes para ver el reporte completo.':'No hay datos suficientes para este per\xedodo.';
+    return navHtml+
+      '<div style="padding:40px 20px;text-align:center;color:var(--muted);">'+
+      '<div style="font-size:36px;margin-bottom:12px;">📊</div>'+
+      '<div style="font-size:14px;">'+msg+'</div>'+
       '</div>';
   }
-  const last=snaps[snaps.length-1];
-  const curVal=last.totalValueUSD;
-  const periods=[1,3,6,12];
-  const pLabel={1:'1M',3:'3M',6:'6M',12:'1A'};
-  const pBtns=periods.map(function(m){
-    return '<button class="ib'+(rendPeriod===m?' pri':'')+'" style="padding:5px 14px;" '+
-      'onclick="rendPeriod='+m+';kc();renderInv(inv_ref);iTab(\'rendimiento\');">'+pLabel[m]+'</button>';
-  }).join('');
-  const startSnap=snapAtPeriod(snaps,rendPeriod);
-  let diffVal='—',diffPct='—',diffC='var(--muted)',startValStr='—';
-  if(startSnap&&startSnap.id!==last.id){
-    const sv=startSnap.totalValueUSD;
-    startValStr='u$s '+fmt(sv);
-    const d=curVal-sv;
-    const p=sv>0?(d/sv*100):0;
-    diffVal=(d>=0?'+ u$s ':'− u$s ')+fmt(Math.abs(d));
-    diffPct=(p>=0?'+':'')+p.toFixed(1)+'%';
-    diffC=d>=0?'var(--green)':'var(--red)';
+  const s0=monthSnaps[0];
+  const s1=monthSnaps[monthSnaps.length-1];
+  const startPos={};
+  (s0.positions||[]).forEach(function(p){startPos[p.ticker]=p;});
+  const endPos={};
+  (s1.positions||[]).forEach(function(p){endPos[p.ticker]=p;});
+  const allTkSet=new Set(Object.keys(startPos).concat(Object.keys(endPos)));
+  const tickerDeltas=[];
+  allTkSet.forEach(function(tk){
+    const p0=startPos[tk];const p1=endPos[tk];
+    const v0=p0?p0.valueUSD:0;const v1=p1?p1.valueUSD:0;
+    const delta=v1-v0;
+    const pct=v0>0?(delta/v0*100):(v1>0?100:0);
+    tickerDeltas.push({ticker:tk,nombre:(p1||p0).nombre||tk,v0:v0,v1:v1,delta:delta,pct:pct});
+  });
+  tickerDeltas.sort(function(a,b){return b.delta-a.delta;});
+  const gainers=tickerDeltas.filter(function(t){return t.delta>=0;});
+  const losers=tickerDeltas.filter(function(t){return t.delta<0;}).reverse();
+  const rvDelta=s1.totalValueUSD-s0.totalValueUSD;
+  const rvPct=s0.totalValueUSD>0?(rvDelta/s0.totalValueUSD*100):0;
+  const rvC=rvDelta>=0?'var(--green)':'var(--red)';
+  const rvSign=rvDelta>=0?'+':'−';
+  const cobros=(inv.flujos||[]).filter(function(f){
+    if(!f.cobrado)return false;
+    const fd=new Date(f.fecha);return fd>=monthStart&&fd<monthEnd;
+  });
+  const cobroTotal=cobros.reduce(function(acc,f){return acc+(f.monto_usd||0);},0);
+  const totalMes=rvDelta+cobroTotal;
+  const totalC=totalMes>=0?'var(--green)':'var(--red)';
+  const totalSign=totalMes>=0?'+':'−';
+  const maxAbs=Math.max.apply(null,tickerDeltas.map(function(x){return Math.abs(x.delta);}).concat([1]));
+  function tkRow(t){
+    const bw=Math.round(Math.abs(t.delta)/maxAbs*100);
+    const c=t.delta>=0?'var(--green)':'var(--red)';
+    const sg=t.delta>=0?'+':'−';
+    return '<div style="margin-bottom:10px;">'+
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
+      '<span style="font-size:12px;font-weight:500;">'+t.ticker+'</span>'+
+      '<div style="display:flex;gap:12px;">'+
+      '<span style="font-family:var(--mono);font-size:11px;color:'+c+';">'+sg+' u$s '+fmt(Math.abs(t.delta))+'</span>'+
+      '<span style="font-family:var(--mono);font-size:11px;color:'+c+';min-width:46px;text-align:right;">'+(t.pct>=0?'+':'')+t.pct.toFixed(1)+'%</span>'+
+      '</div></div>'+
+      '<div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;">'+
+      '<div style="height:100%;width:'+bw+'%;background:'+c+';border-radius:2px;"></div>'+
+      '</div></div>';
+  }
+  let html=navHtml;
+  html+='<div class="card" style="margin-bottom:12px;">'+
+    '<div class="krow">'+
+    '<div class="kpi"><div class="kl">Inicio del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s0.totalValueUSD)+'</div></div>'+
+    '<div class="kpi"><div class="kl">Fin del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s1.totalValueUSD)+'</div></div>'+
+    '<div class="kpi"><div class="kl">Variaci\xf3n RV</div><div class="kv" style="color:'+rvC+';font-family:var(--mono);">'+rvSign+' u$s '+fmt(Math.abs(rvDelta))+' ('+rvPct.toFixed(1)+'%)</div></div>'+
+    (cobroTotal>0?'<div class="kpi"><div class="kl">Cobros Olas/RF</div><div class="kv" style="color:var(--green);font-family:var(--mono);">+ u$s '+fmt(cobroTotal)+'</div></div>':'')+
+    '<div class="kpi" style="background:rgba(91,156,246,.07);border-radius:8px;padding:8px 10px;"><div class="kl">Total del mes</div><div class="kv" style="color:'+totalC+';font-size:18px;">'+totalSign+' u$s '+fmt(Math.abs(totalMes))+'</div></div>'+
+    '</div></div>';
+  if(gainers.length){
+    html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Ganadores del mes</div>';
+    gainers.forEach(function(t){html+=tkRow(t);});
+    html+='</div>';
+  }
+  if(losers.length){
+    html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Perdedores del mes</div>';
+    losers.forEach(function(t){html+=tkRow(t);});
+    html+='</div>';
+  }
+  if(cobros.length){
+    const cobrosHtml=cobros.map(function(f){
+      const fd=new Date(f.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+      return '<tr>'+
+        '<td style="font-size:12px;">'+fd+'</td>'+
+        '<td style="font-size:12px;">'+(f.ticker||f.instrumento||'—')+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--green);">+ u$s '+fmt(f.monto_usd||0)+'</td>'+
+        '</tr>';
+    }).join('');
+    html+='<div class="card" style="margin-bottom:12px;">'+
+      '<div class="ct" style="margin-bottom:10px;">Cobros del mes</div>'+
+      '<div class="tw"><table><thead><tr><th>Fecha</th><th>Instrumento</th><th style="text-align:right">Monto</th></tr></thead>'+
+      '<tbody>'+cobrosHtml+'</tbody></table></div></div>';
   }
   const isA=CU&&CU.is_admin;
-  const reversed=snaps.slice().reverse();
-  const histRows=reversed.map(function(s,i){
-    const prev=reversed[i+1];
-    let vv='—',vp='—',vc='var(--muted)';
-    if(prev){
-      const d=s.totalValueUSD-prev.totalValueUSD;
-      const p2=prev.totalValueUSD>0?(d/prev.totalValueUSD*100):0;
-      vv=(d>=0?'+':'−')+' u$s '+fmt(Math.abs(d));
-      vp=(p2>=0?'+':'')+p2.toFixed(1)+'%';
-      vc=d>=0?'var(--green)':'var(--red)';
-    }
-    const dt=new Date(s.date);
-    const ds=dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})+
-      ' '+dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
-    return '<tr>'+
-      '<td style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+ds+'</td>'+
-      '<td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s '+fmt(s.totalValueUSD)+'</td>'+
-      '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:'+vc+';">'+vv+'</td>'+
-      '<td style="text-align:right;font-family:var(--mono);font-size:11px;color:'+vc+';">'+vp+'</td>'+
-      (isA?'<td style="text-align:center;padding:0 4px;"><button class="ib" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="snapDelAndRefresh(\''+s.id+'\',\''+inv.id+'\')">✕</button></td>':'')+
-      '</tr>';
-  }).join('');
-  const admTh=isA?'<th></th>':'';
-  return '<div class="card" style="margin-bottom:12px;">'+
-    '<div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:10px;margin-bottom:14px;">'+
-    '<div class="ct" style="margin:0;">Rendimiento hist\xf3rico</div>'+
-    '<div style="display:flex;gap:6px;">'+pBtns+'</div>'+
-    '</div>'+
-    '<div class="krow" style="margin-bottom:16px;">'+
-    '<div class="kpi"><div class="kl">Valor actual</div><div class="kv">u$s '+fmt(curVal)+'</div></div>'+
-    '<div class="kpi"><div class="kl">Hace '+pLabel[rendPeriod]+'</div><div class="kv">'+startValStr+'</div></div>'+
-    '<div class="kpi"><div class="kl">Diferencia</div><div class="kv" style="color:'+diffC+';">'+diffVal+'</div></div>'+
-    '<div class="kpi"><div class="kl">Rendimiento</div><div class="kv" style="color:'+diffC+';">'+diffPct+'</div></div>'+
-    '</div>'+
-    '<div style="height:220px;position:relative;"><canvas id="rend-line" role="img" aria-label="Evoluci\xf3n del valor"></canvas></div>'+
-    '</div>'+
-    '<div class="card">'+
-    '<div class="ct">Historial ('+snaps.length+' snapshots)</div>'+
-    '<div class="tw"><table>'+
-    '<thead><tr><th>Fecha</th><th style="text-align:right">Valor total</th><th style="text-align:right">Variaci\xf3n</th><th style="text-align:right">%</th>'+admTh+'</tr></thead>'+
-    '<tbody>'+histRows+'</tbody>'+
-    '</table></div>'+
-    '</div>';
+  if(isA&&monthSnaps.length){
+    let snapRows='';
+    monthSnaps.slice().reverse().forEach(function(s){
+      const dt=new Date(s.date);
+      const ds=dt.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'2-digit'})+' '+dt.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'});
+      snapRows+='<tr>'+
+        '<td style="font-family:var(--mono);font-size:11px;color:var(--muted);">'+ds+'</td>'+
+        '<td style="text-align:right;font-family:var(--mono);font-size:12px;">u$s '+fmt(s.totalValueUSD)+'</td>'+
+        '<td style="text-align:center;padding:0 4px;"><button class="ib" style="font-size:10px;padding:2px 7px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="snapDelAndRefresh(\''+s.id+'\',\''+inv.id+'\')">✕</button></td>'+
+        '</tr>';
+    });
+    html+='<div class="card">'+
+      '<div class="ct" style="margin-bottom:10px;">Snapshots del mes ('+monthSnaps.length+')</div>'+
+      '<div class="tw"><table><thead><tr><th>Fecha</th><th style="text-align:right">Valor</th><th></th></tr></thead>'+
+      '<tbody>'+snapRows+'</tbody></table></div></div>';
+  }
+  return html;
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

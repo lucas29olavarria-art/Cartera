@@ -3164,13 +3164,22 @@ function impUpdateCombined(){
     const totalBalanz=impParsedBalanz.reduce((s,p)=>s+p.valor,0);
     const total=totalInviu+totalBalanz;
     let detail='';
-    if(hasInviu)detail+=`Inviu: ${impParsedRV.length} pos · u$s ${fmt(totalInviu)}`;
+    if(hasInviu)detail+=`Inviu: ${impParsedRV.length} pos \xb7 u$s ${fmt(totalInviu)}`;
     if(hasInviu&&hasBalanz)detail+=' &nbsp;+&nbsp; ';
-    if(hasBalanz)detail+=`Balanz: ${impParsedBalanz.length} pos · u$s ${fmt(totalBalanz)}`;
+    if(hasBalanz)detail+=`Balanz: ${impParsedBalanz.length} pos \xb7 u$s ${fmt(totalBalanz)}`;
     combined.style.display='flex';
+    combined.style.background=(!hasInviu||!hasBalanz)?'rgba(245,166,35,.08)':'rgba(45,212,160,.06)';
+    combined.style.borderColor=(!hasInviu||!hasBalanz)?'rgba(245,166,35,.35)':'rgba(45,212,160,.2)';
+    combined.style.color=(!hasInviu||!hasBalanz)?'var(--amber)':'var(--green)';
     document.getElementById('imp-rv-combined-detail').innerHTML=detail;
-    document.getElementById('imp-rv-combined-total').textContent=`TOTAL u$s ${fmt(total)}`;
-    document.getElementById('imp-confirm-btn').style.display='block';
+    const warn=(!hasInviu&&hasBalanz)?'⚠️ Solo Balanz — carg\xe1 tambi\xe9n el Excel de Inviu':
+               (hasInviu&&!hasBalanz)?'⚠️ Solo Inviu — carg\xe1 tambi\xe9n el PDF de Balanz':'';
+    const btn=document.getElementById('imp-confirm-btn');
+    document.getElementById('imp-rv-combined-total').textContent=warn||(total>0?`TOTAL u$s ${fmt(total)}`:'');
+    btn.style.display='block';
+    btn.textContent=warn?'✔ Confirmar (solo '+(hasBalanz?'Balanz':'Inviu')+')':'✔ Confirmar e importar';
+    btn.style.background=warn?'var(--amber)':'var(--green)';
+    btn.style.borderColor=warn?'var(--amber)':'var(--green)';
     document.getElementById('imp-preview-btn').style.display='none';
   }else{
     combined.style.display='none';

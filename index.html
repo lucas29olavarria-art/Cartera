@@ -215,18 +215,22 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 .hmc-tk{font-size:11px;font-weight:500;color:#fff;}
 .hmc-pct{font-size:10px;color:rgba(255,255,255,.75);margin-top:1px;}
 @media print{body{background:#fff!important;color:#000!important;}.no-print{display:none!important;}}
+/* Analisis responsive grids */
+.an-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
+.an-charts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
 @media(max-width:768px){
   .krow{grid-template-columns:1fr 1fr;}
   .g2,.g3{grid-template-columns:1fr;}
   .topbar{padding:10px 12px;}
-  .content{padding:16px 14px;}
-  .tabbar{padding:0 10px;}
+  .content{padding:14px 12px;}
+  .tabbar{padding:0 8px;scroll-behavior:smooth;}
   .tlogo{font-size:10px;}
   .pst{display:none!important;}
   .hide-mobile{display:none;}
   .kv{font-size:16px;}
+  .kpi{padding:12px 14px;}
   .tw{overflow-x:auto;-webkit-overflow-scrolling:touch;}
-  table{min-width:600px;}
+  table{min-width:520px;}
   .modal{width:100%;max-height:95vh;border-radius:var(--r2) var(--r2) 0 0;}
   .ov{align-items:flex-end;}
   .np-grid{gap:6px;}
@@ -235,12 +239,19 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   .rpt-kpis{grid-template-columns:1fr 1fr;}
   .ihdr{flex-direction:column;align-items:flex-start;gap:10px;}
   .ihdr-r{flex-wrap:wrap;}
+  .ihdr-r .ib{font-size:10px;padding:5px 9px;}
   .drow{flex-direction:column;align-items:flex-start;}
   .dslot{width:100% !important;height:160px !important;margin-bottom:12px;}
+  .an-sum{grid-template-columns:1fr 1fr;}
+  .an-charts{grid-template-columns:1fr;}
+  .card{padding:14px;}
 }
 @media(max-width:480px){
   .krow{grid-template-columns:1fr;}
   .fg{grid-template-columns:1fr;}
+  .an-sum{grid-template-columns:1fr;}
+  .content{padding:12px 10px;}
+  .kv{font-size:15px;}
 }
 @media(max-height:500px) and (orientation:landscape){
   .topbar{padding:6px 16px;}
@@ -2371,7 +2382,7 @@ function rAnalisis(inv,liq){
   const sBtn=(col,lb)=>`<button class="ib" onclick="sortPos('${col}',inv_ref,${liq})" style="font-size:10px;padding:4px 10px;${sortCol===col?'background:rgba(91,156,246,.15);color:#5b9cf6;border-color:rgba(91,156,246,.3);':''}">${lb}${sortCol===col?(sortAsc?' ↑':' ↓'):''}</button>`;
 
   return `
-  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px;">
+  <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(totalVinicial)}</div>
@@ -2386,10 +2397,11 @@ function rAnalisis(inv,liq){
       <div style="font-family:var(--mono);font-size:10px;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${totalRend2>=0?'+':''}${totalRendPct}%</div>
     </div>
   </div>
-  <div style="display:grid;grid-template-columns:repeat(3,minmax(170px,1fr));gap:8px;overflow-x:auto;padding-bottom:4px;margin-bottom:14px;">
+  <div class="an-charts">
     ${dCard('Asignaci\xf3n','an-alloc')}
     ${dCard('Sector','an-sec')}
     ${dCard('Moneda','an-mon')}
+    ${dCard('Pa\xeds','an-pais')}
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
@@ -2499,6 +2511,26 @@ function buildInvCharts(tab,inv,liq){
       const legMon=document.getElementById('an-mon-leg');
       const tot2=monUSD+monARS;
       if(legMon)legMon.innerHTML=monSegs.map(function(s){return '<div class="lr"><div class="ld" style="background:'+s.c+'"></div><span class="ln">'+s.lb+'</span><span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(s.v)+'</span><span class="lp">'+(tot2>0?(s.v/tot2*100).toFixed(0):0)+'%</span></div>';}).join('');
+    }
+    // Country donut
+    const PAIS_C={'USA':'#5b9cf6','Argentina':'#2dd4a0','Brasil':'#f5a623','Taiwan':'#9b7ff4','Pa\xedses Bajos':'#1ecbe1','Global':'#e879a0'};
+    const paisMap={};
+    all.forEach(function(p){var pa=p.pais||'Otro';paisMap[pa]=(paisMap[pa]||0)+p.valor;});
+    const paisEnts=Object.entries(paisMap).sort(function(a,b){return b[1]-a[1];});
+    if(paisEnts.length){
+      mkDonut('an-pais',paisEnts.map(function(e){return +e[1].toFixed(0);}),paisEnts.map(function(e,i){return PAIS_C[e[0]]||CHC[i%CHC.length];}));
+      const legPais=document.getElementById('an-pais-leg');
+      if(legPais){
+        const totP=paisEnts.reduce(function(s,e){return s+e[1];},0);
+        legPais.innerHTML=paisEnts.map(function(e,i){
+          var c=PAIS_C[e[0]]||CHC[i%CHC.length];
+          var fl=COUNTRY_FLAGS[e[0]]||'🌍';
+          return '<div class="lr"><div class="ld" style="background:'+c+'"></div>'+
+            '<span class="ln">'+fl+' '+e[0]+'</span>'+
+            '<span class="lv" style="font-family:var(--mono);font-size:10px;margin-right:4px;">u$s '+fmt(e[1])+'</span>'+
+            '<span class="lp">'+(totP>0?(e[1]/totP*100).toFixed(0):0)+'%</span></div>';
+        }).join('');
+      }
     }
   }
   else if(tab==='reporte'){

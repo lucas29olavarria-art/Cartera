@@ -1770,6 +1770,49 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>`;
   }
 
+  // ── CAPITAL vs RENDIMIENTO ────────────────────────────────────
+  if(liq>0){
+    const capitalInv=liq-rend;
+    const capitalPct=liq>0?+(capitalInv/liq*100).toFixed(1):0;
+    const rendC=rend>=0?'#2dd4a0':'#f06c6c';
+    const rendSign=rend>=0?'+':'−';
+    const rendPctInv=capitalInv>0?(Math.abs(rend)/capitalInv*100).toFixed(1):'0.0';
+    html+=`
+    <div class="card" style="margin-bottom:14px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Tu dinero trabajando</div>
+      <div style="height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-bottom:14px;">
+        <div style="display:flex;height:100%;">
+          <div style="width:${capitalPct}%;background:#424b5c;transition:width .7s ease;border-radius:4px 0 0 4px;"></div>
+          <div style="flex:1;background:${rendC};opacity:.85;border-radius:0 4px 4px 0;"></div>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:7px;height:7px;border-radius:2px;background:#424b5c;flex-shrink:0;"></div>
+          <span style="font-size:12px;color:var(--soft);">Capital aportado</span>
+        </div>
+        <div style="text-align:right;">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:500;">u$s ${fmt(capitalInv)}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:6px;">${capitalPct}%</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);">
+        <div style="display:flex;align-items:center;gap:8px;">
+          <div style="width:7px;height:7px;border-radius:2px;background:${rendC};flex-shrink:0;"></div>
+          <span style="font-size:12px;color:var(--soft);">Ganancia generada</span>
+        </div>
+        <div style="text-align:right;">
+          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${rendC};">${rendSign} u$s ${fmt(Math.abs(rend))}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:${rendC};margin-left:6px;">${rend>=0?'+':'−'}${rendPctInv}%</span>
+        </div>
+      </div>
+      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:9px;">
+        <span style="font-size:12px;font-weight:600;color:var(--soft);">Total RV + RF</span>
+        <span style="font-family:var(--mono);font-size:13px;font-weight:700;">u$s ${fmt(liq)}</span>
+      </div>
+    </div>`;
+  }
+
   // ── OBJETIVO ──────────────────────────────────────────────────
   if(hasObjetivo){
     const objPct=Math.min(100,Math.round(tot/inv.objetivo_monto*100));

@@ -2123,32 +2123,6 @@ function olasSection(inv){
       +'</div>';
   });
 
-  // Pagos por mes
-  const allFlows=inv.olasFlows||[];
-  const monthsSet=new Set();
-  allFlows.forEach(f=>monthsSet.add(olasDate(f).slice(0,7)));
-  const months=[...monthsSet].sort();
-  const nowMk=new Date().toISOString().slice(0,7);
-  const defaultMk=months.find(m=>m>=nowMk)||months[months.length-1]||nowMk;
-
-  const monthChips=months.map(m=>{
-    const [y,mo]=m.split('-');
-    const label=new Date(+y,+mo-1,1).toLocaleDateString('es-AR',{month:'short'}).toUpperCase().replace('.','');
-    const active=m===defaultMk;
-    const hasPast=m<nowMk;
-    const hasVenc=hasPast&&allFlows.some(f=>olasDate(f).slice(0,7)===m&&!f.cobrado);
-    return '<button id="olas-mchip-'+invId+'-'+m
-      +'" onclick="olasSelectMes(\''+invId+'\',\''+m+'\')"'
-      +' style="flex-shrink:0;padding:5px 10px;border-radius:12px;cursor:pointer;line-height:1.3;transition:all .15s;'
-      +'border:1px solid '+(active?'var(--blue)':hasVenc?'var(--amber)':'var(--line)')
-      +';background:'+(active?'rgba(91,156,246,.15)':'transparent')
-      +';color:'+(active?'var(--blue)':hasVenc?'var(--amber)':'var(--muted)')
-      +';font-family:var(--mono);font-size:11px;">'
-      +label+'<br><span style="font-size:9px;opacity:.7;">'+y.slice(2)+'</span></button>';
-  }).join('');
-
-  const initPagos=_olasPagosHtml(allFlows.filter(f=>olasDate(f).slice(0,7)===defaultMk),invId,todayStr);
-
   return `<div class="card" style="margin-top:12px;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
       <div class="ct">Fideicomisos Olas</div>
@@ -2156,11 +2130,6 @@ function olasSection(inv){
     </div>
     <div style="display:flex;gap:8px;overflow-x:auto;padding-bottom:8px;margin-bottom:12px;scrollbar-width:none;border-bottom:1px solid var(--line);">${chips}</div>
     <div style="padding:2px 0;">${panels}</div>
-    ${months.length?`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px;">
-      <div class="kl" style="margin-bottom:8px;">Pagos por mes</div>
-      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none;">${monthChips}</div>
-      <div id="olas-pagos-${invId}">${initPagos}</div>
-    </div>`:''}
   </div>`;
 }
 

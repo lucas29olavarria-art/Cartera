@@ -2045,40 +2045,80 @@ function olasSection(inv){
     chips+='<button id="olas-chip-'+invId+'-'+projKey
       +'" data-clr="'+chipClr
       +'" onclick="olasSelectProj(\''+invId+'\',\''+projKey+'\')"'
-      +' style="flex-shrink:0;padding:5px 12px;border-radius:12px;cursor:pointer;transition:all .15s;'
+      +' style="flex-shrink:0;padding:5px 11px;border-radius:12px;cursor:pointer;transition:all .15s;'
       +'border:1px solid '+(isFirst?chipClr:'var(--line)')
       +';background:'+(isFirst?'rgba(91,156,246,.12)':'transparent')
       +';color:'+(isFirst?'var(--text)':chipClr)
       +';font-size:12px;font-weight:'+(isFirst?'600':'400')
       +';opacity:'+(isFirst?'1':'0.7')+';">'
+      +'<span style="white-space:nowrap;">'
       +(isFin?'✓ ':hasVencidos?'⚠ ':'')
-      +proj
-      +'</button>';
+      +proj+'</span>'
+      +'<span style="display:block;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px;">'+cobradas.length+'/'+total
+      +(rendPct!==null?' · '+(+rendPct>=0?'+':'')+rendPct+'%':'')
+      +'</span></button>';
 
-    // Panel: compact summary only, full analysis in olasReport modal
-    let statusLine='';
-    if(vencidos.length)
-      statusLine='<div style="font-size:11px;color:var(--amber);">⚠ '+vencidos.length+' cuota'+(vencidos.length>1?'s':'')+' vencida'+(vencidos.length>1?'s':'')+' sin registrar</div>';
-    else if(isFin)
-      statusLine='<div style="font-size:11px;color:var(--green);">✓ Finalizada</div>';
-    else if(nextFutura)
-      statusLine='<div style="font-family:var(--mono);font-size:11px;color:var(--muted);">Próximo: '+nextFutura+' · $'+fmtars(futuros[0]?.ars||0)+'</div>';
+    // Historial
+    const histRows=[...cobradas].reverse().map(f=>{
+      const ars=f.montoRealArs||f.ars||0;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;">'
+        +'<span style="color:var(--muted);min-width:82px;">'+olasDate(f)+'</span>'
+        +'<span style="flex:1;">$'+fmtars(ars)+'</span>'
+        +'<span style="color:var(--muted);font-size:10px;">@$'+fmt(f.tcCobro||MEP)+'</span>'
+        +'<span style="color:var(--green);min-width:68px;text-align:right;">u$s '+fmt(ars/(f.tcCobro||MEP))+'</span>'
+        +'</div>';
+    }).join('');
 
-    panels+='<div id="olas-panel-'+invId+'-'+projKey+'" style="display:'+(isFirst?'block':'none')+';padding:2px 0;">'
-      +'<div style="display:flex;align-items:center;gap:12px;padding:10px 12px;background:var(--bg3);border-radius:var(--r2);">'
+    // TC section — use projKey in input ID to avoid any mismatch
+    const tcSection=tcInicio
+      ?'<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+        +'<div><div class="kl">Capital</div><div style="font-family:var(--mono);font-size:12px;">u$s '+fmt(capitalUsd)+'</div></div>'
+        +'<div><div class="kl">TC entrada <button class="ib" style="font-size:9px;padding:1px 4px;margin-left:3px;" onclick="setTcInicio(\''+projSafe+'\',\''+invId+'\')">✎</button></div><div style="font-family:var(--mono);font-size:12px;">$'+fmt(tcInicio)+'</div></div>'
+        +'<div><div class="kl">MEP hoy</div><div style="font-family:var(--mono);font-size:12px;">$<span class="live-mep-val">'+fmt(MEP)+'</span></div></div>'
+        +'<div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:12px;color:var(--red);">-'+((1-tcInicio/MEP)*100).toFixed(1)+'%</div></div>'
+        +'</div>'
+      :'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+        +'<span style="font-size:11px;color:var(--muted);">TC de entrada:</span>'
+        +'<input id="tci-'+invId+'-'+projKey+'" type="number" class="ifield" style="width:90px;padding:3px 7px;font-size:11px;" placeholder="ej: 1200">'
+        +'<button class="ib pri" style="font-size:10px;padding:3px 8px;" onclick="guardarTcInicioInline(\''+projSafe+'\',\''+invId+'\',\''+projKey+'\')">Guardar</button>'
+        +'<span style="font-size:10px;color:var(--muted);">MEP ≈ $'+fmt(MEP)+'</span>'
+        +'</div>';
+
+    // Status block
+    let statusBlock='';
+    if(vencidos.length){
+      statusBlock+='<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--amber);margin-bottom:8px;">⚠ '+vencidos.length+' cuota'+(vencidos.length>1?'s':'')+' vencida'+(vencidos.length>1?'s':'')+' sin registrar</div>';
+    }
+    if(nextFutura){
+      const nxtArs=futuros[0]?.ars||0;
+      statusBlock+='<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:8px;">Próximo: '+nextFutura+' · $'+fmtars(nxtArs)+'</div>';
+    }
+    if(isFin){
+      statusBlock+='<div style="font-size:11px;color:var(--green);margin-bottom:8px;">✓ Ola finalizada · todas las cuotas cobradas</div>';
+    }
+
+    // Rendimiento
+    const rendBlock='<div style="margin-bottom:10px;">'
+      +'<div class="kl" style="margin-bottom:2px;">Rendimiento real USD</div>'
+      +'<div style="font-size:22px;font-weight:700;font-family:var(--mono);color:'+rendColor+';line-height:1;">'
+      +(rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':cobradas.length===0?'<span style="font-size:12px;color:var(--muted);">Sin cobros aún</span>':'—')+'</div>'
+      +(rendPct!==null?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">u$s '+fmt(cobradoUSD)+' cobrado · u$s '+fmt(capitalUsd||0)+' invertido</div>':'')
+      +'</div>';
+
+    panels+='<div id="olas-panel-'+invId+'-'+projKey+'" style="display:'+(isFirst?'block':'none')+';">'
+      +'<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;">'
       +svgRing
-      +'<div style="flex:1;min-width:0;">'
-      +'<div style="font-size:13px;font-weight:600;margin-bottom:2px;">'+proj+'</div>'
-      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);">'+cobradas.length+' de '+total+' cuotas</div>'
-      +statusLine
-      +'</div>'
-      +'<div style="text-align:right;flex-shrink:0;">'
-      +(rendPct!==null?'<div style="font-family:var(--mono);font-size:16px;font-weight:700;color:'+rendColor+';">'+(+rendPct>=0?'+':'')+rendPct+'%</div>':'')
-      +(capitalUsd?'<div style="font-size:10px;color:var(--muted);">u$s '+fmt(capitalUsd)+'</div>':'')
+      +'<div>'
+      +'<div style="font-size:14px;font-weight:600;">'+proj+'</div>'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);">'+cobradas.length+' de '+total+' cobrados</div>'
       +'</div></div>'
-      +'<div style="display:flex;gap:6px;margin-top:8px;">'
-      +'<button class="ib pri" style="font-size:11px;" onclick="olasReport(\''+projSafe+'\',\''+invId+'\')">📋 Ver informe</button>'
-      +'<button class="dbtn" onclick="confirmarEliminarOla(\''+projSafe+'\',\''+invId+'\')">✕</button>'
+      +tcSection
+      +rendBlock
+      +statusBlock
+      +(cobradas.length?'<details style="margin-bottom:10px;"><summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;user-select:none;">Historial cobros ▸</summary><div style="margin-top:6px;">'+histRows+'</div></details>':'')
+      +'<div style="display:flex;gap:6px;flex-wrap:wrap;">'
+      +'<button class="ib" style="font-size:10px;" onclick="olasReport(\''+projSafe+'\',\''+invId+'\')">📋 Ver informe</button>'
+      +'<button class="dbtn" onclick="confirmarEliminarOla(\''+projSafe+'\',\''+invId+'\')">✕ Eliminar</button>'
       +'</div>'
       +'</div>';
   });

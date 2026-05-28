@@ -997,6 +997,14 @@ async function loadInvestor(id){
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null}));
+  // Auto-confirmar flows vencidos (fecha pasada, no cobrado) — asumimos pago siempre
+  const _todayOlas=new Date().toISOString().slice(0,10);
+  const _vencidos=inv.olasFlows.filter(f=>!f.cobrado&&f.fecha&&f.fecha<_todayOlas);
+  if(_vencidos.length){
+    const _tc=MEP||1;
+    _vencidos.forEach(f=>{f.cobrado=true;f.tcCobro=_tc;f.montoRealArs=f.ars;});
+    sb.from('olas_flows').upsert(_vencidos.map(f=>({id:f.id,cobrado:true,tc_cobro:_tc,monto_real_ars:f.ars})),{onConflict:'id'});
+  }
   inv.gastos=gastosR.data||[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';

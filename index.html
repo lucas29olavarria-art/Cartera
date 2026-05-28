@@ -1912,6 +1912,69 @@ function sortPos(col, inv, liq){
 }
 
 // ── POSICIONES ────────────────────────────────────────────────
+function _olasRenderPagos(inv,mk){
+  const invId=inv.id;
+  const allFlows=inv.olasFlows||[];
+  const mFlows=allFlows.filter(f=>olasDate(f).slice(0,7)===mk);
+  const container=document.getElementById('olas-pagos-'+invId);
+  if(!container)return;
+  if(!mFlows.length){container.innerHTML='<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin flujos este mes.</div>';return;}
+  const cob=mFlows.filter(f=>f.cobrado);
+  const pen=mFlows.filter(f=>!f.cobrado);
+  const cobArs=cob.reduce((s,f)=>s+(f.montoRealArs||f.ars||0),0);
+  const penArs=pen.reduce((s,f)=>s+(f.ars||0),0);
+  const totArs=cobArs+penArs;
+  const cobW=totArs>0?Math.round(cobArs/totArs*100):0;
+  const isAdmin=CU?.is_admin;
+  const rows=mFlows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b))).map(f=>{
+    const ars=f.cobrado?(f.montoRealArs||f.ars||0):(f.ars||0);
+    const usd=(ars/(f.tcCobro||MEP)).toFixed(0);
+    const badge=f.cobrado
+      ?'<div style="background:rgba(45,212,160,.15);border:1px solid rgba(45,212,160,.3);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--green);flex-shrink:0;">✓</div>'
+      :(isAdmin?'<button class="ib" style="font-size:10px;padding:2px 8px;flex-shrink:0;" onclick="marcarCobrado(\''+f.id+'\',\''+invId+'\')">Cobrar</button>':'<div style="background:rgba(255,255,255,.07);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--muted);flex-shrink:0;">Pend.</div>');
+    return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);">'
+      +'<div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(f.descripcion||'').split('·')[0].trim()+'</div>'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);">'+olasDate(f)+'</div></div>'
+      +'<div style="text-align:right;flex-shrink:0;"><div style="font-family:var(--mono);font-size:12px;">$'+fmtars(ars)+'</div>'
+      +'<div style="font-size:10px;color:var(--muted);">≈ u$s '+fmt(+usd)+'</div></div>'
+      +badge+'</div>';
+  }).join('');
+  container.innerHTML=
+    '<div style="display:flex;gap:12px;margin-bottom:10px;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+    +'<div style="flex:1;text-align:center;"><div class="kl">Cobrado</div><div style="font-family:var(--mono);font-size:13px;color:var(--green);">$'+fmtars(cobArs)+'</div></div>'
+    +'<div style="width:1px;background:var(--line);"></div>'
+    +'<div style="flex:1;text-align:center;"><div class="kl">Pendiente</div><div style="font-family:var(--mono);font-size:13px;color:var(--amber);">$'+fmtars(penArs)+'</div></div>'
+    +'</div>'
+    +'<div style="background:var(--bg4);border-radius:3px;height:4px;overflow:hidden;margin-bottom:10px;">'
+    +'<div style="height:100%;width:'+cobW+'%;background:var(--green);border-radius:3px;"></div></div>'
+    +rows;
+}
+
+function olasSwitchTab(invId,tab){
+  const act=document.getElementById('olas-tab-act-'+invId);
+  const fin=document.getElementById('olas-tab-fin-'+invId);
+  const btnAct=document.getElementById('olas-tabs-'+invId+'-act');
+  const btnFin=document.getElementById('olas-tabs-'+invId+'-fin');
+  if(!act||!fin)return;
+  const isAct=tab==='act';
+  act.style.display=isAct?'block':'none';
+  fin.style.display=isAct?'none':'block';
+  if(btnAct){btnAct.style.background=isAct?'rgba(91,156,246,.15)':'transparent';btnAct.style.color=isAct?'var(--blue)':'var(--muted)';btnAct.style.fontWeight=isAct?'600':'400';}
+  if(btnFin){btnFin.style.background=isAct?'transparent':'rgba(91,156,246,.15)';btnFin.style.color=isAct?'var(--muted)':'var(--blue)';btnFin.style.fontWeight=isAct?'400':'600';}
+}
+
+function olasSelectMes(invId,mk){
+  const inv=INV_CACHE[invId]||CU_DATA;
+  if(!inv)return;
+  document.querySelectorAll('[id^="olas-mchip-'+invId+'-"]').forEach(el=>{
+    const active=el.id==='olas-mchip-'+invId+'-'+mk;
+    el.style.borderColor=active?'var(--blue)':'var(--line)';
+    el.style.background=active?'rgba(91,156,246,.15)':'transparent';
+    el.style.color=active?'var(--blue)':'var(--muted)';
+  });
+  _olasRenderPagos(inv,mk);
+}
+
 function olasSection(inv){
   if(!(inv.olasFlows?.length))return'';
   const byProj={};
@@ -1922,95 +1985,176 @@ function olasSection(inv){
   });
   const todayStr=new Date().toISOString().slice(0,10);
   const nProjs=Object.keys(byProj).length;
+  const invId=inv.id;
 
-  const projCards=Object.entries(byProj).map(([proj,flows])=>{
-    const sorted=flows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
+  // Split into activas (has pending) and finalizadas (all cobrado)
+  const activeProjs=[],finProjs=[];
+  Object.entries(byProj).forEach(([proj,flows])=>{
+    if(flows.some(f=>!f.cobrado))activeProjs.push([proj,flows]);
+    else finProjs.push([proj,flows]);
+  });
+
+  function buildCard(proj,flows){
+    const projSafe=proj.replace(/'/g,"\\'");
+    const projKey=proj.replace(/[^a-z0-9]/gi,'_');
+    const expandId='olas-exp-'+invId+'-'+projKey;
+    const sorted=[...flows].sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b)));
     const tcInicio=sorted[0]?.tcInicio||null;
-    // Use stored capitalUsd or estimate from total olasVal split equally across projects
     const capitalUsd=sorted[0]?.capitalUsd||(inv.olasVal>0&&nProjs>0?Math.round(inv.olasVal/nProjs):null);
     const cobradas=sorted.filter(f=>f.cobrado);
     const pendientes=sorted.filter(f=>!f.cobrado);
+    const total=sorted.length;
     const nextFecha=pendientes[0]?olasDate(pendientes[0]):null;
     const esHoyProx=nextFecha===todayStr;
 
-    // Real-time USD return: ARS cobrado / TC actual / capital
     const cobradoARS=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0),0);
     const cobradoUSD=cobradoARS/MEP;
-    // Only show return if there are actual cobros (otherwise 0/capital-1 = -100%)
     const rendUSD=cobradas.length>0&&capitalUsd&&capitalUsd>0?cobradoUSD/capitalUsd-1:null;
     const rendPct=rendUSD!==null?(rendUSD*100).toFixed(1):null;
-    const barW=rendUSD!==null?Math.min(Math.abs(rendUSD)*5*100,100):0;
     const rendColor=rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)';
 
-    // Historial colapsable
+    // SVG progress ring
+    const r=15,circ=2*Math.PI*r;
+    const arcColor=cobradas.length===total?'var(--green)':'var(--blue)';
+    const dash=(total>0?cobradas.length/total:0)*circ;
+    const gap=circ-dash;
+    const svgRing='<svg width="38" height="38" style="flex-shrink:0;">'
+      +'<circle cx="19" cy="19" r="'+r+'" fill="none" stroke="var(--bg4)" stroke-width="2.5"/>'
+      +'<circle cx="19" cy="19" r="'+r+'" fill="none" stroke="'+arcColor+'" stroke-width="2.5"'
+      +' stroke-dasharray="'+dash.toFixed(1)+' '+gap.toFixed(1)+'" stroke-linecap="round" transform="rotate(-90 19 19)"/>'
+      +'<text x="19" y="16" text-anchor="middle" font-size="9" font-family="monospace" fill="var(--soft)">'+cobradas.length+'</text>'
+      +'<text x="19" y="25" text-anchor="middle" font-size="8" font-family="monospace" fill="var(--muted)">'+'/'+total+'</text>'
+      +'</svg>';
+
+    // Historial rows for expanded section
     const histRows=[...cobradas].reverse().map(f=>{
       const ars=f.montoRealArs||f.ars||0;
-      const usd=ars/MEP;
-      return `<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;">
-        <span style="color:var(--muted);min-width:82px;">${olasDate(f)}</span>
-        <span style="flex:1;">$${fmtars(ars)}</span>
-        <span style="color:var(--muted);font-size:10px;">@$${fmt(f.tcCobro||MEP)}</span>
-        <span style="color:var(--green);min-width:68px;text-align:right;">u$s ${fmt(usd)}</span>
-      </div>`;
+      return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--line);font-family:var(--mono);font-size:11px;">'
+        +'<span style="color:var(--muted);min-width:82px;">'+olasDate(f)+'</span>'
+        +'<span style="flex:1;">$'+fmtars(ars)+'</span>'
+        +'<span style="color:var(--muted);font-size:10px;">@$'+fmt(f.tcCobro||MEP)+'</span>'
+        +'<span style="color:var(--green);min-width:68px;text-align:right;">u$s '+fmt(ars/MEP)+'</span>'
+        +'</div>';
     }).join('');
 
-    return `<div style="background:var(--bg3);border-radius:var(--r2);padding:16px;margin-bottom:12px;">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-        <div>
-          <div style="font-size:13px;font-weight:600;margin-bottom:2px;cursor:pointer;" onclick="olasReport('${proj.replace(/'/g,"\\'")}','${inv.id}')">📋 ${proj} <span style="font-size:10px;color:var(--blue);font-weight:400;">Ver informe ▸</span></div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${sorted.length} cuotas · ${cobradas.length} cobradas · ${pendientes.length} pendientes</div>
-        </div>
-        <div style="display:flex;align-items:center;gap:8px;">
-          <button class="dbtn" onclick="confirmarEliminarOla('${proj.replace(/'/g,"\\'")}','${inv.id}')">✕</button>
-        </div>
-      </div>
+    // TC section inside expanded
+    const tcSection=tcInicio
+      ?'<div style="display:flex;align-items:center;gap:14px;margin-bottom:10px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+        +'<div><div class="kl">Capital</div><div style="font-family:var(--mono);font-size:12px;">u$s '+fmt(capitalUsd)+'</div></div>'
+        +'<div><div class="kl">TC entrada <button class="ib" style="font-size:9px;padding:1px 4px;margin-left:3px;" onclick="setTcInicio(\''+projSafe+'\',\''+invId+'\')">✎</button></div><div style="font-family:var(--mono);font-size:12px;">$'+fmt(tcInicio)+'</div></div>'
+        +'<div><div class="kl">MEP hoy</div><div style="font-family:var(--mono);font-size:12px;">$<span class="live-mep-val">'+fmt(MEP)+'</span></div></div>'
+        +'<div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:12px;color:var(--red);">-'+((1-tcInicio/MEP)*100).toFixed(1)+'%</div></div>'
+        +'</div>'
+      :'<div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+        +'<span style="font-size:11px;color:var(--muted);">TC de entrada:</span>'
+        +'<input id="tci-inline-'+invId+'-'+proj.replace(/\W/g,'')+'" type="number" class="ifield" style="width:90px;padding:3px 7px;font-size:11px;" placeholder="ej: 1200">'
+        +'<button class="ib pri" style="font-size:10px;padding:3px 8px;" onclick="guardarTcInicioInline(\''+projSafe+'\',\''+invId+'\')">Guardar</button>'
+        +'<span style="font-size:10px;color:var(--muted);">MEP ≈ $'+fmt(MEP)+'</span>'
+        +'</div>';
 
-      ${tcInicio
-        ?`<div style="display:flex;align-items:center;gap:16px;margin-bottom:12px;flex-wrap:wrap;">
-          <div><div class="kl">Capital</div><div style="font-family:var(--mono);font-size:13px;">u$s ${fmt(capitalUsd)}</div></div>
-          <div><div class="kl">TC entrada <button class="ib" style="font-size:9px;padding:1px 5px;margin-left:4px;" onclick="setTcInicio('${proj.replace(/'/g,"\\'")}','${inv.id}')">✎</button></div><div style="font-family:var(--mono);font-size:13px;">$${fmt(tcInicio)}</div></div>
-          <div><div class="kl">MEP hoy</div><div style="font-family:var(--mono);font-size:13px;">$<span class="live-mep-val">${fmt(MEP)}</span></div></div>
-          <div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:13px;color:var(--red);">-${((1-tcInicio/MEP)*100).toFixed(1)}%</div></div>
-        </div>`
-        :`<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
-          <span style="font-size:12px;color:var(--muted);">TC de entrada:</span>
-          <input id="tci-inline-${inv.id}-${proj.replace(/\W/g,'')}" type="number" class="ifield" style="width:100px;padding:4px 8px;font-size:12px;" placeholder="ej: 1200">
-          <button class="ib pri" style="font-size:11px;padding:4px 10px;" onclick="guardarTcInicioInline('${proj.replace(/'/g,"\\'")}','${inv.id}')">Guardar</button>
-          <span style="font-size:10px;color:var(--muted);">MEP hoy ≈ $${fmt(MEP)}</span>
-        </div>`
-      }
+    const rendSection='<div style="margin-bottom:8px;">'
+      +'<div class="kl" style="margin-bottom:3px;">Rendimiento real USD</div>'
+      +'<div style="font-size:22px;font-weight:700;font-family:var(--mono);color:'+rendColor+';line-height:1;">'
+      +(rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':cobradas.length===0?'<span style="font-size:12px;color:var(--muted);">Sin cobros aún</span>':'—')
+      +'</div>'
+      +(rendPct!==null?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">u$s '+fmt(cobradoUSD)+' cobrado · u$s '+fmt(capitalUsd||0)+' invertido</div>':'')
+      +'</div>';
 
-      <div style="background:var(--bg2);border-radius:var(--r2);padding:14px;margin-bottom:12px;${rendUSD!==null&&rendUSD>0?'border:1px solid rgba(45,212,160,.2);':''}">
-        <div class="kl" style="margin-bottom:6px;">Rendimiento real USD (sobre lo cobrado)</div>
-        <div style="font-size:32px;font-weight:700;font-family:var(--mono);color:${rendColor};line-height:1;margin-bottom:8px;">
-          ${rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':cobradas.length===0?'<span style="font-size:14px;color:var(--muted);">Sin cobros aún</span>':'—'}
-        </div>
-        ${rendPct!==null?`<div style="background:var(--bg4);border-radius:3px;height:6px;overflow:hidden;margin-bottom:6px;">
-          <div style="height:100%;width:${barW}%;background:${rendColor};border-radius:3px;transition:width .5s;"></div>
-        </div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">
-          u$s ${fmt(cobradoUSD)} cobrado · u$s ${fmt(capitalUsd||0)} invertido
-        </div>`:''}
-      </div>
+    const nextBadge=esHoyProx
+      ?'<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:6px 10px;font-size:11px;color:var(--amber);margin-top:6px;">📅 Cobro hoy · $'+fmtars(pendientes[0].ars)+'</div>'
+      :nextFecha?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:6px;">Próximo: '+nextFecha+' · $'+fmtars(pendientes[0]?.ars||0)+'</div>':'';
 
-      ${esHoyProx?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--amber);margin-bottom:10px;">📅 Cobro programado hoy · $${fmtars(pendientes[0].ars)}</div>`
-        :nextFecha?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-bottom:10px;">Próximo cobro: ${nextFecha} · $${fmtars(pendientes[0]?.ars||0)}</div>`:''}
+    const expandedContent='<div id="'+expandId+'" style="display:none;margin-top:10px;border-top:1px solid var(--line);padding-top:10px;">'
+      +tcSection
+      +rendSection
+      +nextBadge
+      +(cobradas.length?'<details style="margin-top:8px;"><summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;user-select:none;">Historial ▸</summary><div style="margin-top:6px;">'+histRows+'</div></details>':'')
+      +'<div style="display:flex;gap:6px;margin-top:10px;flex-wrap:wrap;">'
+      +'<button class="ib" style="font-size:10px;" onclick="olasReport(\''+projSafe+'\',\''+invId+'\')">📋 Ver informe</button>'
+      +'<button class="dbtn" onclick="confirmarEliminarOla(\''+projSafe+'\',\''+invId+'\')">✕ Eliminar</button>'
+      +'</div></div>';
 
-      ${cobradas.length?`<details>
-        <summary style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);cursor:pointer;list-style:none;user-select:none;">
-          Historial de cobros ▸
-        </summary>
-        <div style="margin-top:8px;">${histRows}</div>
-      </details>`:''}
-    </div>`;
+    return '<div style="background:var(--bg3);border-radius:var(--r2);padding:11px 13px;margin-bottom:7px;">'
+      +'<div style="display:flex;align-items:center;gap:10px;cursor:pointer;" onclick="(function(){var el=document.getElementById(\''+expandId+'\');var arr=document.getElementById(\''+expandId+'-arr\');if(el){var open=el.style.display!==\'none\';el.style.display=open?\'none\':\'block\';if(arr)arr.textContent=open?\'▸\':\'▾\';}})();">'
+      +svgRing
+      +'<div style="flex:1;min-width:0;">'
+      +'<div style="font-size:13px;font-weight:600;line-height:1.2;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+proj+'</div>'
+      +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">'+cobradas.length+' de '+total+' cobrados'+(nextFecha?' · prox. '+nextFecha:'')+'</div>'
+      +'</div>'
+      +'<div style="text-align:right;flex-shrink:0;">'
+      +'<div style="font-family:var(--mono);font-size:14px;font-weight:600;color:'+rendColor+';">'+(rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':'—')+'</div>'
+      +(capitalUsd?'<div style="font-size:10px;color:var(--muted);">u$s '+fmt(capitalUsd)+'</div>':'')
+      +'</div>'
+      +'<span id="'+expandId+'-arr" style="color:var(--muted);font-size:12px;margin-left:4px;">▸</span>'
+      +'</div>'
+      +expandedContent
+      +'</div>';
+  }
+
+  const activeCards=activeProjs.map(([p,f])=>buildCard(p,f)).join('');
+  const finCards=finProjs.map(([p,f])=>buildCard(p,f)).join('');
+
+  // Pagos por mes section
+  const allFlows=inv.olasFlows||[];
+  const monthsSet=new Set();
+  allFlows.forEach(f=>monthsSet.add(olasDate(f).slice(0,7)));
+  const months=[...monthsSet].sort();
+  const nowMk=new Date().toISOString().slice(0,7);
+  const defaultMk=months.find(m=>m>=nowMk)||months[months.length-1]||nowMk;
+
+  const monthChips=months.map(m=>{
+    const [y,mo]=m.split('-');
+    const label=new Date(+y,+mo-1,1).toLocaleDateString('es-AR',{month:'short'}).toUpperCase().replace('.','');
+    const active=m===defaultMk;
+    return '<button id="olas-mchip-'+invId+'-'+m+'" onclick="olasSelectMes(\''+invId+'\',\''+m+'\')" style="flex-shrink:0;padding:5px 10px;border-radius:12px;border:1px solid '+(active?'var(--blue)':'var(--line)')+';background:'+(active?'rgba(91,156,246,.15)':'transparent')+';color:'+(active?'var(--blue)':'var(--muted)')+';font-family:var(--mono);font-size:11px;cursor:pointer;line-height:1.3;transition:all .15s;">'+label+'<br><span style="font-size:9px;opacity:.7;">'+y.slice(2)+'</span></button>';
   }).join('');
 
+  // Build initial pagos content inline (same logic as _olasRenderPagos)
+  const mFlows0=allFlows.filter(f=>olasDate(f).slice(0,7)===defaultMk);
+  let pagosHtml='<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin flujos este mes.</div>';
+  if(mFlows0.length){
+    const cob0=mFlows0.filter(f=>f.cobrado),pen0=mFlows0.filter(f=>!f.cobrado);
+    const cobArs0=cob0.reduce((s,f)=>s+(f.montoRealArs||f.ars||0),0);
+    const penArs0=pen0.reduce((s,f)=>s+(f.ars||0),0);
+    const tot0=cobArs0+penArs0;
+    const cobW0=tot0>0?Math.round(cobArs0/tot0*100):0;
+    const isAdmin=CU?.is_admin;
+    const rows0=mFlows0.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b))).map(f=>{
+      const ars=f.cobrado?(f.montoRealArs||f.ars||0):(f.ars||0);
+      const usd=(ars/(f.tcCobro||MEP)).toFixed(0);
+      const badge=f.cobrado
+        ?'<div style="background:rgba(45,212,160,.15);border:1px solid rgba(45,212,160,.3);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--green);flex-shrink:0;">✓</div>'
+        :(isAdmin?'<button class="ib" style="font-size:10px;padding:2px 8px;flex-shrink:0;" onclick="marcarCobrado(\''+f.id+'\',\''+invId+'\')">Cobrar</button>':'<div style="background:rgba(255,255,255,.07);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--muted);flex-shrink:0;">Pend.</div>');
+      return '<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);">'
+        +'<div style="flex:1;min-width:0;"><div style="font-size:11px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">'+(f.descripcion||'').split('·')[0].trim()+'</div>'
+        +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);">'+olasDate(f)+'</div></div>'
+        +'<div style="text-align:right;flex-shrink:0;"><div style="font-family:var(--mono);font-size:12px;">$'+fmtars(ars)+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);">≈ u$s '+fmt(+usd)+'</div></div>'+badge+'</div>';
+    }).join('');
+    pagosHtml='<div style="display:flex;gap:12px;margin-bottom:10px;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+      +'<div style="flex:1;text-align:center;"><div class="kl">Cobrado</div><div style="font-family:var(--mono);font-size:13px;color:var(--green);">$'+fmtars(cobArs0)+'</div></div>'
+      +'<div style="width:1px;background:var(--line);"></div>'
+      +'<div style="flex:1;text-align:center;"><div class="kl">Pendiente</div><div style="font-family:var(--mono);font-size:13px;color:var(--amber);">$'+fmtars(penArs0)+'</div></div></div>'
+      +'<div style="background:var(--bg4);border-radius:3px;height:4px;overflow:hidden;margin-bottom:10px;">'
+      +'<div style="height:100%;width:'+cobW0+'%;background:var(--green);border-radius:3px;"></div></div>'+rows0;
+  }
+
   return `<div class="card" style="margin-top:12px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;flex-wrap:wrap;gap:8px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
       <div class="ct">Fideicomisos Olas</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">MEP: $<span class="live-mep-val">${fmt(MEP)}</span> · u$s ${fmt(inv.olasVal||0)} invertido</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">MEP $<span class="live-mep-val">${fmt(MEP)}</span> · ${activeProjs.length} activa${activeProjs.length!==1?'s':''}</div>
     </div>
-    ${projCards}
+    <div style="display:flex;gap:6px;margin-bottom:10px;border-bottom:1px solid var(--line);padding-bottom:10px;">
+      <button id="olas-tabs-${invId}-act" onclick="olasSwitchTab('${invId}','act')" style="padding:4px 14px;border-radius:var(--r);border:none;background:rgba(91,156,246,.15);color:var(--blue);font-size:12px;cursor:pointer;font-weight:600;">Activas${activeProjs.length?' ('+activeProjs.length+')':''}</button>
+      <button id="olas-tabs-${invId}-fin" onclick="olasSwitchTab('${invId}','fin')" style="padding:4px 14px;border-radius:var(--r);border:none;background:transparent;color:var(--muted);font-size:12px;cursor:pointer;font-weight:400;">${finProjs.length?'Finalizadas ('+finProjs.length+')':'Finalizadas'}</button>
+    </div>
+    <div id="olas-tab-act-${invId}">${activeCards||'<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin olas activas.</div>'}</div>
+    <div id="olas-tab-fin-${invId}" style="display:none;">${finCards||'<div style="color:var(--muted);font-size:12px;padding:8px 0;">Sin olas finalizadas.</div>'}</div>
+    ${months.length?`<div style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px;">
+      <div class="kl" style="margin-bottom:8px;">Pagos por mes</div>
+      <div style="display:flex;gap:6px;overflow-x:auto;padding-bottom:6px;margin-bottom:10px;scrollbar-width:none;">${monthChips}</div>
+      <div id="olas-pagos-${invId}">${pagosHtml}</div>
+    </div>`:''}
   </div>`;
 }
 

@@ -2375,6 +2375,31 @@ function rGastos(inv){
   </table></div></div>`}`;
 }
 
+// ── RISK METRICS ──────────────────────────────────────────────
+function calcRiskMetrics(invId){
+  const snaps=snapForInv(invId);
+  if(snaps.length<3)return null;
+  const rets=[];
+  for(let i=1;i<snaps.length;i++){
+    const p=snaps[i-1].totalValueUSD;
+    const c=snaps[i].totalValueUSD;
+    if(p>0)rets.push((c-p)/p);
+  }
+  if(rets.length<2)return null;
+  const mean=rets.reduce(function(s,r){return s+r;},0)/rets.length;
+  const variance=rets.reduce(function(s,r){return s+(r-mean)*(r-mean);},0)/rets.length;
+  const stdDev=Math.sqrt(variance);
+  // Max drawdown
+  let peak=snaps[0].totalValueUSD,maxDD=0;
+  snaps.forEach(function(s){
+    if(s.totalValueUSD>peak)peak=s.totalValueUSD;
+    const dd=peak>0?(s.totalValueUSD-peak)/peak*100:0;
+    if(dd<maxDD)maxDD=dd;
+  });
+  const sharpe=stdDev>0?(mean/stdDev*Math.sqrt(12)).toFixed(2):'—';
+  return{vol:(stdDev*100).toFixed(1),maxDD:maxDD.toFixed(1),sharpe,n:snaps.length};
+}
+
 // ── ANALISIS ──────────────────────────────────────────────────
 function rAnalisis(inv,liq){
   const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]];
@@ -2439,6 +2464,8 @@ function rAnalisis(inv,liq){
 
   const sBtn=(col,lb)=>`<button class="ib" onclick="sortPos('${col}',inv_ref,${liq})" style="font-size:10px;padding:4px 10px;${sortCol===col?'background:rgba(91,156,246,.15);color:#5b9cf6;border-color:rgba(91,156,246,.3);':''}">${lb}${sortCol===col?(sortAsc?' ↑':' ↓'):''}</button>`;
 
+  const rm=calcRiskMetrics(inv.id);
+
   return `
   <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
@@ -2474,6 +2501,40 @@ function rAnalisis(inv,liq){
   </div>
   ${CU.is_admin?`<div class="card" style="margin-top:14px;"><div class="ct">Alertas</div>${buildAlerts(all,liq)}</div>`:''}
   ${inv.olasFlows&&inv.olasFlows.length>0?olasSection(inv):''}
+  <div class="card" style="margin-top:14px;cursor:pointer;" onclick="(function(){const p=document.getElementById('risk-panel');const a=document.getElementById('risk-arrow');if(!p)return;const op=p.style.display!=='none';p.style.display=op?'none':'block';a.textContent=op?'▼':'▲';})()">
+    <div style="display:flex;align-items:center;justify-content:space-between;">
+      <div class="ct" style="margin:0;">⚡ Métricas de riesgo</div>
+      <span id="risk-arrow" style="font-size:11px;color:var(--muted);pointer-events:none;">▼</span>
+    </div>
+    <div id="risk-panel" style="display:none;" onclick="event.stopPropagation()">
+      ${rm ? `
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px;">
+        <div class="kpi">
+          <div class="kl">Volatilidad</div>
+          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--amber);">${rm.vol}%</div>
+          <div class="ks">mensual</div>
+        </div>
+        <div class="kpi">
+          <div class="kl">Max Drawdown</div>
+          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--red);">${rm.maxDD}%</div>
+          <div class="ks">caída máx. histórica</div>
+        </div>
+        <div class="kpi">
+          <div class="kl">Sharpe ratio</div>
+          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--blue);">${rm.sharpe}</div>
+          <div class="ks">retorno / riesgo anual</div>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:10px 0 2px;border-top:1px solid var(--line);margin-top:12px;line-height:1.7;">
+        Calculado sobre <strong style="color:var(--soft);">${rm.n} snapshots</strong> · Mayor precisión con más datos históricos.<br>
+        Volatilidad = desvío estándar de retornos entre importaciones. Sharpe anualizado (rf=0).
+      </div>` :
+      `<div style="font-size:12px;color:var(--muted);padding:14px 0 4px;">
+        Necesitás al menos 3 snapshots para calcular métricas de riesgo.<br>
+        <span style="font-size:10px;">Los snapshots se generan automáticamente al importar datos.</span>
+      </div>`}
+    </div>
+  </div>
   `;}
 function buildAlerts(pos,liq){
   const a=[];

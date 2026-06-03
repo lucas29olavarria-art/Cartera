@@ -330,7 +330,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
       <div id="topbar-quote" style="font-size:11px;color:var(--muted);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1;transition:opacity .5s;opacity:1;"></div>
     </div>
     <div class="tr" style="flex-shrink:0;">
-      <div class="pst stale" id="mkt-status" style="display:none;">● Cerrado</div>
       <div class="pst stale" id="pst" style="display:none;">Sin actualizar</div>
       <button class="ib grn" id="btn-ref" onclick="refreshPrices()" style="display:none;">↻</button>
       <button class="ib" id="btn-op" onclick="openOperacion()" style="display:none;">+ Operación</button>
@@ -347,7 +346,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="atb-historial" onclick="aTab('historial')">Historial</button>
     <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
     <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
-    <button class="tb" id="atb-snapshots" onclick="aTab('snapshots')">Snapshots</button>
     <button class="tb" onclick="openImport()">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
@@ -355,7 +353,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-flujo" onclick="iTab('flujo')">Flujo de caja</button>
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
-    <button class="tb" id="itb-camino" onclick="iTab('camino')">Tu camino</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
   </div>
   <div class="content" id="cnt"></div>
@@ -379,7 +376,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 <div class="ov" id="m-rv">
   <div class="modal">
     <div class="mt">Nueva posición — Renta variable</div>
-    <div class="fr"><label class="fl">Ticker (Yahoo Finance)</label><input class="fi" id="rv-t" placeholder="ej: NVDA" style="text-transform:uppercase"></div>
+    <div class="fr"><label class="fl">Ticker</label><input class="fi" id="rv-t" placeholder="ej: NVDA" style="text-transform:uppercase"></div>
     <div class="fr"><label class="fl">Nombre</label><input class="fi" id="rv-n" placeholder="ej: NVIDIA Corp."></div>
     <div class="fg">
       <div class="fr"><label class="fl">Valor actual (u$s)</label><input class="fi" id="rv-v" type="number" placeholder="0" step="0.01"></div>
@@ -395,7 +392,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     </div>
     <div class="fg">
       <div class="fr"><label class="fl">Cantidad nominales</label><input class="fi" id="rv-qty" type="number" placeholder="ej: 10"></div>
-      <div class="fr"><label class="fl">Auto-precio Yahoo?</label><select class="fi" id="rv-auto"><option value="1">Sí (ticker USA)</option><option value="0">No (manual)</option></select></div>
+      <select id="rv-auto" style="display:none;"><option value="1">1</option><option value="0">0</option></select>
     </div>
     <div class="macts"><button class="bno" onclick="co('m-rv')">Cancelar</button><button class="bok" onclick="saveRV()">Guardar</button></div>
   </div>
@@ -540,7 +537,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <!-- RV PANEL — ambos brokers juntos -->
     <div id="imp-rv-panel">
       <div style="background:rgba(45,212,160,.05);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--green);margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;gap:8px;">
-        <span>&#8853; <strong>Modo merge:</strong> las posiciones que ya existen se suman (multi-broker). Si quer&#233;s reemplazar desde cero, limpi&#225; primero.</span>
+        <span><strong>Importar:</strong> reemplaza todas las posiciones actuales con las del archivo.</span>
         <button onclick="impLimpiarBroker()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);color:var(--red);border-radius:4px;font-size:10px;padding:3px 8px;cursor:pointer;white-space:nowrap;">&#128465; Limpiar posiciones</button>
       </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
@@ -1005,7 +1002,7 @@ async function showApp(){
   document.getElementById('tabs-a').style.display=isA?'flex':'none';
   document.getElementById('tabs-i').style.display=isA?'none':'flex';
   document.getElementById('btn-ref').style.display='none';
-  document.getElementById('mkt-status').style.display='none';
+  document.getElementById('mkt-status')?.style && (document.getElementById('mkt-status').style.display='none');
   document.getElementById('pst').style.display='none';
   document.getElementById('btn-op').style.display=isA?'block':'none';
   document.getElementById('btn-import')?.style && (document.getElementById('btn-import').style.display=isA?'block':'none');
@@ -1038,11 +1035,10 @@ async function loadAllInvestors(){
 }
 
 async function loadInvestor(id){
-  const [rvR,rfR,olasR,gastosR,invR]=await Promise.all([
+  const [rvR,rfR,olasR,invR]=await Promise.all([
     sb.from('positions_rv').select('*').eq('investor_id',id).order('valor',{ascending:false}),
     sb.from('positions_rf').select('*').eq('investor_id',id).order('valor',{ascending:false}),
     sb.from('olas_flows').select('*').eq('investor_id',id).order('fecha'),
-    sb.from('gastos').select('*').eq('investor_id',id).order('fecha',{ascending:false}),
     sb.from('investors').select('*').eq('id',id).single(),
   ]);
   const inv=invR.data||{};
@@ -1066,7 +1062,7 @@ async function loadInvestor(id){
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null}));
   autoConfirmarVencidos(inv);
-  inv.gastos=gastosR.data||[];
+  inv.gastos=[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';
   inv.last_import_date=inv.last_import_date||null;
@@ -1200,7 +1196,7 @@ async function refreshPrices(){
 // ── ADMIN ─────────────────────────────────────────────────────
 function aTab(t){
   ATb=t;
-  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte','snapshots'].forEach(name=>{
+  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte'].forEach(name=>{
     const el=document.getElementById('atb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -1214,7 +1210,6 @@ function renderAdmin(){
   else if(ATb==='historial')rHistorial();
   else if(ATb==='notas')rNotas();
   else if(ATb==='reporte')rReporte();
-  else if(ATb==='snapshots')rAdminSnaps();
 }
 
 // ── CONSOLIDADO ───────────────────────────────────────────────
@@ -1705,7 +1700,6 @@ function renderInv(inv){
   else if(ITb==='flujo')body=rFlujoCaja(inv);
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
-  else if(ITb==='camino')body=rCamino(inv,tot);
   else if(ITb==='reporte')body=rReporteMensual(inv);
 
   sc(hdr+body);
@@ -1714,7 +1708,6 @@ function renderInv(inv){
   setTimeout(()=>{
     buildInvCharts(ITb,inv,liq);
     if(ITb==='simulador')setTimeout(calcSim,100);
-    if(ITb==='camino')setTimeout(()=>buildCaminoCharts(inv_ref),100);
     runCountUps();
   },50);
 }
@@ -1882,25 +1875,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>`;
   }
 
-  // ── OBJETIVO ──────────────────────────────────────────────────
-  if(hasObjetivo){
-    const objPct=Math.min(100,Math.round(tot/inv.objetivo_monto*100));
-    const objFalta=Math.max(0,inv.objetivo_monto-tot);
-    html+=`
-    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:22px;margin-bottom:14px;cursor:pointer;" onclick="iTab('camino')">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Tu objetivo</div>
-      <div style="font-size:16px;font-weight:500;margin-bottom:16px;">${inv.objetivo_desc}</div>
-      <div style="background:var(--bg4);border-radius:4px;height:6px;overflow:hidden;margin-bottom:12px;">
-        <div style="height:100%;width:${objPct}%;background:linear-gradient(90deg,#5b9cf6,#2dd4a0);border-radius:4px;transition:width .8s ease;"></div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;">
-        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);">${objPct>=100?'Meta alcanzada':'u$s '+fmt(tot)+' de u$s '+fmt(inv.objetivo_monto)}</div>
-        <div style="font-family:var(--mono);font-size:16px;font-weight:700;color:${objPct>=100?'#2dd4a0':'#5b9cf6'};">${objPct}%</div>
-      </div>
-    </div>`;
-  } else {
-    html+=`<button onclick="iTab('camino')" style="width:100%;background:transparent;border:1px dashed rgba(255,255,255,.1);border-radius:14px;padding:15px;color:rgba(255,255,255,.3);font-size:12px;cursor:pointer;margin-bottom:14px;text-align:center;font-family:var(--font);">Definir tu objetivo de inversión &rarr;</button>`;
-  }
 
   // ── PRÓXIMO COBRO ─────────────────────────────────────────────
   if(nextAny||nextOlasFirst){
@@ -3085,7 +3059,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','flujo','analisis','simulador','camino','reporte'].forEach(name=>{
+  ['overview','flujo','analisis','simulador','reporte'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });

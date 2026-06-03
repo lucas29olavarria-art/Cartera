@@ -6,7 +6,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-<title>OL Capital · Portfolio Management</title>
+<title>LO Capital · Portfolio Management</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%2307080b'/><text y='380' font-size='320' x='256' text-anchor='middle' font-family='Georgia,serif' fill='%235b9cf6'>C</text></svg>">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="OL Capital">
+<meta name="apple-mobile-web-app-title" content="LO Capital">
 <meta name="theme-color" content="#07080b">
 <style>
 :root{
@@ -295,14 +295,14 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   <div class="lw">
     <div style="margin-bottom:28px;display:flex;align-items:center;gap:11px;">
       <svg height="36" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <circle cx="17" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
-        <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
-        <line x1="23.5" y1="33" x2="39" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="25" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
+        <line x1="16" y1="6" x2="16" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
       <div style="line-height:1;">
-        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#fff;">OL CAPITAL</div>
-        <div style="width:28px;height:1px;background:#c9a96e;margin:5px 0;"></div>
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#c9a96e;">PORTFOLIO MANAGEMENT</div>
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#fff;">LO CAPITAL</div>
+        <div style="width:28px;height:1px;background:#5b9cf6;margin:5px 0;"></div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#5b9cf6;">PORTFOLIO MANAGEMENT</div>
       </div>
     </div>
     <div class="ltitle">Bienvenido</div>
@@ -327,13 +327,13 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
       <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
         <svg height="28" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
-          <circle cx="17" cy="20" r="12.5" stroke="white" stroke-width="2.2"/>
-          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
-          <line x1="23.5" y1="33" x2="39" y2="33" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="25" cy="20" r="12.5" stroke="white" stroke-width="2.2"/>
+          <line x1="16" y1="6" x2="16" y2="34" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="16" y1="34" x2="29" y2="34" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:#fff;line-height:1;">OL CAPITAL</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#c9a96e;margin-top:3px;line-height:1;">PORTFOLIO MANAGEMENT</div>
+          <div style="font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:#fff;line-height:1;">LO CAPITAL</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;margin-top:3px;line-height:1;">PORTFOLIO MANAGEMENT</div>
         </div>
       </div>
       <div style="width:1px;height:13px;background:rgba(255,255,255,.06);flex-shrink:0;"></div>
@@ -999,7 +999,7 @@ async function showApp(){
   const wo=document.createElement('div');
   wo.id='welcome-overlay';
   const firstName=CU.name.split(' ')[0];
-  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">OL CAPITAL · PORTFOLIO MANAGEMENT</div>`;
+  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">LO CAPITAL · PORTFOLIO MANAGEMENT</div>`;
   document.body.appendChild(wo);
   setTimeout(()=>wo.remove(), 1800);
 
@@ -1601,25 +1601,25 @@ async function genReport(){
     <div class="rpt" id="rpt-print">
       <div class="rpt-logo no-print" style="display:flex;align-items:center;gap:10px;">
         <svg height="32" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="17" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
-          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
-          <line x1="23.5" y1="33" x2="39" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="25" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
+          <line x1="16" y1="6" x2="16" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#fff;">OL CAPITAL</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#c9a96e;margin-top:3px;">PORTFOLIO MANAGEMENT · INFORME TRIMESTRAL</div>
+          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#fff;">LO CAPITAL</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;margin-top:3px;">PORTFOLIO MANAGEMENT · INFORME TRIMESTRAL</div>
         </div>
       </div>
       <div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">
         <svg height="40" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-          <circle cx="17" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>
-          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
-          <line x1="23.5" y1="33" x2="39" y2="33" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+          <circle cx="25" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>
+          <line x1="16" y1="6" x2="16" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">OL CAPITAL</div>
-          <div style="width:32px;height:1px;background:#c9a96e;margin:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#c9a96e;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
+          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>
+          <div style="width:32px;height:1px;background:#5b9cf6;margin:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
@@ -1661,7 +1661,7 @@ async function genReport(){
         <textarea class="rpt-comment no-print" id="rpt-recom" placeholder="¿Qué vas a hacer diferente? ¿Qué posiciones revisar?" style="min-height:80px;" oninput="saveRecom('${id}')">${recom}</textarea>
         <div id="print-recom-${id}" style="display:none;font-size:12px;line-height:1.9;"></div>
       </div>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>OL CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
+      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>LO CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
@@ -1733,6 +1733,11 @@ function renderInv(inv){
     setTimeout(()=>{buildClienteSimpleChart(inv);runCountUps();},50);
     return;
   }
+  if(!isA && ITb==='reporte'){
+    sc(hdr+rClienteReporte(inv));
+    setTimeout(()=>loadClienteReporte(inv,reportMonthKey),80);
+    return;
+  }
 
   let body='';
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);
@@ -1802,6 +1807,21 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
     </div>
 
+    <!-- ACCIONES RÁPIDAS -->
+    <div style="display:flex;gap:8px;margin-bottom:12px;">
+      <button class="ib pri" style="flex:1;padding:10px;" onclick="iTab('reporte')">📄 Mi informe</button>
+      <button class="ib" style="flex:1;padding:10px;" onclick="iTab('flujo')">📊 Flujo de cobros</button>
+    </div>
+
+    <!-- EVOLUCIÓN PATRIMONIAL -->
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Evolución patrimonial</div>
+      <div style="height:150px;position:relative;">
+        <canvas id="cli-hist-chart"></canvas>
+        <div id="cli-hist-empty" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:11px;text-align:center;padding:0 20px;">Cargando historial...</div>
+      </div>
+    </div>
+
     <!-- COMPOSICIÓN -->
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;margin-bottom:12px;">
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Composición</div>
@@ -1829,11 +1849,128 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
   </div>`;
 }
 
-function buildClienteSimpleChart(inv){
+async function buildClienteSimpleChart(inv){
   const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
   const data=[rv0,rf0,ol0].filter((_,i)=>([rv0,rf0,ol0][i])>0);
   const colors=['#5b9cf6','#2dd4a0','#f5a623'].filter((_,i)=>([rv0,rf0,ol0][i])>0);
   mkDonut('cli-comp-chart',data,colors);
+
+  const {data:snaps}=await sb.from('price_snapshots')
+    .select('snapshot_date,total_patrimonio')
+    .eq('investor_id',inv.id)
+    .order('snapshot_date');
+  const empty=document.getElementById('cli-hist-empty');
+  const el=document.getElementById('cli-hist-chart');
+  if(!el)return;
+  if(!snaps||snaps.length<2){
+    if(empty)empty.textContent='El historial aparece después de la primera actualización de precios';
+    return;
+  }
+  if(empty)empty.remove();
+  mkLine('cli-hist-chart',snaps.map(s=>s.snapshot_date.slice(5)),snaps.map(s=>+s.total_patrimonio),inv.color||'#5b9cf6');
+}
+
+// ── REPORTE MENSUAL DEL CLIENTE (usa Supabase price_snapshots) ─
+function rClienteReporte(inv){
+  const mk=reportMonthKey;
+  const parts=mk.split('-');
+  const Y=+parts[0],M=+parts[1];
+  const prevMk=(M===1)?(Y-1)+'-12':Y+'-'+(M-1<10?'0':'')+(M-1);
+  const nextMk=(M===12)?(Y+1)+'-01':Y+'-'+(M+1<10?'0':'')+(M+1);
+  const nowMk=new Date().toISOString().slice(0,7);
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const monthLabel=mNames[M-1]+' '+Y;
+  return `
+  <div id="rpt-cli-wrap">
+    <div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">
+      <svg height="38" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+        <circle cx="25" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>
+        <line x1="16" y1="6" x2="16" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <div style="line-height:1;">
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>
+        <div style="width:28px;height:1px;background:#5b9cf6;margin:4px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
+      </div>
+    </div>
+    <div class="no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
+      <button class="ib" onclick="reportMonthKey='${prevMk}';kc();renderInv(inv_ref);iTab('reporte');">◀</button>
+      <div style="font-size:16px;font-weight:600;min-width:170px;text-align:center;">${monthLabel}</div>
+      ${mk<nowMk?`<button class="ib" onclick="reportMonthKey='${nextMk}';kc();renderInv(inv_ref);iTab('reporte');">▶</button>`:'<button class="ib" disabled style="opacity:.3">▶</button>'}
+      <button class="ib pri" style="margin-left:auto;" onclick="printReporte()">📄 PDF</button>
+    </div>
+    <div id="cli-rpt-body" style="text-align:center;padding:40px 20px;color:var(--muted);">
+      <span class="spinner"></span> Cargando datos...
+    </div>
+  </div>`;
+}
+
+async function loadClienteReporte(inv,mk){
+  const el=document.getElementById('cli-rpt-body');
+  if(!el)return;
+  const parts=mk.split('-');
+  const Y=+parts[0],M=+parts[1];
+  const monthStart=mk+'-01';
+  const nextM=(M===12)?(Y+1)+'-01':Y+'-'+(M+1<10?'0':'')+(M+1);
+  const monthEnd=nextM+'-01';
+  const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+  const monthLabel=mNames[M-1]+' '+Y;
+
+  const {data:snaps}=await sb.from('price_snapshots')
+    .select('snapshot_date,total_patrimonio,total_liquido,total_rend')
+    .eq('investor_id',inv.id)
+    .gte('snapshot_date',monthStart)
+    .lt('snapshot_date',monthEnd)
+    .order('snapshot_date');
+
+  if(!snaps||snaps.length<1){
+    el.innerHTML='<div style="font-size:32px;margin-bottom:12px;">📊</div><div>No hay datos para '+monthLabel+'.<br><span style="font-size:11px;">Los datos se registran automáticamente cuando el asesor actualiza precios.</span></div>';
+    return;
+  }
+
+  const s0=snaps[0],s1=snaps[snaps.length-1];
+  const p0=+s0.total_patrimonio,p1=+s1.total_patrimonio;
+  const delta=p1-p0;
+  const deltaPct=p0>0?(delta/p0*100).toFixed(1):'—';
+  const rend=+s1.total_rend;
+  const liq=totalLiq(inv);
+  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+  const allPos=[...(inv.rv||[]),...(inv.rf||[])].sort((a,b)=>b.valor-a.valor);
+  const today=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
+
+  el.innerHTML=`
+    <div class="rpt-kpis" style="margin-bottom:18px;">
+      <div class="rpt-kpi"><div class="rpt-kl">Inicio del mes</div><div class="rpt-kv">u$s ${fmt(p0)}</div></div>
+      <div class="rpt-kpi"><div class="rpt-kl">Fin del mes</div><div class="rpt-kv">u$s ${fmt(p1)}</div></div>
+      <div class="rpt-kpi"><div class="rpt-kl">Variación</div><div class="rpt-kv" style="color:${delta>=0?'var(--green)':'var(--red)'};">${delta>=0?'+':''}${deltaPct}%</div></div>
+      <div class="rpt-kpi"><div class="rpt-kl">Rendimiento total</div><div class="rpt-kv" style="color:${rend>=0?'var(--green)':'var(--red)'};">${rend>=0?'+':'−'}u$s ${fmt(Math.abs(rend))}</div></div>
+    </div>
+    <div style="height:160px;position:relative;margin-bottom:20px;"><canvas id="cli-rpt-chart"></canvas></div>
+    ${rv0+rf0+ol0>0?`<div class="rpt-sec">
+      <div class="rpt-sec-t">Composición</div>
+      ${rv0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Renta Variable</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(rv0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(rv0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
+      ${rf0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Renta Fija</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(rf0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(rf0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
+      ${ol0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Fideicomiso Olas</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(ol0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(ol0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
+    </div>`:''}
+    ${allPos.length?`<div class="rpt-sec">
+      <div class="rpt-sec-t">Posiciones al cierre</div>
+      ${allPos.map(p=>`<div class="rpt-row">
+        <span class="rpt-ticker">${p.ticker}</span>
+        <span style="flex:1;padding:0 8px;font-size:11px;color:var(--soft);">${p.nombre||''}</span>
+        <span style="font-family:var(--mono);font-size:11px;min-width:80px;text-align:right;">u$s ${fmt(p.valor)}</span>
+        <span style="font-family:var(--mono);font-size:11px;min-width:65px;text-align:right;color:${(p.rend||0)>=0?'var(--green)':'var(--red)'};">${(p.rend||0)>=0?'+':'−'}u$s ${fmt(Math.abs(p.rend||0))}</span>
+      </div>`).join('')}
+    </div>`:''}
+    <div style="margin-top:28px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;">
+      <span>LO CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062</span>
+      <span>${today}</span>
+    </div>`;
+
+  setTimeout(()=>{
+    if(snaps.length>=2)
+      mkLine('cli-rpt-chart',snaps.map(s=>s.snapshot_date.slice(5)),snaps.map(s=>+s.total_patrimonio),inv.color||'#5b9cf6');
+  },50);
 }
 
 // ── OVERVIEW ──────────────────────────────────────────────────
@@ -1871,7 +2008,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):0;
   const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
 
-  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · OL Capital · Mat. CNV 2062';
+  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · LO Capital · Mat. CNV 2062';
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
 
   let html='';

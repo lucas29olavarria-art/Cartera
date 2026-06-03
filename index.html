@@ -3098,7 +3098,7 @@ function buildInvCharts(tab,inv,liq){
     const ptRadii=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?7:2;});
     const labels=allSnaps.map(function(s){const d=new Date(s.date);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});});
     if(CHS['rpt-evo'])CHS['rpt-evo'].destroy();
-    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[{data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'18',borderWidth:2,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.3,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return 'u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#424b5c',font:{family:'Geist Mono',size:9},maxRotation:45},grid:{display:false}},y:{ticks:{color:'#424b5c',font:{family:'Geist Mono',size:10},callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.04)'}}}}});
+    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[{data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return 'u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:9},maxRotation:40,maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:10},maxTicksLimit:5,callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.06)'}}}}});
   }
 }
 
@@ -3526,7 +3526,7 @@ function rReporteMensual(inv){
   if(allSnapsEvo.length>=2){
     html+='<div class="card" style="margin-bottom:12px;">'+
       '<div class="ct" style="margin-bottom:6px;">Evolución patrimonial · <span style="color:var(--amber);">●</span> meses con cobros</div>'+
-      '<div style="height:120px;position:relative;"><canvas id="rpt-evo"></canvas></div>'+
+      '<div style="height:180px;position:relative;margin-top:4px;"><canvas id="rpt-evo"></canvas></div>'+
       '</div>';
   }
   html+='<div class="card" style="margin-bottom:12px;">'+
@@ -3583,14 +3583,35 @@ function rReporteMensual(inv){
 }
 
 function printReporte(){
+  // Temporarily switch chart to print-friendly (dark on white) colors
+  const ch=CHS['rpt-evo'];
+  if(ch){
+    const ds=ch.data.datasets[0];
+    ch._ps={bc:ds.borderColor,bg:ds.backgroundColor,xc:ch.options.scales.x.ticks.color,yc:ch.options.scales.y.ticks.color,gc:ch.options.scales.y.grid.color};
+    ds.borderColor='#1d4ed8';
+    ds.backgroundColor='rgba(29,78,216,0.07)';
+    ch.options.scales.x.ticks.color='#374151';
+    ch.options.scales.y.ticks.color='#374151';
+    ch.options.scales.y.grid.color='rgba(0,0,0,0.08)';
+    ch.update('none');
+  }
   document.body.classList.add('print-reporte');
   window.print();
-  setTimeout(function(){document.body.classList.remove('print-reporte');},800);
+  setTimeout(function(){
+    document.body.classList.remove('print-reporte');
+    if(ch&&ch._ps){
+      const ds=ch.data.datasets[0];
+      ds.borderColor=ch._ps.bc;ds.backgroundColor=ch._ps.bg;
+      ch.options.scales.x.ticks.color=ch._ps.xc;
+      ch.options.scales.y.ticks.color=ch._ps.yc;
+      ch.options.scales.y.grid.color=ch._ps.gc;
+      ch.update('none');delete ch._ps;
+    }
+  },800);
 }
 
 function downloadReportePDF(){
-  showToast('En el diálogo elegí "Guardar como PDF" como destino');
-  setTimeout(printReporte, 300);
+  printReporte();
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

@@ -1733,11 +1733,6 @@ function renderInv(inv){
     setTimeout(()=>{buildClienteSimpleChart(inv);runCountUps();},50);
     return;
   }
-  if(!isA && ITb==='reporte'){
-    sc(hdr+rClienteReporte(inv));
-    setTimeout(()=>loadClienteReporte(inv,reportMonthKey),80);
-    return;
-  }
 
   let body='';
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);
@@ -1805,12 +1800,6 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
         </div>
       </div>
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
-    </div>
-
-    <!-- ACCIONES RÁPIDAS -->
-    <div style="display:flex;gap:8px;margin-bottom:12px;">
-      <button class="ib pri" style="flex:1;padding:10px;" onclick="iTab('reporte')">📄 Mi informe</button>
-      <button class="ib" style="flex:1;padding:10px;" onclick="iTab('flujo')">📊 Flujo de cobros</button>
     </div>
 
     <!-- EVOLUCIÓN PATRIMONIAL -->
@@ -3389,10 +3378,17 @@ function rReporteMensual(inv){
     const d=new Date(s.date);return d>=monthStart&&d<monthEnd;
   }).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
   const navHtml=
-    '<div class="rpt-print-header">'+
-    '<div style="font-family:var(--serif);font-size:22px;font-weight:300;font-style:italic;margin-bottom:4px;">Reporte Mensual</div>'+
-    '<div style="font-size:12px;color:var(--muted);">'+inv.name+' · '+monthLabel+'</div>'+
-    '</div>'+
+    '<div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">'+
+    '<svg height="38" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+
+    '<circle cx="25" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>'+
+    '<line x1="16" y1="6" x2="16" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>'+
+    '<line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>'+
+    '</svg>'+
+    '<div style="line-height:1;">'+
+    '<div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>'+
+    '<div style="width:28px;height:1px;background:#5b9cf6;margin:4px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>'+
+    '<div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">REPORTE MENSUAL · '+inv.name.toUpperCase()+' · '+monthLabel.toUpperCase()+'</div>'+
+    '</div></div>'+
     '<div class="no-print" style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">'+
     '<button class="ib" onclick="reportMonthKey=\''+prevMk+'\';kc();renderInv(inv_ref);iTab(\'reporte\');">◀</button>'+
     '<div style="font-size:16px;font-weight:600;min-width:170px;text-align:center;">'+monthLabel+'</div>'+
@@ -3400,12 +3396,48 @@ function rReporteMensual(inv){
     '<button class="ib" style="margin-left:auto;" onclick="printReporte()">📄 PDF</button>'+
     '</div>';
   if(monthSnaps.length<2){
-    const msg=mk===nowMk?'Import\xe1 datos a fin de mes para ver el reporte completo.':'No hay datos suficientes para este per\xedodo.';
-    return navHtml+
-      '<div style="padding:40px 20px;text-align:center;color:var(--muted);">'+
-      '<div style="font-size:36px;margin-bottom:12px;">📊</div>'+
-      '<div style="font-size:14px;">'+msg+'</div>'+
-      '</div>';
+    // No local snapshots — show current portfolio state (correct numbers, works for clients)
+    const liq=totalLiq(inv),rend=totalRend(inv),tot=grand(inv);
+    const rendPct=liq>0?(rend/Math.abs(liq-rend)*100).toFixed(1):'0.0';
+    const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+    const rendC=rend>=0?'var(--green)':'var(--red)';
+    const cobros=(inv.olasFlows||[]).filter(function(f){
+      if(!f.cobrado)return false;
+      const fd=new Date(olasDate(f)+'T12:00:00');return fd>=monthStart&&fd<monthEnd;
+    });
+    const cobroTotal=cobros.reduce(function(acc,f){
+      const tc=f.tcCobro||MEP;
+      return acc+parseFloat((((f.montoRealArs||olasMonto(f)))/tc).toFixed(2));
+    },0);
+    const allPos=[...(inv.rv||[]),...(inv.rf||[])].sort(function(a,b){return b.valor-a.valor;});
+    let h=navHtml;
+    h+='<div class="card" style="margin-bottom:12px;"><div class="krow">';
+    h+='<div class="kpi"><div class="kl">Patrimonio total</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(tot)+'</div></div>';
+    h+='<div class="kpi"><div class="kl">Rendimiento total</div><div class="kv" style="color:'+rendC+';font-family:var(--mono);">'+(rend>=0?'+':'−')+' u$s '+fmt(Math.abs(rend))+' ('+rendPct+'%)</div></div>';
+    if(rv0>0)h+='<div class="kpi"><div class="kl">Renta Variable</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(rv0)+'</div></div>';
+    if(rf0>0)h+='<div class="kpi"><div class="kl">Renta Fija</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(rf0)+'</div></div>';
+    if(ol0>0)h+='<div class="kpi"><div class="kl">Fideicomiso</div><div class="kv" style="color:var(--amber);font-family:var(--mono);">u$s '+fmt(ol0)+'</div></div>';
+    if(cobroTotal>0)h+='<div class="kpi"><div class="kl">Cobros del mes</div><div class="kv" style="color:var(--green);font-family:var(--mono);">+ u$s '+fmt(cobroTotal)+'</div></div>';
+    h+='</div></div>';
+    if(cobros.length){
+      const cr=cobros.map(function(f){
+        const fd=new Date(f.fecha).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
+        return '<tr><td style="font-size:12px;">'+fd+'</td><td style="font-size:12px;">'+(olasDesc(f)||'—')+'</td><td style="text-align:right;font-family:var(--mono);font-size:12px;color:var(--green);">+ u$s '+fmt(+(((f.montoRealArs||olasMonto(f))/(f.tcCobro||MEP)).toFixed(2)))+'</td></tr>';
+      }).join('');
+      h+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:10px;">Cobros del mes</div><div class="tw"><table><thead><tr><th>Fecha</th><th>Instrumento</th><th style="text-align:right">Monto</th></tr></thead><tbody>'+cr+'</tbody></table></div></div>';
+    }
+    if(allPos.length){
+      const rows=allPos.map(function(p){
+        return '<div class="rpt-row">'+
+          '<span class="rpt-ticker">'+p.ticker+'</span>'+
+          '<span style="flex:1;padding:0 10px;font-size:11px;color:var(--soft);">'+(p.nombre||'')+'</span>'+
+          '<span style="font-family:var(--mono);font-size:11px;min-width:80px;text-align:right;">u$s '+fmt(p.valor)+'</span>'+
+          '<span style="font-family:var(--mono);font-size:11px;min-width:65px;text-align:right;color:'+((p.rend||0)>=0?'var(--green)':'var(--red)')+';">'+(p.rend>=0?'+':'−')+' u$s '+fmt(Math.abs(p.rend||0))+'</span>'+
+          '</div>';
+      }).join('');
+      h+='<div class="card"><div class="ct" style="margin-bottom:10px;">Posiciones</div>'+rows+'</div>';
+    }
+    return h;
   }
   const s0=monthSnaps[0];
   const s1=monthSnaps[monthSnaps.length-1];

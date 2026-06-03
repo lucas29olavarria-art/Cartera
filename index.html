@@ -11,7 +11,6 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='62' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>C</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%2307080b'/><text y='380' font-size='320' x='256' text-anchor='middle' font-family='Georgia,serif' fill='%235b9cf6'>C</text></svg>">
@@ -3589,34 +3588,9 @@ function printReporte(){
   setTimeout(function(){document.body.classList.remove('print-reporte');},800);
 }
 
-function downloadReportePDF(filename){
-  const el=document.getElementById('rpt-mensual')||document.getElementById('rpt-print')||document.getElementById('rpt-cli-wrap');
-  if(!el){showToast('No se encontró el contenido del reporte');return;}
-  const btn=event.target;
-  btn.disabled=true;btn.textContent='Generando...';
-
-  // Show print-only elements, hide screen-only
-  document.body.classList.add('print-reporte');
-  el.querySelectorAll('.no-print').forEach(function(e){e.dataset._pd='1';e.style.display='none';});
-  el.querySelectorAll('.rpt-print-header').forEach(function(e){e.style.display='flex';});
-
-  const opt={
-    margin:[12,14,12,14],
-    filename:filename||'LO_Capital_Reporte.pdf',
-    image:{type:'jpeg',quality:0.97},
-    html2canvas:{scale:2,backgroundColor:'#ffffff',useCORS:true,logging:false},
-    jsPDF:{unit:'mm',format:'a4',orientation:'portrait'}
-  };
-  html2pdf().set(opt).from(el).save().then(function(){
-    document.body.classList.remove('print-reporte');
-    el.querySelectorAll('[data-_pd]').forEach(function(e){e.style.display='';delete e.dataset._pd;});
-    el.querySelectorAll('.rpt-print-header').forEach(function(e){e.style.display='';});
-    btn.disabled=false;btn.textContent='⬇ PDF';
-  }).catch(function(){
-    document.body.classList.remove('print-reporte');
-    btn.disabled=false;btn.textContent='⬇ PDF';
-    showToast('Error al generar PDF');
-  });
+function downloadReportePDF(){
+  showToast('En el diálogo elegí "Guardar como PDF" como destino');
+  setTimeout(printReporte, 300);
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

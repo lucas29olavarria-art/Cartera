@@ -1010,7 +1010,7 @@ async function showApp(){
   document.getElementById('t-name').textContent=CU.name;
   const isA=CU.is_admin;
   document.getElementById('tabs-a').style.display=isA?'flex':'none';
-  document.getElementById('tabs-i').style.display='none';
+  document.getElementById('tabs-i').style.display=isA?'none':'flex';
   document.getElementById('btn-ref').style.display='none';
   document.getElementById('mkt-status')?.style && (document.getElementById('mkt-status').style.display='none');
   document.getElementById('pst').style.display='none';
@@ -1728,7 +1728,7 @@ function renderInv(inv){
 
   inv_ref=inv;
 
-  if(!isA){
+  if(!isA && ITb==='overview'){
     sc(rClienteSimple(inv,liq,rend,tot,rendPct));
     setTimeout(()=>{buildClienteSimpleChart(inv);runCountUps();},50);
     return;

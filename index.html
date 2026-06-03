@@ -3093,7 +3093,25 @@ function buildInvCharts(tab,inv,liq){
     const allSnaps=snapForInv(inv.id);
     if(allSnaps.length<2)return;
     const el=document.getElementById('rpt-evo');if(!el)return;
-    const cobroDates=new Set((inv.olasFlows||[]).filter(function(f){return f.cobrado;}).map(function(f){return olasDate(f).slice(0,7);}));
+    // Olas cobros
+    const olasMeses=new Set((inv.olasFlows||[]).filter(function(f){return f.cobrado;}).map(function(f){return olasDate(f).slice(0,7);}));
+    // RF past coupons — generate backwards from proxCupon
+    const today0=new Date().toISOString().slice(0,10);
+    const rfMeses=new Set();
+    (inv.rf||[]).forEach(function(p){
+      const prox=p.proxCupon||p.prox_cupon;if(!prox)return;
+      const freq=p.freq||2;
+      const step=Math.round(12/freq);
+      let d=new Date(prox);
+      for(let i=0;i<24;i++){
+        d=new Date(d.getFullYear(),d.getMonth()-step,d.getDate());
+        const ds=d.toISOString().slice(0,10);
+        if(ds<'2020-01-01')break;
+        if(ds<=today0)rfMeses.add(ds.slice(0,7));
+      }
+      if(prox<=today0)rfMeses.add(prox.slice(0,7));
+    });
+    const cobroDates=new Set([...olasMeses,...rfMeses]);
     const ptColors=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?'#f5a623':(inv.color||'#5b9cf6');});
     const ptRadii=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?7:2;});
     const labels=allSnaps.map(function(s){const d=new Date(s.date);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});});
@@ -3525,7 +3543,7 @@ function rReporteMensual(inv){
   let html='<div id="rpt-mensual">'+navHtml;
   if(allSnapsEvo.length>=2){
     html+='<div class="card" style="margin-bottom:12px;">'+
-      '<div class="ct" style="margin-bottom:6px;">Evolución patrimonial · <span style="color:var(--amber);">●</span> meses con cobros</div>'+
+      '<div class="ct" style="margin-bottom:6px;">Evolución patrimonial · <span style="color:var(--amber);">●</span> cobro Olas / RF</div>'+
       '<div style="height:180px;position:relative;margin-top:4px;"><canvas id="rpt-evo"></canvas></div>'+
       '</div>';
   }

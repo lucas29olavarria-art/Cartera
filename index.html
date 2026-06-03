@@ -6,7 +6,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-<title>Cartera · Portfolio Manager</title>
+<title>OL Capital · Portfolio Management</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -16,7 +16,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%2307080b'/><text y='380' font-size='320' x='256' text-anchor='middle' font-family='Georgia,serif' fill='%235b9cf6'>C</text></svg>">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Cartera">
+<meta name="apple-mobile-web-app-title" content="OL Capital">
 <meta name="theme-color" content="#07080b">
 <style>
 :root{
@@ -293,10 +293,17 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 <!-- LOGIN -->
 <div id="s-login" class="screen active">
   <div class="lw">
-    <div class="ley">◆ <em>CARTERA</em> · portfolio manager</div>
-    <div style="margin-bottom:18px;">
-      <div style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:var(--text);">Lucas Olavarria</div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;color:var(--muted);margin-top:3px;">Asesor Financiero · Mat. CNV 2062</div>
+    <div style="margin-bottom:28px;display:flex;align-items:center;gap:11px;">
+      <svg height="36" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="17" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
+        <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="23.5" y1="33" x2="39" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <div style="line-height:1;">
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#fff;">OL CAPITAL</div>
+        <div style="width:28px;height:1px;background:#c9a96e;margin:5px 0;"></div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#c9a96e;">PORTFOLIO MANAGEMENT</div>
+      </div>
     </div>
     <div class="ltitle">Bienvenido</div>
     <div class="lsub">Ingresá tu PIN para acceder<br>a tu dashboard</div>
@@ -318,12 +325,15 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 <div id="s-app" class="screen">
   <div class="topbar no-print">
     <div style="display:flex;align-items:center;gap:12px;flex:1;min-width:0;">
-      <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;">
-        <div class="tlogo">◆ CARTERA</div>
-        <div style="width:1px;height:13px;background:rgba(255,255,255,.08);"></div>
-        <div style="line-height:1.2;">
-          <div style="font-family:var(--serif);font-size:11px;font-style:italic;color:var(--soft);">Lucas Olavarria</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.07em;color:var(--muted);">Mat. CNV 2062</div>
+      <div style="display:flex;align-items:center;gap:9px;flex-shrink:0;">
+        <svg height="28" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+          <circle cx="17" cy="20" r="12.5" stroke="white" stroke-width="2.2"/>
+          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="23.5" y1="33" x2="39" y2="33" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <div style="line-height:1;">
+          <div style="font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:#fff;line-height:1;">OL CAPITAL</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#c9a96e;margin-top:3px;line-height:1;">PORTFOLIO MANAGEMENT</div>
         </div>
       </div>
       <div style="width:1px;height:13px;background:rgba(255,255,255,.06);flex-shrink:0;"></div>
@@ -989,7 +999,7 @@ async function showApp(){
   const wo=document.createElement('div');
   wo.id='welcome-overlay';
   const firstName=CU.name.split(' ')[0];
-  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">◆ Cartera · Portfolio Manager</div>`;
+  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">OL CAPITAL · PORTFOLIO MANAGEMENT</div>`;
   document.body.appendChild(wo);
   setTimeout(()=>wo.remove(), 1800);
 
@@ -1589,7 +1599,29 @@ async function genReport(){
   document.getElementById('rep-out').innerHTML=`
   <div style="border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg2);margin-bottom:12px;">
     <div class="rpt" id="rpt-print">
-      <div class="rpt-logo no-print">◆ CARTERA · INFORME TRIMESTRAL</div>
+      <div class="rpt-logo no-print" style="display:flex;align-items:center;gap:10px;">
+        <svg height="32" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+          <circle cx="17" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
+          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="23.5" y1="33" x2="39" y2="33" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <div style="line-height:1;">
+          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#fff;">OL CAPITAL</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#c9a96e;margin-top:3px;">PORTFOLIO MANAGEMENT · INFORME TRIMESTRAL</div>
+        </div>
+      </div>
+      <div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">
+        <svg height="40" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
+          <circle cx="17" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>
+          <line x1="23.5" y1="6" x2="23.5" y2="33" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+          <line x1="23.5" y1="33" x2="39" y2="33" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
+        </svg>
+        <div style="line-height:1;">
+          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">OL CAPITAL</div>
+          <div style="width:32px;height:1px;background:#c9a96e;margin:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#c9a96e;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
+        </div>
+      </div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
         <div class="rpt-name">${inv.name}</div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:10px;">${quarter}</div>
@@ -1629,7 +1661,7 @@ async function genReport(){
         <textarea class="rpt-comment no-print" id="rpt-recom" placeholder="¿Qué vas a hacer diferente? ¿Qué posiciones revisar?" style="min-height:80px;" oninput="saveRecom('${id}')">${recom}</textarea>
         <div id="print-recom-${id}" style="display:none;font-size:12px;line-height:1.9;"></div>
       </div>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>CARTERA PORTFOLIO MANAGER · ${today}</span><span>Documento confidencial</span></div>
+      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>OL CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
@@ -1839,7 +1871,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):0;
   const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
 
-  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · Asesor Financiero · Mat. CNV 2062';
+  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · OL Capital · Mat. CNV 2062';
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
 
   let html='';

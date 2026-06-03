@@ -1000,7 +1000,7 @@ async function showApp(){
   document.getElementById('t-name').textContent=CU.name;
   const isA=CU.is_admin;
   document.getElementById('tabs-a').style.display=isA?'flex':'none';
-  document.getElementById('tabs-i').style.display=isA?'none':'flex';
+  document.getElementById('tabs-i').style.display='none';
   document.getElementById('btn-ref').style.display='none';
   document.getElementById('mkt-status')?.style && (document.getElementById('mkt-status').style.display='none');
   document.getElementById('pst').style.display='none';
@@ -1695,6 +1695,13 @@ function renderInv(inv){
   </div>`;
 
   inv_ref=inv;
+
+  if(!isA){
+    sc(rClienteSimple(inv,liq,rend,tot,rendPct));
+    setTimeout(()=>{buildClienteSimpleChart(inv);runCountUps();},50);
+    return;
+  }
+
   let body='';
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);
   else if(ITb==='flujo')body=rFlujoCaja(inv);
@@ -1717,6 +1724,85 @@ function renderInv(inv){
 let inv_ref=null;
 
 
+
+// ── VISTA CLIENTE SIMPLIFICADA ────────────────────────────────
+function rClienteSimple(inv,liq,rend,tot,rendPct){
+  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+  const rendDia=(inv.rv||[]).reduce((s,p)=>{if(p.price_change==null||!p.qty||!p.lastPrice)return s;return s+p.qty*p.lastPrice*(p.price_change/100);},0);
+  const rendDiaPct=liq>0?(rendDia/liq*100).toFixed(2):'0.00';
+  const advisorMsg=inv.advisor_msg||'';
+  const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):null;
+  const staleInfo=staleDays!==null?(staleDays===0?'Hoy':staleDays===1?'Ayer':'Hace '+staleDays+' días'):'';
+
+  const comps=[
+    {label:'Renta Variable',val:rv0,color:'#5b9cf6'},
+    {label:'Renta Fija',val:rf0,color:'#2dd4a0'},
+    {label:'Fideicomiso',val:ol0,color:'#f5a623'},
+  ].filter(c=>c.val>0);
+  const compRows=comps.map(c=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid rgba(255,255,255,.05);">
+      <span style="width:9px;height:9px;border-radius:2px;background:${c.color};flex-shrink:0;display:inline-block;"></span>
+      <span style="flex:1;font-size:13px;color:rgba(255,255,255,.7);">${c.label}</span>
+      <span style="font-family:var(--mono);font-size:12px;color:rgba(255,255,255,.5);">${tot>0?(c.val/tot*100).toFixed(1)+'%':''}</span>
+      <span style="font-family:var(--mono);font-size:13px;font-weight:600;color:rgba(255,255,255,.85);">u$s ${fmt(c.val)}</span>
+    </div>`).join('');
+
+  return `
+  <div style="max-width:480px;margin:0 auto;padding:8px 0;">
+    <!-- HERO -->
+    <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.12);border-radius:22px;padding:32px 24px 26px;margin-bottom:12px;position:relative;overflow:hidden;">
+      <div style="position:absolute;top:-80px;right:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(91,156,246,.07),transparent 65%);pointer-events:none;"></div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:16px;">${inv.name}</div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:8px;">Patrimonio total</div>
+      <div style="font-family:var(--mono);font-size:46px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;margin-bottom:22px;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Rendimiento</div>
+          <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
+          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+        </div>
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Hoy</div>
+          <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rendDia>=0?'#2dd4a0':'#f06c6c'};">${rendDia>=0?'+':''}${rendDiaPct}%</div>
+          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rendDia>=0?'+':''}u$s ${fmt(Math.abs(rendDia))}</div>
+        </div>
+      </div>
+      ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
+    </div>
+
+    <!-- COMPOSICIÓN -->
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Composición</div>
+      <div style="display:flex;align-items:center;gap:20px;">
+        <div style="position:relative;width:100px;height:100px;flex-shrink:0;">
+          <canvas id="cli-comp-chart" width="100" height="100"></canvas>
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.35);">100%</div>
+        </div>
+        <div style="flex:1;min-width:0;">${compRows||'<span style="color:var(--muted);font-size:12px;">Sin posiciones</span>'}</div>
+      </div>
+    </div>
+
+    ${advisorMsg?`<!-- MENSAJE ASESOR -->
+    <div style="background:rgba(91,156,246,.04);border:1px solid rgba(91,156,246,.1);border-radius:18px;padding:20px;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(91,156,246,.5);margin-bottom:14px;">Nota de tu asesor</div>
+      <div style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:rgba(255,255,255,.8);line-height:1.8;margin-bottom:16px;">&ldquo;${advisorMsg}&rdquo;</div>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);">
+        <div style="width:30px;height:30px;border-radius:8px;background:linear-gradient(135deg,#5b9cf6,#4080e0);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">L</div>
+        <div>
+          <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,.7);">Lucas Olavarria</div>
+          <div style="font-size:10px;color:rgba(255,255,255,.28);">Asesor Financiero &middot; Mat. CNV 2062</div>
+        </div>
+      </div>
+    </div>`:''}
+  </div>`;
+}
+
+function buildClienteSimpleChart(inv){
+  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+  const data=[rv0,rf0,ol0].filter((_,i)=>([rv0,rf0,ol0][i])>0);
+  const colors=['#5b9cf6','#2dd4a0','#f5a623'].filter((_,i)=>([rv0,rf0,ol0][i])>0);
+  mkDonut('cli-comp-chart',data,colors);
+}
 
 // ── OVERVIEW ──────────────────────────────────────────────────
 function getMilestone(tot){

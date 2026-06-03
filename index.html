@@ -3461,7 +3461,7 @@ function rReporteMensual(inv){
       }).join('');
       h+='<div class="card"><div class="ct" style="margin-bottom:10px;">Posiciones</div>'+rows+'</div>';
     }
-    return h;
+    return '<div id="rpt-mensual">'+h+'</div>';
   }
   const s0=monthSnaps[0];
   const s1=monthSnaps[monthSnaps.length-1];
@@ -3523,7 +3523,7 @@ function rReporteMensual(inv){
   const spyPct=(s0.spyPrice&&s1.spyPrice&&s0.spyPrice>0)?((s1.spyPrice/s0.spyPrice-1)*100):null;
   const beatMkt=spyPct!==null&&rvPct>spyPct;
   const allSnapsEvo=snapForInv(inv.id);
-  let html=navHtml;
+  let html='<div id="rpt-mensual">'+navHtml;
   if(allSnapsEvo.length>=2){
     html+='<div class="card" style="margin-bottom:12px;">'+
       '<div class="ct" style="margin-bottom:6px;">Evolución patrimonial · <span style="color:var(--amber);">●</span> meses con cobros</div>'+
@@ -3580,7 +3580,7 @@ function rReporteMensual(inv){
       '<div class="tw"><table><thead><tr><th>Fecha</th><th style="text-align:right">Valor</th><th></th></tr></thead>'+
       '<tbody>'+snapRows+'</tbody></table></div></div>';
   }
-  return html;
+  return html+'</div>';
 }
 
 function printReporte(){
@@ -3590,7 +3590,7 @@ function printReporte(){
 }
 
 function downloadReportePDF(filename){
-  const el=document.getElementById('rpt-print')||document.getElementById('rpt-cli-wrap');
+  const el=document.getElementById('rpt-mensual')||document.getElementById('rpt-print')||document.getElementById('rpt-cli-wrap');
   if(!el){showToast('No se encontró el contenido del reporte');return;}
   const btn=event.target;
   btn.disabled=true;btn.textContent='Generando...';

@@ -2,7 +2,8 @@
 <!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; alter table olas_flows add column if not exists capital_ars numeric; -->
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; alter table positions_rv add column if not exists imported_at timestamptz default now(); -->
 <!-- SQL: create table if not exists snapshots (id text primary key, investor_id uuid references investors(id) on delete cascade, date timestamptz not null, total_value_usd numeric, rv_value_usd numeric, rf_value_usd numeric, olas_value_usd numeric, spy_price numeric, positions jsonb); create index if not exists snapshots_investor_date on snapshots(investor_id, date); -->
-<!-- SQL: create table if not exists movimientos (id uuid default gen_random_uuid() primary key, investor_id uuid references investors(id) on delete cascade, fecha date not null, ticker text not null, accion text not null, cantidad numeric, notas text, created_at timestamptz default now()); create index if not exists movimientos_investor_fecha on movimientos(investor_id, fecha desc); -->
+<!-- SQL: create table if not exists movimientos (id uuid default gen_random_uuid() primary key, cartera_id uuid references carteras_destacadas(id) on delete cascade, fecha date not null, ticker text not null, accion text not null, cantidad numeric, notas text, created_at timestamptz default now()); create index if not exists movimientos_cartera_fecha on movimientos(cartera_id, fecha desc); -->
+<!-- SQL: create table if not exists carteras_destacadas (id uuid default gen_random_uuid() primary key, nombre text not null, subtitulo text, tipo text default 'personal', descripcion text, foto_b64 text, posiciones jsonb default '[]'::jsonb, orden int default 0, activa boolean default true, created_at timestamptz default now()); -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -384,7 +385,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
     <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
     <button class="tb" id="atb-borrar" onclick="aTab('borrar')" style="color:var(--red);">Borrar import</button>
-    <button class="tb" id="atb-micartera" onclick="aTab('micartera')" style="color:#5b9cf6;">Mi Cartera</button>
+    <button class="tb" id="atb-micartera" onclick="aTab('micartera')">Carteras</button>
     <button class="tb" onclick="openImport()">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
@@ -393,7 +394,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
-    <button class="tb" id="itb-micartera" onclick="iTab('micartera')" style="color:#5b9cf6;">Mi Cartera</button>
+    <button class="tb" id="itb-micartera" onclick="iTab('micartera')">Carteras</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -3765,173 +3766,301 @@ let reportMonthKey=new Date().toISOString().slice(0,7);
 let SPY_PRICE_CACHE=null;
 const BETA_CACHE={};
 
-// ── MI CARTERA ────────────────────────────────────────────────
-let ADVISOR_DATA=null;
+// ── CARTERAS RECOMENDADAS ─────────────────────────────────────
+let CARTERAS_CACHE=[];
+let CARTERAS_LOADED=false;
+let MC_CURRENT_ID=null; // null = listing, uuid = detail
 let MC_TAB='composicion';
 let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
 let MC_MONTH_FILTER=new Date().toISOString().slice(0,7);
-// Base64 photo placeholder — replace ADVISOR_PHOTO with actual base64 string
-const ADVISOR_PHOTO=null; // e.g. 'data:image/jpeg;base64,/9j/4AAQ...'
 
-async function loadAdvisorData(){
-  const{data:advRow}=await sb.from('investors').select('id').eq('is_admin',true).single();
-  if(!advRow)return;
-  ADVISOR_DATA=INV_CACHE[advRow.id]||await loadInvestor(advRow.id);
+async function loadCarteras(){
+  const{data}=await sb.from('carteras_destacadas').select('*').eq('activa',true).order('orden');
+  CARTERAS_CACHE=data||[];
+  CARTERAS_LOADED=true;
 }
 
-async function loadMcMovimientos(){
-  if(!ADVISOR_DATA)return;
-  const{data}=await sb.from('movimientos').select('*').eq('investor_id',ADVISOR_DATA.id).order('fecha',{ascending:false});
+async function loadMcMovimientos(cartId){
+  const{data}=await sb.from('movimientos').select('*').eq('cartera_id',cartId).order('fecha',{ascending:false});
   MC_MOVIMIENTOS=data||[];
   MC_MOV_LOADED=true;
 }
 
+// Keep old loadAdvisorData for compatibility
+async function loadAdvisorData(){}
+
 function rMiCartera(){
-  if(!ADVISOR_DATA){
-    sc('<div class="empty" style="padding:40px;">Cargando cartera del asesor…</div>');
-    loadAdvisorData().then(()=>rMiCartera());
+  if(!CARTERAS_LOADED){
+    sc('<div class="empty" style="padding:40px;">Cargando…</div>');
+    loadCarteras().then(()=>rMiCartera());
     return;
   }
-  const inv=ADVISOR_DATA;
-  const rv=inv.rv||[];
-  const totRV=rv.reduce((s,p)=>s+p.valor,0);
-  const rf=inv.rf||[];
-  const totRF=rf.reduce((s,p)=>s+p.valor,0);
-  const totOlas=inv.olasVal||0;
-  const grand_=totRV+totRF+totOlas;
+  if(MC_CURRENT_ID===null){
+    rCarterasListing();
+  } else {
+    const cart=CARTERAS_CACHE.find(c=>c.id===MC_CURRENT_ID);
+    if(cart) rCarteraDetail(cart);
+    else{MC_CURRENT_ID=null;rCarterasListing();}
+  }
+}
 
-  // Build per-ticker segments (RV only for the donut, ordered by value)
-  const segs=rv.map((p,i)=>({
-    lb:p.ticker,nombre:p.nombre||p.ticker,v:p.valor,
-    rend:p.rend||0,vinicial:p.vinicial||0,
-    sector:p.sector||'—',c:CHC[i%CHC.length]
-  })).sort((a,b)=>b.v-a.v);
-  const donutVals=segs.map(x=>+x.v.toFixed(2));
+function rCarterasListing(){
+  const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
+  const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
+  let html='<div style="margin-bottom:20px;">';
+  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
+  html+='<div><div style="font-size:20px;font-weight:700;color:#eceef3;">Carteras Recomendadas</div>';
+  html+='<div style="font-size:12px;color:var(--muted);margin-top:3px;">Seleccioná una cartera para ver su composición y movimientos</div></div>';
+  if(CU&&CU.is_admin)html+='<button class="ib" onclick="openNuevaCartera()">+ Nueva cartera</button>';
+  html+='</div></div>';
+
+  if(!CARTERAS_CACHE.length){
+    html+='<div class="empty" style="padding:60px;">Todavía no hay carteras cargadas.</div>';
+    if(CU&&CU.is_admin)html+='<div style="text-align:center;margin-top:16px;"><button class="ib" onclick="openNuevaCartera()">+ Crear primera cartera</button></div>';
+  } else {
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+    CARTERAS_CACHE.forEach(c=>{
+      const pos=c.posiciones||[];
+      const tipLb=TIPO_LABEL[c.tipo]||c.tipo||'';
+      const tipC=TIPO_C[c.tipo]||'#5b9cf6';
+      const top3=pos.slice(0,3).map(p=>`<span style="font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.06);padding:2px 7px;border-radius:4px;">${p.ticker}</span>`).join('');
+      const photoInner=c.foto_b64
+        ?`<img src="${c.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
+        :`<span style="font-family:var(--mono);font-size:16px;font-weight:700;color:#fff;">${(c.nombre||'?')[0].toUpperCase()}</span>`;
+      html+=`<div class="card" style="cursor:pointer;transition:border-color .2s;" onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];rMiCartera();" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor=''">
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
+          <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">${photoInner}</div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:14px;font-weight:700;color:#eceef3;margin-bottom:2px;">${c.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);">${c.subtitulo||''}</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${tipC};background:${tipC}18;padding:3px 8px;border-radius:5px;flex-shrink:0;">${tipLb}</div>
+        </div>
+        ${c.descripcion?`<div style="font-size:12px;color:var(--soft);margin-bottom:12px;line-height:1.5;">${c.descripcion}</div>`:''}
+        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;">${top3}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${pos.length} posiciones · Ver cartera →</div>
+        ${CU&&CU.is_admin?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;" onclick="event.stopPropagation()">
+          <button class="ib" style="font-size:10px;padding:2px 8px;" onclick="openEditCartera('${c.id}')">✏ Editar</button>
+          <button class="ib" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="deleteCartera('${c.id}')">✕ Borrar</button>
+        </div>`:''}
+      </div>`;
+    });
+    html+='</div>';
+  }
+  sc(html);
+}
+
+function rCarteraDetail(cart){
+  const pos=cart.posiciones||[];
+  const totPct=pos.reduce((s,p)=>s+(+p.pct||0),0);
+  const segs=pos.map((p,i)=>({...p,c:CHC[i%CHC.length]}));
+  const donutVals=segs.map(x=>+(+x.pct).toFixed(2));
   const donutCols=segs.map(x=>x.c);
-
-  const photoEl=ADVISOR_PHOTO
-    ?`<img src="${ADVISOR_PHOTO}" style="width:100%;height:100%;object-fit:cover;" />`
-    :`<span style="font-family:var(--mono);font-size:18px;font-weight:700;color:#fff;letter-spacing:1px;">LO</span>`;
+  const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
+  const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
+  const tipC=TIPO_C[cart.tipo]||'#5b9cf6';
+  const tipLb=TIPO_LABEL[cart.tipo]||cart.tipo||'';
+  const photoInner=cart.foto_b64
+    ?`<img src="${cart.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
+    :`<span style="font-family:var(--mono);font-size:22px;font-weight:700;color:#fff;">${(cart.nombre||'?')[0].toUpperCase()}</span>`;
 
   let html='';
-
-  // ── HEADER ──
-  html+=`<div style="background:linear-gradient(160deg,#0d1422,#09111c);border:1px solid rgba(91,156,246,.12);border-radius:20px;padding:24px;margin-bottom:14px;">
-    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.2em;text-transform:uppercase;color:#5b9cf6;margin-bottom:6px;">Cartera Personal</div>
-    <div style="font-size:18px;font-weight:700;color:#eceef3;margin-bottom:3px;">LUCAS OLAVARRIA · LO CAPITAL</div>
-    <div style="font-family:var(--mono);font-size:11px;color:rgba(255,255,255,.38);">Mat. CNV 2062</div>
-    <div style="margin-top:14px;background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(245,166,35,.85);">⚠ Cartera personal · perfil agresivo · no constituye recomendación de inversión</div>
+  // Back button
+  html+=`<div style="margin-bottom:18px;">
+    <button class="ib" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
   </div>`;
 
-  // ── DONUT + LEYENDA ──
+  // Header card
+  html+=`<div style="background:linear-gradient(160deg,#0d1422,#09111c);border:1px solid rgba(91,156,246,.1);border-radius:20px;padding:24px;margin-bottom:14px;display:flex;align-items:center;gap:18px;">
+    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(91,156,246,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">${photoInner}</div>
+    <div style="flex:1;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:${tipC};margin-bottom:5px;">${tipLb}</div>
+      <div style="font-size:20px;font-weight:700;color:#eceef3;margin-bottom:3px;">${cart.nombre}</div>
+      ${cart.subtitulo?`<div style="font-size:12px;color:var(--muted);">${cart.subtitulo}</div>`:''}
+      ${cart.descripcion?`<div style="font-size:12px;color:var(--soft);margin-top:6px;line-height:1.5;">${cart.descripcion}</div>`:''}
+    </div>
+  </div>`;
+
+  // Disclaimer
+  html+=`<div style="background:rgba(245,166,35,.05);border:1px solid rgba(245,166,35,.18);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(245,166,35,.8);margin-bottom:14px;">⚠ Esta cartera se muestra con fines informativos y no constituye recomendación de inversión personalizada.</div>`;
+
+  // Donut + legend
   if(segs.length>0){
-    html+=`<div class="card" style="margin-bottom:14px;">
-      <div class="drow">
-        <div class="dslot" style="position:relative;">
-          <canvas id="mc-donut"></canvas>
-          <div class="dmid" style="display:flex;align-items:center;justify-content:center;">
-            <div style="width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(91,156,246,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">${photoEl}</div>
-          </div>
-        </div>
-        <div class="leg">
-          ${segs.map(x=>{
-            const pct=totRV>0?(x.v/totRV*100):0;
-            const rPct=x.vinicial>0?(x.rend/x.vinicial*100):0;
-            const rc=rPct>=0?'var(--green)':'var(--red)';
-            return `<div class="lr" style="padding:7px 0;align-items:flex-start;">
-              <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;margin-right:10px;margin-top:3px;"></div>
-              <div style="flex:1;min-width:0;">
-                <div style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.lb}</div>
-                <div style="font-size:10px;color:var(--muted);margin-top:1px;">${x.nombre!==x.lb?x.nombre:''}</div>
-              </div>
-              <div style="text-align:right;flex-shrink:0;">
-                <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};">${pct.toFixed(1)}%</div>
-                <div style="font-family:var(--mono);font-size:10px;color:${rc};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</div>
-              </div>
-            </div>`;
-          }).join('')}
+    html+=`<div class="card" style="margin-bottom:14px;"><div class="drow">
+      <div class="dslot" style="position:relative;">
+        <canvas id="mc-donut"></canvas>
+        <div class="dmid" style="display:flex;align-items:center;justify-content:center;">
+          <div style="width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(91,156,246,.2);display:flex;align-items:center;justify-content:center;overflow:hidden;">${photoInner}</div>
         </div>
       </div>
-    </div>`;
+      <div class="leg">
+        ${segs.map(x=>{
+          const rPct=+(x.rend_pct||0);
+          const rc=rPct>=0?'var(--green)':'var(--red)';
+          return `<div class="lr" style="padding:7px 0;align-items:flex-start;">
+            <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;margin-right:10px;margin-top:3px;"></div>
+            <div style="flex:1;min-width:0;"><div style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.ticker}</div></div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};">${(+x.pct||0).toFixed(1)}%</div>
+              <div style="font-family:var(--mono);font-size:10px;color:${rc};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</div>
+            </div>
+          </div>`;
+        }).join('')}
+      </div>
+    </div></div>`;
   }
 
-  // ── SUBTABS ──
+  // Subtabs
   html+=`<div style="display:flex;gap:6px;margin-bottom:14px;">
-    <button class="tb${MC_TAB==='composicion'?' active':''}" onclick="MC_TAB='composicion';rMiCartera()">Composición</button>
-    <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';rMiCartera()">Movimientos</button>
+    <button class="tb${MC_TAB==='composicion'?' active':''}" onclick="MC_TAB='composicion';kc();rMiCartera()">Composición</button>
+    <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';kc();rMiCartera()">Movimientos</button>
   </div>`;
 
   if(MC_TAB==='composicion'){
-    html+=`<div class="card"><div class="tw"><table>
-      <thead><tr><th>Ticker</th><th>Sector</th><th style="text-align:right">% Asignación</th><th style="text-align:right">Rend.</th></tr></thead>
-      <tbody>${segs.map(x=>{
-        const sn=SECTOR_NORM[x.sector]||'Otro';
-        const sc_=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
-        const pct=totRV>0?(x.v/totRV*100):0;
-        const rPct=x.vinicial>0?(x.rend/x.vinicial*100):0;
-        return `<tr>
-          <td><span style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.lb}</span></td>
-          <td><span style="font-size:11px;color:var(--soft);">${sc_.ic} ${sn}</span></td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;">${pct.toFixed(1)}%</td>
-          <td style="text-align:right;font-family:var(--mono);font-size:12px;color:${rPct>=0?'var(--green)':'var(--red)'};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</td>
-        </tr>`;
-      }).join('')}</tbody>
-    </table></div></div>`;
+    if(!segs.length){
+      html+=`<div class="empty">Sin posiciones cargadas.</div>`;
+    } else {
+      html+=`<div class="card"><div class="tw"><table>
+        <thead><tr><th>Ticker</th><th>Sector</th><th style="text-align:right">% Asignación</th><th style="text-align:right">Rend.</th><th>Notas</th></tr></thead>
+        <tbody>${segs.map(x=>{
+          const sn=SECTOR_NORM[x.sector||'']||'Otro';
+          const sc_=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
+          const rPct=+(x.rend_pct||0);
+          return `<tr>
+            <td><span style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.ticker}</span></td>
+            <td><span style="font-size:11px;color:var(--soft);">${sc_.ic} ${sn}</span></td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px;">${(+x.pct||0).toFixed(1)}%</td>
+            <td style="text-align:right;font-family:var(--mono);font-size:12px;color:${rPct>=0?'var(--green)':'var(--red)'};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</td>
+            <td style="font-size:11px;color:var(--muted);">${x.notas||''}</td>
+          </tr>`;
+        }).join('')}</tbody>
+      </table></div></div>`;
+    }
   } else {
-    // Load movimientos if not yet loaded
     if(!MC_MOV_LOADED){
       html+=`<div class="empty" style="padding:30px;">Cargando movimientos…</div>`;
-      loadMcMovimientos().then(()=>rMiCartera());
+      loadMcMovimientos(cart.id).then(()=>{kc();rMiCartera();});
     } else {
       const months=[...new Set(MC_MOVIMIENTOS.map(m=>m.fecha.slice(0,7)))].sort().reverse();
       if(!months.includes(MC_MONTH_FILTER)&&months.length)MC_MONTH_FILTER=months[0];
       const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
       if(months.length){
         html+=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-          ${months.map(mk=>{const[y,m]=mk.split('-');return`<button class="ib${MC_MONTH_FILTER===mk?' pri':''}" style="font-size:10px;padding:3px 10px;" onclick="MC_MONTH_FILTER='${mk}';rMiCartera()">${mNames[+m-1]} ${y}</button>`;}).join('')}
+          ${months.map(mk=>{const[y,m]=mk.split('-');return`<button class="ib${MC_MONTH_FILTER===mk?' pri':''}" style="font-size:10px;padding:3px 10px;" onclick="MC_MONTH_FILTER='${mk}';kc();rMiCartera()">${mNames[+m-1]} ${y}</button>`;}).join('')}
         </div>`;
       }
       const filtered=MC_MOVIMIENTOS.filter(m=>m.fecha.slice(0,7)===MC_MONTH_FILTER);
       if(!filtered.length){
-        html+=`<div class="empty">Sin movimientos registrados en este mes.</div>`;
+        html+=`<div class="empty">Sin movimientos en este mes.</div>`;
       } else {
         html+=`<div class="card">`;
         filtered.forEach(m=>{
-          const isCompra=m.accion==='compra'||m.accion==='entrada';
-          const c=isCompra?'var(--green)':'var(--red)';
+          const isPos=m.accion==='compra'||m.accion==='entrada';
+          const c=isPos?'var(--green)':'var(--red)';
           const label=m.accion==='compra'?'Compré':m.accion==='venta'?'Vendí':'Entré';
           const fecha=new Date(m.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
           html+=`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05);">
             <div style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:34px;flex-shrink:0;">${fecha}</div>
             <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;min-width:56px;flex-shrink:0;">${m.ticker}</div>
-            <div style="font-size:12px;font-weight:600;color:${c};min-width:48px;flex-shrink:0;">${label}</div>
+            <div style="font-size:12px;font-weight:600;color:${c};">${label}</div>
             ${m.cantidad!=null?`<div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${m.cantidad} uds</div>`:''}
-            ${m.notas?`<div style="font-size:11px;color:var(--muted);margin-left:auto;text-align:right;max-width:140px;">${m.notas}</div>`:''}
+            ${m.notas?`<div style="font-size:11px;color:var(--muted);margin-left:auto;text-align:right;max-width:160px;">${m.notas}</div>`:''}
           </div>`;
         });
         html+=`</div>`;
       }
       if(CU&&CU.is_admin){
         html+=`<div style="margin-top:14px;text-align:center;">
-          <button class="ib" onclick="openNuevoMovimiento()">+ Nuevo movimiento</button>
+          <button class="ib" onclick="openNuevoMovimiento('${cart.id}')">+ Nuevo movimiento</button>
         </div>`;
       }
     }
   }
 
   sc(html);
-
-  // Build donut chart after DOM render
   if(segs.length>0){
-    setTimeout(()=>{
-      mkDonut('mc-donut',donutVals,donutCols);
-    },50);
+    setTimeout(()=>mkDonut('mc-donut',donutVals,donutCols),50);
   }
 }
 
-function openNuevoMovimiento(){
-  const tickers=(ADVISOR_DATA&&ADVISOR_DATA.rv||[]).map(p=>p.ticker).join(',');
+function openNuevaCartera(editId){
+  const cart=editId?CARTERAS_CACHE.find(c=>c.id===editId):null;
+  const pos=cart?JSON.stringify(cart.posiciones||[],null,2):'[\n  {"ticker":"AAPL","sector":"Tecnología","pct":25,"rend_pct":12.5,"notas":""}\n]';
+  const d=document.createElement('div');
+  d.className='ov';d.id='m-cartera';d.style.display='flex';
+  d.innerHTML=`<div class="modal" style="max-width:520px;width:100%;">
+    <div class="mt">${editId?'Editar cartera':'Nueva cartera'}</div>
+    <div class="fr"><label class="fl">Nombre</label><input class="fi" id="ct-nombre" placeholder="ej: Lucas Olavarria" value="${cart?cart.nombre:''}"></div>
+    <div class="fr"><label class="fl">Subtítulo</label><input class="fi" id="ct-subtitulo" placeholder="ej: LO Capital · Mat. CNV 2062" value="${cart?cart.subtitulo||'':''}"></div>
+    <div class="fr"><label class="fl">Tipo</label>
+      <select class="fi" id="ct-tipo">
+        <option value="personal"${cart&&cart.tipo==='personal'?' selected':''}>Cartera Personal</option>
+        <option value="famoso"${cart&&cart.tipo==='famoso'?' selected':''}>Inversor Famoso</option>
+        <option value="research"${cart&&cart.tipo==='research'?' selected':''}>Research</option>
+      </select>
+    </div>
+    <div class="fr"><label class="fl">Descripción</label><input class="fi" id="ct-desc" placeholder="Breve descripción de la estrategia" value="${cart?cart.descripcion||'':''}"></div>
+    <div class="fr"><label class="fl">Foto</label><input class="fi" type="file" id="ct-foto" accept="image/*" onchange="previewCartaFoto(this)"></div>
+    <div id="ct-foto-preview" style="margin:4px 0 8px 120px;">${cart&&cart.foto_b64?`<img src="${cart.foto_b64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`:''}</div>
+    <div class="fr" style="align-items:flex-start;"><label class="fl" style="padding-top:8px;">Posiciones (JSON)</label>
+      <textarea class="fi" id="ct-pos" rows="8" style="font-family:var(--mono);font-size:11px;resize:vertical;">${pos}</textarea>
+    </div>
+    <div class="fb">
+      <button class="cancel" onclick="this.closest('.ov').remove()">Cancelar</button>
+      <button class="confirm" onclick="guardarCartera(${editId?`'${editId}'`:'null'})">Guardar</button>
+    </div>
+  </div>`;
+  document.body.appendChild(d);
+}
+function openEditCartera(id){openNuevaCartera(id);}
+
+function previewCartaFoto(input){
+  const f=input.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=e=>{
+    document.getElementById('ct-foto-preview').innerHTML=`<img src="${e.target.result}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
+    input.dataset.b64=e.target.result;
+  };
+  r.readAsDataURL(f);
+}
+
+async function guardarCartera(editId){
+  const nombre=document.getElementById('ct-nombre').value.trim();
+  const subtitulo=document.getElementById('ct-subtitulo').value.trim();
+  const tipo=document.getElementById('ct-tipo').value;
+  const descripcion=document.getElementById('ct-desc').value.trim();
+  const fotoInput=document.getElementById('ct-foto');
+  const foto_b64=fotoInput.dataset.b64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
+  let posiciones;
+  try{posiciones=JSON.parse(document.getElementById('ct-pos').value);}
+  catch(e){toast('JSON de posiciones inválido');return;}
+  if(!nombre){toast('Completá el nombre');return;}
+  const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,activa:true};
+  let err;
+  if(editId){
+    ({error:err}=await sb.from('carteras_destacadas').update(row).eq('id',editId));
+  } else {
+    ({error:err}=await sb.from('carteras_destacadas').insert(row));
+  }
+  if(err){toast('Error: '+err.message);return;}
+  document.getElementById('m-cartera')?.remove();
+  CARTERAS_LOADED=false;CARTERAS_CACHE=[];
+  await loadCarteras();
+  rMiCartera();
+  toast(editId?'Cartera actualizada':'Cartera creada');
+}
+
+async function deleteCartera(id){
+  if(!confirm('¿Borrar esta cartera?'))return;
+  await sb.from('carteras_destacadas').delete().eq('id',id);
+  CARTERAS_LOADED=false;CARTERAS_CACHE=[];
+  await loadCarteras();
+  MC_CURRENT_ID=null;
+  rMiCartera();
+}
+
+function openNuevoMovimiento(cartId){
   const d=document.createElement('div');
   d.className='ov';d.id='m-movimiento';d.style.display='flex';
   d.innerHTML=`<div class="modal">
@@ -3949,27 +4078,26 @@ function openNuevoMovimiento(){
     <div class="fr"><label class="fl">Notas</label><input class="fi" id="mv-notas" placeholder="comentario opcional"></div>
     <div class="fb">
       <button class="cancel" onclick="this.closest('.ov').remove()">Cancelar</button>
-      <button class="confirm" onclick="guardarMovimiento()">Guardar</button>
+      <button class="confirm" onclick="guardarMovimiento('${cartId}')">Guardar</button>
     </div>
   </div>`;
   document.body.appendChild(d);
 }
 
-async function guardarMovimiento(){
-  if(!ADVISOR_DATA)return;
+async function guardarMovimiento(cartId){
   const fecha=document.getElementById('mv-fecha').value;
   const ticker=(document.getElementById('mv-ticker').value||'').trim().toUpperCase();
   const accion=document.getElementById('mv-accion').value;
   const cantidad=document.getElementById('mv-cantidad').value||null;
   const notas=document.getElementById('mv-notas').value||null;
   if(!fecha||!ticker){toast('Completá fecha y ticker');return;}
-  const{error}=await sb.from('movimientos').insert({investor_id:ADVISOR_DATA.id,fecha,ticker,accion,cantidad:cantidad?+cantidad:null,notas});
+  const{error}=await sb.from('movimientos').insert({cartera_id:cartId,fecha,ticker,accion,cantidad:cantidad?+cantidad:null,notas});
   if(error){toast('Error: '+error.message);return;}
   document.getElementById('m-movimiento')?.remove();
   MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];
-  await loadMcMovimientos();
+  await loadMcMovimientos(cartId);
   MC_TAB='movimientos';MC_MONTH_FILTER=fecha.slice(0,7);
-  rMiCartera();
+  kc();rMiCartera();
 }
 
 // ── SNAPSHOTS (Supabase) ──────────────────────────────────────

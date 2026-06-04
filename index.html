@@ -1,6 +1,7 @@
 <!-- SQL: alter table investors add column if not exists last_import_date date; alter table investors add column if not exists last_import_source text; -->
 <!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; alter table olas_flows add column if not exists capital_ars numeric; -->
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; alter table positions_rv add column if not exists imported_at timestamptz default now(); -->
+<!-- SQL: create table if not exists snapshots (id text primary key, investor_id uuid references investors(id) on delete cascade, date timestamptz not null, total_value_usd numeric, rv_value_usd numeric, rf_value_usd numeric, olas_value_usd numeric, spy_price numeric, positions jsonb); create index if not exists snapshots_investor_date on snapshots(investor_id, date); -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -1048,10 +1049,12 @@ async function showApp(){
 
   if(isA){
     ALL_INVESTORS=await loadAllInvestors();
+    await loadSnapsCache();
     ATb='consolidado'; aTab('consolidado');
   } else {
     const inv=await loadInvestor(CU.id);
     CU_DATA=inv;
+    await loadSnapsCache(CU.id);
     ITb='overview'; iTab('overview');
     Promise.all([autoMarcarCobros(inv),autoFetchTcInicio(inv)]).then(([c1,c2])=>{if(c1||c2)renderInv(inv);});
   }
@@ -3755,32 +3758,69 @@ let reportMonthKey=new Date().toISOString().slice(0,7);
 let SPY_PRICE_CACHE=null;
 const BETA_CACHE={};
 
-// ── SNAPSHOTS ─────────────────────────────────────────────────
-const SNAP_KEY='cartera_snapshots_v1';
-function snapAll(){try{return JSON.parse(localStorage.getItem(SNAP_KEY)||'[]');}catch(e){return[];}}
-function snapSave(arr){localStorage.setItem(SNAP_KEY,JSON.stringify(arr));}
+// ── SNAPSHOTS (Supabase) ──────────────────────────────────────
+let SNAPS_CACHE=[];
+
+async function loadSnapsCache(invId){
+  // Load from Supabase into memory
+  let q=sb.from('snapshots').select('*').order('date');
+  if(invId)q=q.eq('investor_id',invId);
+  const{data}=await q;
+  const rows=(data||[]).map(r=>({
+    id:r.id,investorId:r.investor_id,date:r.date,
+    totalValueUSD:r.total_value_usd,rvValueUSD:r.rv_value_usd,
+    rfValueUSD:r.rf_value_usd,olasValueUSD:r.olas_value_usd,
+    spyPrice:r.spy_price,positions:r.positions||[]
+  }));
+  if(invId){
+    SNAPS_CACHE=SNAPS_CACHE.filter(s=>s.investorId!==invId).concat(rows);
+  }else{
+    SNAPS_CACHE=rows;
+  }
+  // One-time migration from localStorage
+  try{
+    const ls=JSON.parse(localStorage.getItem('cartera_snapshots_v1')||'[]');
+    if(ls.length&&rows.length===0){
+      const toMig=ls.filter(s=>!invId||s.investorId===invId);
+      if(toMig.length){
+        await sb.from('snapshots').upsert(toMig.map(s=>({
+          id:s.id,investor_id:s.investorId,date:s.date,
+          total_value_usd:s.totalValueUSD,rv_value_usd:s.rvValueUSD,
+          rf_value_usd:s.rfValueUSD,olas_value_usd:s.olasValueUSD,
+          spy_price:s.spyPrice,positions:s.positions||[]
+        })));
+        SNAPS_CACHE=SNAPS_CACHE.filter(s=>!toMig.find(m=>m.id===s.id)).concat(toMig);
+      }
+    }
+  }catch(e){}
+}
+
+function snapAll(){return SNAPS_CACHE;}
+
 async function snapAdd(inv){
   if(!SPY_PRICE_CACHE){
     try{const sr=await fetchFinnhubPrice('SPY');if(sr&&sr.price>0)SPY_PRICE_CACHE=sr.price;}catch(e){}
   }
   const todayKey=new Date().toISOString().slice(0,10);
   const snapId=todayKey+'_'+inv.id;
-  const arr=snapAll().filter(function(s){return s.id!==snapId;});
-  arr.push({
-    id:snapId,
-    investorId:inv.id,
-    date:new Date().toISOString(),
-    totalValueUSD:+grand(inv).toFixed(2),
-    rvValueUSD:+totalRV(inv).toFixed(2),
-    rfValueUSD:+totalRF(inv).toFixed(2),
-    olasValueUSD:+(inv.olasVal||0),
+  const snap={
+    id:snapId,investorId:inv.id,date:new Date().toISOString(),
+    totalValueUSD:+grand(inv).toFixed(2),rvValueUSD:+totalRV(inv).toFixed(2),
+    rfValueUSD:+totalRF(inv).toFixed(2),olasValueUSD:+(inv.olasVal||0),
     spyPrice:SPY_PRICE_CACHE||null,
     positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})
+  };
+  await sb.from('snapshots').upsert({
+    id:snap.id,investor_id:snap.investorId,date:snap.date,
+    total_value_usd:snap.totalValueUSD,rv_value_usd:snap.rvValueUSD,
+    rf_value_usd:snap.rfValueUSD,olas_value_usd:snap.olasValueUSD,
+    spy_price:snap.spyPrice,positions:snap.positions
   });
-  snapSave(arr);
+  SNAPS_CACHE=SNAPS_CACHE.filter(s=>s.id!==snapId).concat([snap]);
 }
+
 function snapForInv(invId){
-  return snapAll().filter(function(s){return s.investorId===invId;}).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+  return SNAPS_CACHE.filter(function(s){return s.investorId===invId;}).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
 }
 function snapAtPeriod(snaps,months){
   if(!snaps.length)return null;
@@ -3794,9 +3834,12 @@ function snapAtPeriod(snaps,months){
   if(best&&new Date(best.date).getTime()>target+3*24*60*60*1000)return null;
   return best;
 }
-function snapDelete(id){snapSave(snapAll().filter(function(s){return s.id!==id;}));}
-function snapDelAndRefresh(snapId,invId){
-  snapDelete(snapId);
+async function snapDelete(id){
+  await sb.from('snapshots').delete().eq('id',id);
+  SNAPS_CACHE=SNAPS_CACHE.filter(function(s){return s.id!==id;});
+}
+async function snapDelAndRefresh(snapId,invId){
+  await snapDelete(snapId);
   const inv=INV_CACHE[invId]||CU_DATA;
   if(inv){kc();renderInv(inv);iTab('reporte');}
 }

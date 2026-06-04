@@ -389,6 +389,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
+    <button class="tb" id="itb-riesgos" onclick="iTab('riesgos')">Riesgos</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -1155,6 +1156,18 @@ function updateMarketStatus(){
 // ── LIVE PRICES via Finnhub ───────────────────────────────────
 const FINNHUB_KEY='d7l2dshr01qm7o0a8ndgd7l2dshr01qm7o0a8ne0';
 
+async function fetchBeta(ticker){
+  if(BETA_CACHE[ticker]!==undefined)return BETA_CACHE[ticker];
+  try{
+    const url=`https://finnhub.io/api/v1/stock/metric?symbol=${ticker}&metric=all&token=${FINNHUB_KEY}`;
+    const r=await fetch(url,{signal:AbortSignal.timeout(7000)});
+    const d=await r.json();
+    const beta=d?.metric?.beta??null;
+    BETA_CACHE[ticker]=beta;
+    return beta;
+  }catch(e){BETA_CACHE[ticker]=null;return null;}
+}
+
 async function fetchFinnhubPrice(ticker){
   const url=`https://finnhub.io/api/v1/quote?symbol=${ticker}&token=${FINNHUB_KEY}`;
   const r=await fetch(url,{signal:AbortSignal.timeout(6000)});
@@ -1765,6 +1778,7 @@ function renderInv(inv){
   else if(ITb==='analisis')body=rAnalisis(inv,liq);
   else if(ITb==='simulador')body=rSimulador(inv,tot);
   else if(ITb==='reporte')body=rReporteMensual(inv);
+  else if(ITb==='riesgos')body=rRiesgos(inv);
 
   sc(hdr+body);
 
@@ -1772,6 +1786,7 @@ function renderInv(inv){
   setTimeout(()=>{
     buildInvCharts(ITb,inv,liq);
     if(ITb==='simulador')setTimeout(calcSim,100);
+    if(ITb==='riesgos')loadRiesgos(inv);
     runCountUps();
   },50);
 }
@@ -2892,6 +2907,186 @@ function calcRiskMetrics(invId){
   return{vol:(stdDev*100).toFixed(1),maxDD:maxDD.toFixed(1),sharpe,n:snaps.length};
 }
 
+// ── RIESGOS ───────────────────────────────────────────────────
+function rRiesgos(inv){
+  const rv=inv.rv||[];
+  const all=[...rv,...(inv.rf||[])];
+  if(!rv.length)return'<div class="card"><div class="empty">Las métricas de riesgo requieren al menos una posición de renta variable.</div></div>';
+
+  // HHI over full portfolio (RV + RF + Olas)
+  const hhiItems=[...all];
+  if((inv.olasVal||0)>0)hhiItems.push({ticker:'Olas',valor:inv.olasVal});
+  const hhiTot=hhiItems.reduce((s,p)=>s+p.valor,0);
+  const hhi=hhiTot>0?Math.round(hhiItems.reduce((s,p)=>s+Math.pow(p.valor/hhiTot,2),0)*10000):0;
+  const nEf=hhi>0?(10000/hhi).toFixed(1):'—';
+  const hhiLbl=hhi<1000?'Diversificado':hhi<2500?'Concentración moderada':'Muy concentrado';
+  const hhiClr=hhi<1000?'var(--green)':hhi<2500?'var(--amber)':'var(--red)';
+  const hhiBg=hhi<1000?'rgba(45,212,160,.15)':hhi<2500?'rgba(245,166,35,.15)':'rgba(240,108,108,.15)';
+  const hhiBarPct=Math.min(hhi/3000,1)*100;
+  const hhiBarClr=hhi<1000?'#2dd4a0':hhi<2500?'#f5a623':'#f06c6c';
+
+  const totAll=hhiTot;
+
+  let h='';
+
+  // ── Beta hero (async-filled)
+  h+='<div class="card" style="margin-bottom:12px;">'
+    +'<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Beta del Portfolio</div>'
+    +'<div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">'
+      +'<div id="rsk-beta-num" style="font-size:52px;font-weight:700;font-family:var(--mono);color:var(--muted);min-width:90px;">···</div>'
+      +'<div>'
+        +'<div id="rsk-beta-badge" style="font-size:11px;padding:3px 10px;border-radius:20px;display:inline-block;margin-bottom:6px;background:var(--bg4);color:var(--muted);">Cargando...</div>'
+        +'<div id="rsk-beta-interp" style="font-size:11px;color:var(--muted);max-width:300px;line-height:1.6;">Consultando Finnhub para cada posición...</div>'
+      +'</div>'
+    +'</div>'
+    +'<details style="margin-top:14px;">'
+      +'<summary style="font-size:10px;color:var(--muted);cursor:pointer;list-style:none;user-select:none;font-family:var(--mono);letter-spacing:.05em;">¿Qué es el Beta? ▸</summary>'
+      +'<div style="font-size:11px;color:var(--soft);line-height:1.7;margin-top:8px;padding:12px;background:var(--bg4);border-radius:var(--r);">'
+        +'El beta mide cuánto se mueve tu portfolio en relación al S&amp;P 500.<br><br>'
+        +'<b style="color:var(--green);">β &lt; 0.8</b> — Defensivo: se mueve menos que el mercado.<br>'
+        +'<b style="color:var(--soft);">β ≈ 1.0</b> — Neutro: sigue al mercado.<br>'
+        +'<b style="color:var(--amber);">β 1.2–1.6</b> — Moderado-agresivo: amplifica los movimientos.<br>'
+        +'<b style="color:var(--red);">β &gt; 1.6</b> — Agresivo: oscilaciones muy amplificadas.<br><br>'
+        +'Ejemplo: con β = 1.4, si el S&amp;P 500 cae 10% tu portfolio caería ~14%.'
+      +'</div>'
+    +'</details>'
+  +'</div>';
+
+  // ── Beta por posición (async-filled)
+  h+='<div class="card" style="margin-bottom:12px;">'
+    +'<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Beta por Posición</div>'
+    +'<div style="display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:4px 10px;font-size:10px;color:var(--muted);padding-bottom:6px;border-bottom:1px solid var(--line);">'
+      +'<span>Ticker</span><span style="text-align:right;">Peso</span><span style="text-align:right;">Beta</span><span style="text-align:right;">Contribución</span>'
+    +'</div>'
+    +'<div id="rsk-beta-rows">'
+      +rv.map(p=>{
+        const w=totAll>0?p.valor/totAll:0;
+        const safeId='rbv-'+p.ticker.replace(/[^a-z0-9]/gi,'');
+        return '<div style="display:grid;grid-template-columns:1fr auto auto auto;align-items:center;gap:4px 10px;padding:7px 0;border-bottom:1px solid var(--line);">'
+          +'<div><span style="font-family:var(--mono);font-size:11px;font-weight:600;">'+p.ticker+'</span>'
+          +(p.nombre?'<span style="font-size:9px;color:var(--muted);display:block;">'+p.nombre+'</span>':'')+'</div>'
+          +'<span style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right;">'+(w*100).toFixed(1)+'%</span>'
+          +'<span id="'+safeId+'" style="font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;">···</span>'
+          +'<span id="'+safeId+'-c" style="font-family:var(--mono);font-size:10px;color:var(--muted);text-align:right;">···</span>'
+          +'</div>';
+      }).join('')
+    +'</div>'
+    +'<details style="margin-top:12px;">'
+      +'<summary style="font-size:10px;color:var(--muted);cursor:pointer;list-style:none;user-select:none;font-family:var(--mono);letter-spacing:.05em;">¿Cómo se calcula? ▸</summary>'
+      +'<div style="font-size:11px;color:var(--soft);line-height:1.7;margin-top:8px;padding:12px;background:var(--bg4);border-radius:var(--r);">'
+        +'El beta del portfolio es el promedio ponderado por valor de cada posición.<br><br>'
+        +'<b>β_portfolio = Σ (peso_i × β_i)</b><br><br>'
+        +'La "contribución" muestra cuánto aporta cada posición al beta total. Una posición con peso alto y beta alto domina el riesgo del portfolio.<br><br>'
+        +'Renta fija y Olas no tienen beta de mercado accionario, no se incluyen en el cálculo.'
+      +'</div>'
+    +'</details>'
+  +'</div>';
+
+  // ── HHI Concentración (sincrónico)
+  h+='<div class="card" style="margin-bottom:12px;">'
+    +'<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:12px;">Concentración del Portfolio</div>'
+    +'<div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;margin-bottom:14px;">'
+      +'<div>'
+        +'<div style="font-size:44px;font-weight:700;font-family:var(--mono);color:'+hhiClr+';">'+hhi+'</div>'
+        +'<div style="font-size:10px;color:var(--muted);">Índice HHI</div>'
+      +'</div>'
+      +'<div style="flex:1;min-width:180px;">'
+        +'<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">'
+          +'<span style="font-size:12px;font-weight:600;padding:2px 9px;border-radius:20px;background:'+hhiBg+';color:'+hhiClr+';">'+hhiLbl+'</span>'
+          +'<span style="font-size:10px;color:var(--muted);">N* = <b style="color:var(--text);">'+nEf+'</b></span>'
+        +'</div>'
+        +'<div style="height:7px;background:var(--bg4);border-radius:4px;overflow:hidden;">'
+          +'<div style="height:100%;width:'+hhiBarPct.toFixed(0)+'%;background:'+hhiBarClr+';border-radius:4px;transition:width .6s;"></div>'
+        +'</div>'
+        +'<div style="display:flex;justify-content:space-between;margin-top:3px;">'
+          +'<span style="font-size:9px;color:var(--muted);">← Diversificado</span>'
+          +'<span style="font-size:9px;color:var(--muted);">Concentrado →</span>'
+        +'</div>'
+      +'</div>'
+    +'</div>'
+    +'<details>'
+      +'<summary style="font-size:10px;color:var(--muted);cursor:pointer;list-style:none;user-select:none;font-family:var(--mono);letter-spacing:.05em;">¿Qué es el índice HHI? ▸</summary>'
+      +'<div style="font-size:11px;color:var(--soft);line-height:1.7;margin-top:8px;padding:12px;background:var(--bg4);border-radius:var(--r);">'
+        +'El índice Herfindahl-Hirschman (HHI) mide cuán concentrado está el portfolio. Se calcula como la suma de los cuadrados de los pesos porcentuales.<br><br>'
+        +'<b style="color:var(--green);">HHI &lt; 1,000</b> — Bien diversificado (equivale a más de 10 posiciones iguales).<br>'
+        +'<b style="color:var(--amber);">HHI 1,000–2,500</b> — Concentración moderada.<br>'
+        +'<b style="color:var(--red);">HHI &gt; 2,500</b> — Portfolio muy concentrado en pocas posiciones.<br><br>'
+        +'<b>N* (número efectivo)</b> = 10,000 / HHI. Indica cuántas posiciones del mismo tamaño generarían la misma diversificación. Incluye RV, RF y Olas.'
+      +'</div>'
+    +'</details>'
+  +'</div>';
+
+  return h;
+}
+
+async function loadRiesgos(inv){
+  const rv=inv.rv||[];
+  if(!rv.length)return;
+  const totAll=[...rv,...(inv.rf||[])].reduce((s,p)=>s+p.valor,0)+(inv.olasVal||0);
+  const totRV=rv.reduce((s,p)=>s+p.valor,0);
+
+  // Fetch all betas in parallel
+  await Promise.all(rv.map(p=>fetchBeta(YAHOO_MAP[p.ticker]||p.ticker)));
+
+  // Update per-position rows
+  rv.forEach(p=>{
+    const yt=YAHOO_MAP[p.ticker]||p.ticker;
+    const beta=BETA_CACHE[yt];
+    const safeId='rbv-'+p.ticker.replace(/[^a-z0-9]/gi,'');
+    const betaEl=document.getElementById(safeId);
+    const contEl=document.getElementById(safeId+'-c');
+    if(!betaEl)return;
+    if(beta===null||beta===undefined){
+      betaEl.textContent='N/A'; betaEl.style.color='var(--muted)';
+      if(contEl){contEl.textContent='—';contEl.style.color='var(--muted)';}
+    } else {
+      const bClr=beta<0.8?'var(--green)':beta<1.2?'var(--soft)':beta<1.6?'var(--amber)':'var(--red)';
+      betaEl.textContent=beta.toFixed(2); betaEl.style.color=bClr; betaEl.style.fontWeight='600';
+      const w=totAll>0?p.valor/totAll:0;
+      const contrib=(w*beta);
+      if(contEl){contEl.textContent=contrib.toFixed(3);contEl.style.color='var(--soft)';}
+    }
+  });
+
+  // Portfolio beta (weighted by RV value)
+  const known=rv.filter(p=>{const yt=YAHOO_MAP[p.ticker]||p.ticker;return BETA_CACHE[yt]!==null&&BETA_CACHE[yt]!==undefined;});
+  const knownTot=known.reduce((s,p)=>s+p.valor,0);
+  const numEl=document.getElementById('rsk-beta-num');
+  const badgeEl=document.getElementById('rsk-beta-badge');
+  const interpEl=document.getElementById('rsk-beta-interp');
+  if(!numEl)return;
+
+  if(!known.length){
+    numEl.textContent='N/A'; numEl.style.color='var(--muted)';
+    if(badgeEl){badgeEl.textContent='Sin datos';badgeEl.style.background='var(--bg4)';badgeEl.style.color='var(--muted)';}
+    if(interpEl)interpEl.textContent='No se encontraron betas para las posiciones actuales. Solo se calculan para acciones en mercados de EE.UU.';
+    return;
+  }
+
+  const pb=known.reduce((s,p)=>s+(p.valor/knownTot)*(BETA_CACHE[YAHOO_MAP[p.ticker]||p.ticker]),0);
+  let lbl,clr,bg,interp;
+  if(pb<0.8){
+    lbl='Defensivo';clr='var(--green)';bg='rgba(45,212,160,.15)';
+    interp='Con β '+pb.toFixed(2)+', el portfolio es defensivo. Se mueve menos que el mercado, con mayor protección en caídas.';
+  } else if(pb<1.2){
+    lbl='En línea con el mercado';clr='var(--soft)';bg='rgba(255,255,255,.08)';
+    interp='Con β '+pb.toFixed(2)+', el portfolio sigue al mercado con buen equilibrio entre riesgo y retorno potencial.';
+  } else if(pb<1.6){
+    lbl='Moderado-Agresivo';clr='var(--amber)';bg='rgba(245,166,35,.15)';
+    interp='Con β '+pb.toFixed(2)+', el portfolio amplifica los movimientos del mercado. Si el S&P 500 cae 10%, esperá una caída de ~'+(pb*10).toFixed(0)+'%.';
+  } else {
+    lbl='Agresivo';clr='var(--red)';bg='rgba(240,108,108,.15)';
+    interp='Con β '+pb.toFixed(2)+', el portfolio es muy sensible al mercado. Las oscilaciones se amplifican significativamente.';
+  }
+
+  numEl.textContent=pb.toFixed(2); numEl.style.color=clr;
+  if(badgeEl){badgeEl.textContent=lbl;badgeEl.style.background=bg;badgeEl.style.color=clr;}
+  if(interpEl){
+    const missing=rv.filter(p=>BETA_CACHE[YAHOO_MAP[p.ticker]||p.ticker]===null).map(p=>p.ticker);
+    interpEl.innerHTML=interp+(missing.length?'<br><span style="color:var(--muted);font-size:10px;margin-top:4px;display:block;">Sin beta: '+missing.join(', ')+' ('+known.length+'/'+rv.length+' posiciones cubiertas)</span>':'');
+  }
+}
+
 // ── ANALISIS ──────────────────────────────────────────────────
 function rAnalisis(inv,liq){
   const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]];
@@ -3416,7 +3611,7 @@ document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.
 // ── TAB SWITCH ────────────────────────────────────────────────
 function iTab(t){
   ITb=t;
-  ['overview','flujo','analisis','simulador','reporte'].forEach(name=>{
+  ['overview','flujo','analisis','simulador','reporte','riesgos'].forEach(name=>{
     const el=document.getElementById('itb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -3427,6 +3622,7 @@ function iTab(t){
 let CU_DATA=null;
 let reportMonthKey=new Date().toISOString().slice(0,7);
 let SPY_PRICE_CACHE=null;
+const BETA_CACHE={};
 
 // ── SNAPSHOTS ─────────────────────────────────────────────────
 const SNAP_KEY='cartera_snapshots_v1';

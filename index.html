@@ -2717,7 +2717,14 @@ function renderCFList(invId){
     .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
   const byM={};all.forEach(fl=>{const k=fl.fecha.slice(0,7);if(!byM[k])byM[k]=[];byM[k].push(fl);});
   const el=document.getElementById('cf-list');if(!el)return;
-  el.innerHTML=Object.keys(byM).sort().map(k=>{
+  // Warn if Olas flows exist but all are in the past
+  const olasTotal=(inv.olasFlows||[]).length;
+  const olasFuture=olasF.filter(fl=>new Date(fl.fecha)>=now).length;
+  const olasWarn=(olasTotal>0&&olasFuture===0)?
+    `<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:var(--r);padding:10px 13px;margin-bottom:10px;font-size:12px;color:var(--amber);">
+      ⚠ Hay ${olasTotal} flujos de Olas cargados pero todos están en el pasado. Revisá la fecha de inicio en el panel de importación.
+    </div>`:''  ;
+  el.innerHTML=olasWarn+Object.keys(byM).sort().map(k=>{
     const month=byM[k];const tot=month.reduce((s,fl)=>s+fl.usd,0);const[yr,mo]=k.split('-');
     return `<div class="cf-month">
       <div class="cf-mhdr"><div class="cf-mtitle">${MONTHS[+mo-1]} ${yr}</div><div class="cf-mtotal">≈ u$s ${fmt(tot)}</div></div>
@@ -2841,7 +2848,8 @@ function calcRiskMetrics(invId){
 function rAnalisis(inv,liq){
   const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]];
   const uid=CU.is_admin?AVId:CU.id;
-  if(!all.length)return`<div class="card"><div class="empty">Agregá posiciones para ver el análisis.</div></div>`;
+  if(!all.length&&!(inv.olasFlows?.length))return`<div class="card"><div class="empty">Agregá posiciones para ver el análisis.</div></div>`;
+  if(!all.length&&inv.olasFlows?.length)return`<div style="margin-top:0">${olasSection(inv)}</div>`;
   const totalValor=all.reduce((s,p)=>s+p.valor,0);
   const totalRend2=all.reduce((s,p)=>s+p.rend,0);
   const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);

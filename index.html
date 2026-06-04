@@ -2102,26 +2102,29 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
                      '#f5a623','#e08010','#f7c060',
                      '#a78bfa','#c084fc','#e879f9','#f472b6'];
     const allItems=[];
-    (inv.rv||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[i%6],cat:'RV'}));
-    (inv.rf||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[6+(i%4)],cat:'RF'}));
-    if((inv.olasVal||0)>0)allItems.push({lb:'OLA',sub:'Fideicomiso Olas',v:inv.olasVal,c:'#f5a623',cat:'OLA'});
+    (inv.rv||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[i%6]}));
+    (inv.rf||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[6+(i%4)]}));
+    if((inv.olasVal||0)>0)allItems.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal,c:'#f5a623'});
     const totAlloc=allItems.reduce((s,x)=>s+x.v,0);
     if(allItems.length>1&&totAlloc>0){
       const sorted=[...allItems].sort((a,b)=>b.v-a.v);
+      const safeInvId=inv.id;
       html+=`
       <div class="card" style="margin-bottom:14px;">
-        <div class="ct" style="margin-bottom:14px;">Distribución por activo</div>
-        <div style="height:200px;position:relative;margin-bottom:16px;"><canvas id="ov-activo-chart"></canvas></div>
-        <div>${sorted.map(x=>`
-          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);">
-            <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;"></div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <div class="ct" style="margin-bottom:0;">Distribución por activo</div>
+          <button class="ib" style="font-size:11px;padding:4px 12px;" onclick="downloadAllocChart('${safeInvId}')">⬇ PNG</button>
+        </div>
+        <div style="position:relative;height:280px;margin-bottom:16px;">
+          <canvas id="ov-activo-chart"></canvas>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          ${sorted.map(x=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
+            <div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div>
             <div style="flex:1;min-width:0;">
-              <span style="font-family:var(--mono);font-size:12px;font-weight:600;">${x.lb}</span>
-              <span style="font-size:11px;color:var(--muted);margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.sub}</span>
-            </div>
-            <div style="text-align:right;flex-shrink:0;">
-              <span style="font-family:var(--mono);font-size:12px;font-weight:600;">u$s ${fmt(x.v)}</span>
-              <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:6px;">${(x.v/totAlloc*100).toFixed(1)}%</span>
+              <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#eceef3;">${x.lb}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(x.v)} · ${(x.v/totAlloc*100).toFixed(1)}%</div>
             </div>
           </div>`).join('')}
         </div>
@@ -3707,6 +3710,32 @@ function printReporte(){
 
 function downloadReportePDF(){
   printReporte();
+}
+
+function downloadAllocChart(invId){
+  const ch=CHS['ov-activo-chart'];
+  if(!ch){showToast('El gráfico aún no cargó');return;}
+  const inv=INV_CACHE[invId]||(CU&&!CU.is_admin?CU_DATA:null);
+  // Render to an offscreen canvas with white background
+  const src=ch.canvas;
+  const off=document.createElement('canvas');
+  off.width=src.width*2; off.height=src.height*2;
+  const ctx=off.getContext('2d');
+  // White background
+  ctx.fillStyle='#ffffff';
+  ctx.fillRect(0,0,off.width,off.height);
+  // Title
+  ctx.fillStyle='#0d1422';
+  ctx.font='bold '+(off.width*0.022)+'px system-ui,sans-serif';
+  ctx.textAlign='center';
+  const title=(inv?inv.name+' – ':'')+'Distribución por activo';
+  ctx.fillText(title,off.width/2,off.height*0.055);
+  // Draw chart scaled 2x
+  ctx.drawImage(src,0,off.height*0.07,off.width,off.height*0.93);
+  const link=document.createElement('a');
+  link.download=(inv?inv.name.replace(/\s+/g,'_')+'_':'')+'distribucion_'+new Date().toISOString().slice(0,10)+'.png';
+  link.href=off.toDataURL('image/png');
+  link.click();
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

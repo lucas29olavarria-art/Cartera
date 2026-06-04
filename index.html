@@ -4452,21 +4452,16 @@ async function impConfirm(){
         const {error:delErr}=await sb.from('olas_flows').delete().eq('investor_id',invId).like('descripcion',o.proyecto+'%');
         if(delErr)throw new Error('Error borrando flows de '+o.proyecto+': '+delErr.message);
       }
-      const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f,tc_inicio:tcOlas,capital_usd:+(o.monto/tcOlas).toFixed(0)})));
+      const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f})));
       if(allFlows.length){
         const {error:insErr}=await sb.from('olas_flows').insert(allFlows);
         if(insErr)throw new Error('Error insertando flows: '+insErr.message);
         imported=allFlows.length;
       }
-      // Recalculate olas_val from ALL current flows (sum unique project capitals)
-      const {data:allFlowsNow,error:fetchErr}=await sb.from('olas_flows').select('descripcion,capital_usd').eq('investor_id',invId);
-      if(fetchErr)throw new Error('Error leyendo flows: '+fetchErr.message);
-      const projCaps={};
-      (allFlowsNow||[]).forEach(f=>{
-        const proj=(f.descripcion||'').split('·')[0].trim();
-        if(proj&&!projCaps[proj])projCaps[proj]=+(f.capital_usd||0);
-      });
-      const totalCapUsd=Object.values(projCaps).reduce((s,v)=>s+v,0);
+      // olas_val = existing capital + new projects capital (additive)
+      const existingOlasVal=INV_CACHE[invId]?.olasVal||0;
+      const newCapital=impParsedOlas.reduce((s,o)=>s+Math.round(o.monto/tcOlas),0);
+      const totalCapUsd=existingOlasVal+newCapital;
       const {error:updErr}=await sb.from('investors').update({olas_val:totalCapUsd}).eq('id',invId);
       if(updErr)throw new Error('Error actualizando olas_val: '+updErr.message);
       // Verification: show actual DB count

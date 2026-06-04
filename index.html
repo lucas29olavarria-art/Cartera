@@ -3934,14 +3934,28 @@ function rReporteMensual(inv){
   (s1.positions||[]).forEach(function(p){endPos[p.ticker]=p;});
   const allTkSet=new Set(Object.keys(startPos).concat(Object.keys(endPos)));
   const tickerDeltas=[];
+  // Also add current positions not in snapshots at all (e.g. recently imported)
+  (inv.rv||[]).forEach(function(p){if(!allTkSet.has(p.ticker))allTkSet.add(p.ticker);});
   allTkSet.forEach(function(tk){
     const p0=startPos[tk];const p1=endPos[tk];
     const q0=p0?(p0.qty||0):0;const q1=p1?(p1.qty||0):0;
     const v0=p0?p0.valueUSD:0;const v1=p1?p1.valueUSD:0;
-    // only measure price performance on positions held at BOTH start and end
-    if(q0===0||q1===0)return;
-    const pr0=v0/q0;const pr1=v1/q1;
-    const held=Math.min(q0,q1); // ignore new capital added mid-month
+    // Skip sold positions (not in end snapshot)
+    if(q1===0&&!endPos[tk]){
+      const curPos=(inv.rv||[]).find(function(p){return p.ticker===tk;});
+      if(!curPos)return;
+    }
+    // Position not in start snapshot → use current rend as delta
+    if(q0===0){
+      const curPos=(inv.rv||[]).find(function(p){return p.ticker===tk;});
+      if(!curPos)return;
+      const delta=curPos.rend||0;
+      const pct=curPos.vinicial>0?(delta/curPos.vinicial*100):0;
+      tickerDeltas.push({ticker:tk,nombre:(p1||{}).nombre||curPos.nombre||tk,v0:curPos.vinicial||0,v1:curPos.valor||0,delta:delta,pct:pct});
+      return;
+    }
+    const pr0=v0/q0;const pr1=v1/q1||pr0;
+    const held=Math.min(q0,q1||q0);
     const priceDelta=held*(pr1-pr0);
     const baseVal=held*pr0;
     const pct=baseVal>0?(priceDelta/baseVal*100):0;

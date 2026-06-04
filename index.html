@@ -3,7 +3,8 @@
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; alter table positions_rv add column if not exists imported_at timestamptz default now(); -->
 <!-- SQL: create table if not exists snapshots (id text primary key, investor_id uuid references investors(id) on delete cascade, date timestamptz not null, total_value_usd numeric, rv_value_usd numeric, rf_value_usd numeric, olas_value_usd numeric, spy_price numeric, positions jsonb); create index if not exists snapshots_investor_date on snapshots(investor_id, date); -->
 <!-- SQL: create table if not exists movimientos (id uuid default gen_random_uuid() primary key, cartera_id uuid references carteras_destacadas(id) on delete cascade, fecha date not null, ticker text not null, accion text not null, cantidad numeric, notas text, created_at timestamptz default now()); create index if not exists movimientos_cartera_fecha on movimientos(cartera_id, fecha desc); -->
-<!-- SQL: create table if not exists carteras_destacadas (id uuid default gen_random_uuid() primary key, nombre text not null, subtitulo text, tipo text default 'personal', descripcion text, foto_b64 text, posiciones jsonb default '[]'::jsonb, orden int default 0, activa boolean default true, created_at timestamptz default now()); -->
+<!-- SQL: create table if not exists carteras_destacadas (id uuid default gen_random_uuid() primary key, nombre text not null, subtitulo text, tipo text default 'personal', descripcion text, foto_b64 text, posiciones jsonb default '[]'::jsonb, investor_id uuid references investors(id), orden int default 0, activa boolean default true, created_at timestamptz default now()); -->
+<!-- SQL: alter table carteras_destacadas add column if not exists investor_id uuid references investors(id); -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3839,7 +3840,7 @@ function rCarterasListing(){
         </div>
         ${c.descripcion?`<div style="font-size:12px;color:var(--soft);margin-bottom:12px;line-height:1.5;">${c.descripcion}</div>`:''}
         <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;">${top3}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${pos.length} posiciones · Ver cartera →</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${c.investor_id?(INV_CACHE[c.investor_id]?.rv?.length||'—')+' posiciones (en vivo)':pos.length+' posiciones'} · Ver cartera →</div>
         ${CU&&CU.is_admin?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;" onclick="event.stopPropagation()">
           <button class="ib" style="font-size:10px;padding:2px 8px;" onclick="openEditCartera('${c.id}')">✏ Editar</button>
           <button class="ib" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="deleteCartera('${c.id}')">✕ Borrar</button>
@@ -3852,9 +3853,28 @@ function rCarterasListing(){
 }
 
 function rCarteraDetail(cart){
-  const pos=cart.posiciones||[];
-  const totPct=pos.reduce((s,p)=>s+(+p.pct||0),0);
-  const segs=pos.map((p,i)=>({...p,c:CHC[i%CHC.length]}));
+  // If linked to an investor account, use live positions; load async if not cached yet
+  let segs=[];
+  if(cart.investor_id){
+    const inv=INV_CACHE[cart.investor_id];
+    if(!inv){
+      sc('<div class="empty" style="padding:40px;">Cargando posiciones…</div>');
+      loadInvestor(cart.investor_id).then(()=>{kc();rMiCartera();});
+      return;
+    }
+    const rv=inv.rv||[];
+    const totRV=rv.reduce((s,p)=>s+p.valor,0)||1;
+    segs=rv.map((p,i)=>({
+      ticker:p.ticker,nombre:p.nombre||p.ticker,
+      sector:p.sector||'',
+      pct:+(p.valor/totRV*100).toFixed(2),
+      rend_pct:p.vinicial>0?+(p.rend/p.vinicial*100).toFixed(2):0,
+      notas:'',c:CHC[i%CHC.length]
+    })).sort((a,b)=>b.pct-a.pct);
+  } else {
+    const pos=cart.posiciones||[];
+    segs=pos.map((p,i)=>({...p,c:CHC[i%CHC.length]}));
+  }
   const donutVals=segs.map(x=>+(+x.pct).toFixed(2));
   const donutCols=segs.map(x=>x.c);
   const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
@@ -3986,7 +4006,9 @@ function rCarteraDetail(cart){
 
 function openNuevaCartera(editId){
   const cart=editId?CARTERAS_CACHE.find(c=>c.id===editId):null;
-  const pos=cart?JSON.stringify(cart.posiciones||[],null,2):'[\n  {"ticker":"AAPL","sector":"Tecnología","pct":25,"rend_pct":12.5,"notas":""}\n]';
+  const pos=cart&&!cart.investor_id?JSON.stringify(cart.posiciones||[],null,2):'[\n  {"ticker":"AAPL","sector":"Tecnología","pct":25,"rend_pct":12.5,"notas":""}\n]';
+  // Build investor options from INV_CACHE (non-admin)
+  const invOpts=Object.values(INV_CACHE||{}).filter(i=>!i.is_admin).map(i=>`<option value="${i.id}"${cart&&cart.investor_id===i.id?' selected':''}>${i.name}</option>`).join('');
   const d=document.createElement('div');
   d.className='ov';d.id='m-cartera';d.style.display='flex';
   d.innerHTML=`<div class="modal" style="max-width:520px;width:100%;">
@@ -4000,18 +4022,29 @@ function openNuevaCartera(editId){
         <option value="research"${cart&&cart.tipo==='research'?' selected':''}>Research</option>
       </select>
     </div>
-    <div class="fr"><label class="fl">Descripción</label><input class="fi" id="ct-desc" placeholder="Breve descripción de la estrategia" value="${cart?cart.descripcion||'':''}"></div>
+    <div class="fr"><label class="fl">Descripción</label><textarea class="fi" id="ct-desc" rows="3" placeholder="Estrategia, tesis de inversión, perfil de riesgo…" style="resize:vertical;">${cart?cart.descripcion||'':''}</textarea></div>
     <div class="fr"><label class="fl">Foto</label><input class="fi" type="file" id="ct-foto" accept="image/*" onchange="previewCartaFoto(this)"></div>
     <div id="ct-foto-preview" style="margin:4px 0 8px 120px;">${cart&&cart.foto_b64?`<img src="${cart.foto_b64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`:''}</div>
-    <div class="fr" style="align-items:flex-start;"><label class="fl" style="padding-top:8px;">Posiciones (JSON)</label>
-      <textarea class="fi" id="ct-pos" rows="8" style="font-family:var(--mono);font-size:11px;resize:vertical;">${pos}</textarea>
+    <div class="fr"><label class="fl" style="line-height:1.3;">Vincular a<br>inversor</label>
+      <select class="fi" id="ct-inv" onchange="document.getElementById('ct-pos-wrap').style.display=this.value?'none':'flex'">
+        <option value="">— Manual (JSON) —</option>
+        ${invOpts}
+      </select>
     </div>
+    <div class="fr" id="ct-pos-wrap" style="${cart&&cart.investor_id?'display:none':'display:flex'};align-items:flex-start;">
+      <label class="fl" style="padding-top:8px;">Posiciones (JSON)</label>
+      <textarea class="fi" id="ct-pos" rows="6" style="font-family:var(--mono);font-size:11px;resize:vertical;">${pos}</textarea>
+    </div>
+    <div style="margin:0 0 10px 120px;font-size:11px;color:var(--muted);">Si vinculás a un inversor, las posiciones se leen en vivo de su cuenta (sin montos).</div>
     <div class="fb">
       <button class="cancel" onclick="this.closest('.ov').remove()">Cancelar</button>
       <button class="confirm" onclick="guardarCartera(${editId?`'${editId}'`:'null'})">Guardar</button>
     </div>
   </div>`;
   document.body.appendChild(d);
+  // Set initial state of investor select
+  const sel=document.getElementById('ct-inv');
+  if(cart&&cart.investor_id)sel.value=cart.investor_id;
 }
 function openEditCartera(id){openNuevaCartera(id);}
 
@@ -4032,11 +4065,14 @@ async function guardarCartera(editId){
   const descripcion=document.getElementById('ct-desc').value.trim();
   const fotoInput=document.getElementById('ct-foto');
   const foto_b64=fotoInput.dataset.b64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
-  let posiciones;
-  try{posiciones=JSON.parse(document.getElementById('ct-pos').value);}
-  catch(e){toast('JSON de posiciones inválido');return;}
+  const investor_id=document.getElementById('ct-inv').value||null;
+  let posiciones=[];
+  if(!investor_id){
+    try{posiciones=JSON.parse(document.getElementById('ct-pos').value);}
+    catch(e){toast('JSON de posiciones inválido');return;}
+  }
   if(!nombre){toast('Completá el nombre');return;}
-  const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,activa:true};
+  const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,investor_id,activa:true};
   let err;
   if(editId){
     ({error:err}=await sb.from('carteras_destacadas').update(row).eq('id',editId));

@@ -2263,12 +2263,22 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   }
 
   // ── CAPITAL vs RENDIMIENTO ────────────────────────────────────
-  if(liq>0){
-    const capitalInv=liq-rend;
-    const capitalPct=liq>0?+(capitalInv/liq*100).toFixed(1):0;
-    const rendC=rend>=0?'#2dd4a0':'#f06c6c';
-    const rendSign=rend>=0?'+':'−';
-    const rendPctInv=capitalInv>0?(Math.abs(rend)/capitalInv*100).toFixed(1):'0.0';
+  if(liq>0||inv.olasVal>0){
+    // Include Olas in "tu dinero trabajando"
+    const olasVal=inv.olasVal||0;
+    const olasCapital=(inv.olasFlows||[]).reduce((s,f)=>{
+      if(f.capitalUsd)return s+(+f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+(+f.capitalArs/+f.tcInicio);
+      return s;
+    },0);
+    const totalTrabajando=liq+olasVal;
+    const totalRend2=rend+(olasVal-olasCapital);
+    const capitalInv=totalTrabajando-totalRend2;
+    const capitalPct=totalTrabajando>0?+(capitalInv/totalTrabajando*100).toFixed(1):0;
+    const rendC=totalRend2>=0?'#2dd4a0':'#f06c6c';
+    const rendSign=totalRend2>=0?'+':'−';
+    const rendPctInv=capitalInv>0?(Math.abs(totalRend2)/capitalInv*100).toFixed(1):'0.0';
+    const totalLabel=olasVal>0?'Total RV + RF + Olas':'Total RV + RF';
     html+=`
     <div class="card" style="margin-bottom:14px;">
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Tu dinero trabajando</div>
@@ -2294,13 +2304,13 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
           <span style="font-size:12px;color:var(--soft);">Ganancia generada</span>
         </div>
         <div style="text-align:right;">
-          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${rendC};">${rendSign} u$s ${fmt(Math.abs(rend))}</span>
-          <span style="font-family:var(--mono);font-size:10px;color:${rendC};margin-left:6px;">${rend>=0?'+':'−'}${rendPctInv}%</span>
+          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${rendC};">${rendSign} u$s ${fmt(Math.abs(totalRend2))}</span>
+          <span style="font-family:var(--mono);font-size:10px;color:${rendC};margin-left:6px;">${totalRend2>=0?'+':'−'}${rendPctInv}%</span>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:center;padding-top:9px;">
-        <span style="font-size:12px;font-weight:600;color:var(--soft);">Total RV + RF</span>
-        <span style="font-family:var(--mono);font-size:13px;font-weight:700;">u$s ${fmt(liq)}</span>
+        <span style="font-size:12px;font-weight:600;color:var(--soft);">${totalLabel}</span>
+        <span style="font-family:var(--mono);font-size:13px;font-weight:700;">u$s ${fmt(totalTrabajando)}</span>
       </div>
     </div>`;
   }

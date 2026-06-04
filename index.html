@@ -2095,6 +2095,40 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>`;
   }
 
+  // ── DISTRIBUCIÓN POR ACTIVO ──────────────────────────────────
+  {
+    const ALLOC_PAL=['#5b9cf6','#4080e0','#2d63c8','#7ab3f8','#3d9be0','#1a4fa0',
+                     '#2dd4a0','#1aaf80','#3eebb5','#0d8060',
+                     '#f5a623','#e08010','#f7c060',
+                     '#a78bfa','#c084fc','#e879f9','#f472b6'];
+    const allItems=[];
+    (inv.rv||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[i%6],cat:'RV'}));
+    (inv.rf||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_PAL[6+(i%4)],cat:'RF'}));
+    if((inv.olasVal||0)>0)allItems.push({lb:'OLA',sub:'Fideicomiso Olas',v:inv.olasVal,c:'#f5a623',cat:'OLA'});
+    const totAlloc=allItems.reduce((s,x)=>s+x.v,0);
+    if(allItems.length>1&&totAlloc>0){
+      const sorted=[...allItems].sort((a,b)=>b.v-a.v);
+      html+=`
+      <div class="card" style="margin-bottom:14px;">
+        <div class="ct" style="margin-bottom:14px;">Distribución por activo</div>
+        <div style="height:200px;position:relative;margin-bottom:16px;"><canvas id="ov-activo-chart"></canvas></div>
+        <div>${sorted.map(x=>`
+          <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+            <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;">${x.lb}</span>
+              <span style="font-size:11px;color:var(--muted);margin-left:6px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.sub}</span>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <span style="font-family:var(--mono);font-size:12px;font-weight:600;">u$s ${fmt(x.v)}</span>
+              <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:6px;">${(x.v/totAlloc*100).toFixed(1)}%</span>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
   // ── CAPITAL vs RENDIMIENTO ────────────────────────────────────
   if(liq>0){
     const capitalInv=liq-rend;
@@ -3004,8 +3038,18 @@ function buildInvCharts(tab,inv,liq){
     if(rv0>0)segs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
     if(rf0>0)segs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
     if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
-    if(segs.length){
-      mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c));
+    if(segs.length) mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c));
+    // Per-asset chart
+    const ALLOC_PAL=['#5b9cf6','#4080e0','#2d63c8','#7ab3f8','#3d9be0','#1a4fa0',
+                     '#2dd4a0','#1aaf80','#3eebb5','#0d8060',
+                     '#f5a623','#e08010','#f7c060',
+                     '#a78bfa','#c084fc','#e879f9','#f472b6'];
+    const activoItems=[];
+    (inv.rv||[]).forEach((p,i)=>activoItems.push({lb:p.ticker,v:p.valor,c:ALLOC_PAL[i%6]}));
+    (inv.rf||[]).forEach((p,i)=>activoItems.push({lb:p.ticker,v:p.valor,c:ALLOC_PAL[6+(i%4)]}));
+    if(ol0>0)activoItems.push({lb:'OLA',v:ol0,c:'#f5a623'});
+    if(activoItems.length>1){
+      mkPie('ov-activo-chart',activoItems.map(x=>x.v),activoItems.map(x=>x.c),activoItems.map(x=>x.lb));
     }
   }
   else if(tab==='flujo'){
@@ -3194,6 +3238,12 @@ function parseFecha(s){
 }
 
 // ── CHART UTILS ───────────────────────────────────────────────
+function mkPie(id,data,colors,labels){
+  const el=document.getElementById(id);if(!el)return;
+  if(CHS[id])CHS[id].destroy();
+  const tot=data.reduce((s,v)=>s+v,0);
+  CHS[id]=new Chart(el,{type:'pie',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': u$s '+fmt(c.parsed)+' ('+((c.parsed/tot)*100).toFixed(1)+'%)'}}},animation:{duration:500}}});
+}
 function mkDonut(id,data,colors){
   const el=document.getElementById(id);if(!el)return;
   if(CHS[id])CHS[id].destroy();

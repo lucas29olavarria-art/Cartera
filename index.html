@@ -2912,6 +2912,8 @@ function rRiesgos(inv){
   const all=[...rv,...(inv.rf||[])];
   if(!rv.length)return'<div class="card"><div class="empty">Las métricas de riesgo requieren al menos una posición de renta variable.</div></div>';
 
+  const rm=calcRiskMetrics(inv.id);
+
   // HHI over full portfolio (RV + RF + Olas)
   const hhiItems=[...all];
   if((inv.olasVal||0)>0)hhiItems.push({ticker:'Olas',valor:inv.olasVal});
@@ -2927,6 +2929,35 @@ function rRiesgos(inv){
   const totAll=hhiTot;
 
   let h='';
+
+  // ── Snapshot metrics (vol / drawdown / sharpe)
+  if(rm){
+    h+='<div class="card" style="margin-bottom:12px;">'
+      +'<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">'
+        +'<div style="font-size:10px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);">Volatilidad histórica</div>'
+        +'<span style="font-family:var(--mono);font-size:9px;color:var(--muted);">'+rm.n+' snapshots</span>'
+      +'</div>'
+      +'<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">'
+        +'<div class="kpi"><div class="kl">Volatilidad</div>'
+          +'<div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--amber);">'+rm.vol+'%</div>'
+          +'<div class="ks">desv. estándar mensual</div></div>'
+        +'<div class="kpi"><div class="kl">Max Drawdown</div>'
+          +'<div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--red);">'+rm.maxDD+'%</div>'
+          +'<div class="ks">caída máx. histórica</div></div>'
+        +'<div class="kpi"><div class="kl">Sharpe ratio</div>'
+          +'<div style="font-family:var(--mono);font-size:22px;font-weight:700;color:var(--blue);">'+rm.sharpe+'</div>'
+          +'<div class="ks">retorno / riesgo anual</div></div>'
+      +'</div>'
+      +'<details style="margin-top:12px;">'
+        +'<summary style="font-size:10px;color:var(--muted);cursor:pointer;list-style:none;user-select:none;font-family:var(--mono);letter-spacing:.05em;">¿Cómo se calculan? ▸</summary>'
+        +'<div style="font-size:11px;color:var(--soft);line-height:1.7;margin-top:8px;padding:12px;background:var(--bg4);border-radius:var(--r);">'
+          +'<b>Volatilidad</b>: desvío estándar de los retornos mensuales. Alta volatilidad = mayores oscilaciones.<br><br>'
+          +'<b>Max Drawdown</b>: caída máxima desde un pico hasta el valle más bajo. Indica la peor pérdida que sufrió el portfolio en algún momento.<br><br>'
+          +'<b>Sharpe ratio</b>: retorno obtenido por unidad de riesgo (anualizado, rf=0). Mayor a 1 es bueno; mayor a 2 es excelente.'
+        +'</div>'
+      +'</details>'
+    +'</div>';
+  }
 
   // ── Beta hero (async-filled)
   h+='<div class="card" style="margin-bottom:12px;">'
@@ -3156,7 +3187,7 @@ function rAnalisis(inv,liq){
 
   const sBtn=(col,lb)=>`<button class="ib" onclick="sortPos('${col}',inv_ref,${liq})" style="font-size:10px;padding:4px 10px;${sortCol===col?'background:rgba(91,156,246,.15);color:#5b9cf6;border-color:rgba(91,156,246,.3);':''}">${lb}${sortCol===col?(sortAsc?' ↑':' ↓'):''}</button>`;
 
-  const rm=calcRiskMetrics(inv.id);
+  const rm=calcRiskMetrics(inv.id); // used for preview chips in the risk portal card
 
   return `
   <div class="an-sum">
@@ -3195,40 +3226,23 @@ function rAnalisis(inv,liq){
   </div>
   ${CU.is_admin?`<div class="card" style="margin-top:14px;"><div class="ct">Alertas</div>${buildAlerts(all,liq)}</div>`:''}
   ${inv.olasFlows&&inv.olasFlows.length>0?olasSection(inv):''}
-  ${rm?`<div class="card" style="margin-top:14px;">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
-      <div class="ct" style="margin:0;">⚡ Métricas de riesgo</div>
-      <span style="font-family:var(--mono);font-size:9px;color:var(--muted);">${rm.n} snapshots</span>
-    </div>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
-      <div class="kpi">
-        <div class="kl">Volatilidad</div>
-        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--amber);">${rm.vol}%</div>
-        <div class="ks">mensual</div>
+  <div onclick="iTab('riesgos')" style="margin-top:14px;border-radius:var(--r2);padding:20px;cursor:pointer;background:linear-gradient(135deg,rgba(91,156,246,.08) 0%,rgba(155,127,244,.06) 100%);border:1px solid rgba(91,156,246,.18);transition:border-color .18s,background .18s;" onmouseover="this.style.borderColor='rgba(91,156,246,.4)';this.style.background='linear-gradient(135deg,rgba(91,156,246,.13) 0%,rgba(155,127,244,.09) 100%)'" onmouseout="this.style.borderColor='rgba(91,156,246,.18)';this.style.background='linear-gradient(135deg,rgba(91,156,246,.08) 0%,rgba(155,127,244,.06) 100%)'">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+      <div style="display:flex;align-items:center;gap:10px;">
+        <div style="width:34px;height:34px;border-radius:10px;background:rgba(91,156,246,.15);display:flex;align-items:center;justify-content:center;font-size:17px;">🛡</div>
+        <div>
+          <div style="font-size:14px;font-weight:600;color:var(--text);">Análisis de Riesgo</div>
+          <div style="font-size:10px;color:var(--muted);margin-top:1px;">Beta · Concentración · Volatilidad histórica</div>
+        </div>
       </div>
-      <div class="kpi">
-        <div class="kl">Max Drawdown</div>
-        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--red);">${rm.maxDD}%</div>
-        <div class="ks">caída máx.</div>
-      </div>
-      <div class="kpi">
-        <div class="kl">Sharpe</div>
-        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--blue);">${rm.sharpe}</div>
-        <div class="ks">retorno/riesgo anual</div>
-      </div>
+      <div style="font-size:18px;color:rgba(91,156,246,.6);">→</div>
     </div>
-    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;">
-      <button onclick="iTab('riesgos')" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='rgba(91,156,246,.3)';this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)';this.style.color='var(--muted)'">
-        <span>Beta · Concentración HHI · Análisis de riesgo completo</span>
-        <span style="font-size:13px;">→</span>
-      </button>
+    <div style="display:flex;gap:6px;flex-wrap:wrap;">
+      ${rm?`<span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(245,166,35,.12);color:var(--amber);">Vol ${rm.vol}%</span><span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(240,108,108,.12);color:var(--red);">DD ${rm.maxDD}%</span><span style="font-family:var(--mono);font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(91,156,246,.12);color:var(--blue);">Sharpe ${rm.sharpe}</span>`:''}
+      <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(91,156,246,.1);color:rgba(91,156,246,.8);">β por posición</span>
+      <span style="font-size:10px;padding:2px 8px;border-radius:20px;background:rgba(91,156,246,.1);color:rgba(91,156,246,.8);">HHI concentración</span>
     </div>
-  </div>`:`<div class="card" style="margin-top:14px;">
-    <button onclick="iTab('riesgos')" style="width:100%;background:transparent;border:none;padding:0;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:color .15s;" onmouseover="this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.color='var(--muted)'">
-      <span>Beta · Concentración HHI · Análisis de riesgo completo</span>
-      <span style="font-size:13px;">→</span>
-    </button>
-  </div>`}
+  </div>
   `;}
 function buildAlerts(pos,liq){
   const a=[];

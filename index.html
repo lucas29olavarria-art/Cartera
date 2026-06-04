@@ -825,6 +825,7 @@ let cfMinFilter=0;
 let lastPriceUpdate=null;
 let autoRefreshTimer=null;
 let sortCol='valor', sortAsc=false; // default: sort by valor desc
+let analisisFiltro='todos'; // 'todos' | 'rv' | 'rf'
 let cfRangeMonths=12;
 const DRILL_STORE={};
 let drillCounter=0;
@@ -2257,6 +2258,7 @@ function rRFMini(inv){
   </div>`;
 }
 
+function setAnalisisFiltro(f,inv,liq){analisisFiltro=f;kc();renderInv(inv);}
 function sortPos(col, inv, liq){
   if(sortCol===col) sortAsc=!sortAsc;
   else { sortCol=col; sortAsc=col==='ticker'; }
@@ -3164,22 +3166,29 @@ function rAnalisis(inv,liq){
   const uid=CU.is_admin?AVId:CU.id;
   if(!all.length&&!(inv.olasFlows?.length))return`<div class="card"><div class="empty">Agregá posiciones para ver el análisis.</div></div>`;
   if(!all.length&&inv.olasFlows?.length)return`<div style="margin-top:0">${olasSection(inv)}</div>`;
-  const totalValor=all.reduce((s,p)=>s+p.valor,0);
-  const totalRend2=all.reduce((s,p)=>s+p.rend,0);
-  const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);
-  const olasVal=inv.olasVal||0;
-  const olasCobradoUSD=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+
+  const hasRV=(inv.rv?.length||0)>0, hasRF=(inv.rf?.length||0)>0;
+  // Filtered set for table and KPIs
+  const filtered=analisisFiltro==='rv'?all.filter(p=>p.cat==='RV'):analisisFiltro==='rf'?all.filter(p=>p.cat==='RF'):all;
+
+  const totalValor=filtered.reduce((s,p)=>s+p.valor,0);
+  const totalRend2=filtered.reduce((s,p)=>s+p.rend,0);
+  const totalVinicial=filtered.reduce((s,p)=>s+p.vinicial,0);
+  // Olas only in "Todos" filter
+  const olasVal=analisisFiltro==='todos'?(inv.olasVal||0):0;
+  const olasCobradoUSD=analisisFiltro==='todos'?(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0):0;
   const patrimonioTotal=totalValor+olasVal;
   const invertidoTotal=totalVinicial+olasVal;
   const gananciaTotal=totalRend2+olasCobradoUSD;
   const totalRendPct=invertidoTotal>0?((gananciaTotal/invertidoTotal)*100).toFixed(1):'—';
 
-  const sorted=[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
+  const sorted=[...filtered].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
     const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
     return sortAsc?v[0]-v[1]:v[1]-v[0];
   });
 
   const maxAllocPct=sorted.reduce((mx,p)=>Math.max(mx,totalValor>0?p.valor/totalValor*100:0),0)||1;
+  const fPill=(f,lb)=>`<button onclick="setAnalisisFiltro('${f}',inv_ref,${liq})" style="padding:4px 12px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid ${analisisFiltro===f?'rgba(91,156,246,.5)':'rgba(255,255,255,.1)'};background:${analisisFiltro===f?'rgba(91,156,246,.15)':'transparent'};color:${analisisFiltro===f?'#5b9cf6':'var(--muted)'};font-weight:${analisisFiltro===f?'600':'400'};transition:all .15s;">${lb}</button>`;
 
   const posRows=sorted.map(p=>{
     const qty=p.qty||1;
@@ -3240,12 +3249,12 @@ function rAnalisis(inv,liq){
       ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
-      <div class="kl">Patrimonio total</div>
+      <div class="kl">${analisisFiltro==='todos'?'Patrimonio total':'Valor hoy'}</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(patrimonioTotal)}</div>
       ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid rgba(${gananciaTotal>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
-      <div class="kl">Ganancia total</div>
+      <div class="kl">${analisisFiltro==='todos'?'Ganancia total':analisisFiltro==='rv'?'Ganancia RV':'Ganancia RF'}</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${gananciaTotal>=0?'#2dd4a0':'#f06c6c'};margin-top:2px;">${gananciaTotal>=0?'+':''}u$s ${fmt(Math.abs(gananciaTotal))}</div>
       <div style="font-family:var(--mono);font-size:10px;color:${gananciaTotal>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${gananciaTotal>=0?'+':''}${totalRendPct}%</div>
       ${olasCobradoUSD>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">incl. u$s ${fmt(olasCobradoUSD)} cobrado Olas</div>`:''}
@@ -3258,13 +3267,13 @@ function rAnalisis(inv,liq){
     ${dCard('Pa\xeds','an-pais')}
   </div>
   <div class="card">
-    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-      <div class="ct" style="margin-bottom:0;">${all.length} posiciones &middot; tap para detalle</div>
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
+      <div style="display:flex;gap:5px;">${fPill('todos','Todos')}${hasRV?fPill('rv','Solo RV'):''}${hasRF?fPill('rf','Solo RF'):''}</div>
       <div style="display:flex;gap:5px;">${sBtn('valor','Monto')}${sBtn('rend','Ganancia')}${sBtn('rendPct','%')}</div>
     </div>
-    ${posRows}
+    ${sorted.length?posRows:`<div class="empty" style="padding:20px 0;">Sin posiciones de este tipo.</div>`}
     <div style="display:flex;justify-content:space-between;padding-top:12px;margin-top:6px;border-top:1px solid var(--line);font-family:var(--mono);font-size:11px;color:var(--muted);">
-      <span>${all.length} posiciones</span>
+      <span>${sorted.length} posicion${sorted.length!==1?'es':''}</span>
       <span>u$s ${fmt(totalValor)}</span>
     </div>
   </div>

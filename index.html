@@ -3188,7 +3188,8 @@ function rAnalisis(inv,liq){
   });
 
   const maxAllocPct=sorted.reduce((mx,p)=>Math.max(mx,totalValor>0?p.valor/totalValor*100:0),0)||1;
-  const fPill=(f,lb)=>`<button onclick="setAnalisisFiltro('${f}',inv_ref,${liq})" style="padding:4px 12px;border-radius:20px;font-size:11px;cursor:pointer;border:1px solid ${analisisFiltro===f?'rgba(91,156,246,.5)':'rgba(255,255,255,.1)'};background:${analisisFiltro===f?'rgba(91,156,246,.15)':'transparent'};color:${analisisFiltro===f?'#5b9cf6':'var(--muted)'};font-weight:${analisisFiltro===f?'600':'400'};transition:all .15s;">${lb}</button>`;
+  const PILL_CFG={todos:{ac:'rgba(255,255,255,.55)',bc:'rgba(255,255,255,.12)',bg:'rgba(255,255,255,.07)'},rv:{ac:'#5b9cf6',bc:'rgba(91,156,246,.4)',bg:'rgba(91,156,246,.12)'},rf:{ac:'#2dd4a0',bc:'rgba(45,212,160,.4)',bg:'rgba(45,212,160,.1)'}};
+  const fPill=(f,lb)=>{const c=PILL_CFG[f];const on=analisisFiltro===f;return`<button onclick="setAnalisisFiltro('${f}',inv_ref,${liq})" style="padding:6px 16px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.04em;cursor:pointer;border:1px solid ${on?c.bc:'rgba(255,255,255,.08)'};background:${on?c.bg:'transparent'};color:${on?c.ac:'var(--muted)'};transition:all .15s;white-space:nowrap;">${lb}</button>`;};
 
   const posRows=sorted.map(p=>{
     const qty=p.qty||1;
@@ -3242,7 +3243,7 @@ function rAnalisis(inv,liq){
   const rm=calcRiskMetrics(inv.id); // used for preview chips in the risk portal card
 
   return `
-  <div style="display:flex;gap:6px;margin-bottom:12px;">${fPill('todos','Todos')}${hasRV?fPill('rv','Solo RV'):''}${hasRF?fPill('rf','Solo RF'):''}</div>
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">${fPill('todos','TODOS')}${hasRV?fPill('rv','SOLO RENTA VARIABLE'):''}${hasRF?fPill('rf','SOLO RENTA FIJA'):''}</div>
   <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>

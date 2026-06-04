@@ -1827,15 +1827,25 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
     </div>
 
-    <!-- COMPOSICIÓN -->
+    <!-- DISTRIBUCIÓN POR ACTIVO -->
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:18px;padding:20px 20px 16px;margin-bottom:12px;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Composición</div>
-      <div style="display:flex;align-items:center;gap:20px;">
-        <div style="position:relative;width:100px;height:100px;flex-shrink:0;">
-          <canvas id="cli-comp-chart" width="100" height="100"></canvas>
-          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.35);">100%</div>
-        </div>
-        <div style="flex:1;min-width:0;">${compRows||'<span style="color:var(--muted);font-size:12px;">Sin posiciones</span>'}</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);">Distribución por activo</div>
+        <button class="ib" style="font-size:10px;padding:3px 10px;" onclick="downloadAllocChart('${inv.id}')">⬇ PNG</button>
+      </div>
+      <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart"></canvas></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+        ${[...(inv.rv||[]).map((p,i)=>({lb:p.ticker,sub:p.nombre,v:p.valor,c:['#5b9cf6','#4080e0','#2d63c8','#7ab3f8','#3d9be0','#1a4fa0'][i%6]})),
+           ...(inv.rf||[]).map((p,i)=>({lb:p.ticker,sub:p.nombre,v:p.valor,c:['#2dd4a0','#1aaf80','#3eebb5','#0d8060'][i%4]})),
+           ...((inv.olasVal||0)>0?[{lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal,c:'#f5a623'}]:[])
+          ].sort((a,b)=>b.v-a.v).map(x=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
+            <div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#eceef3;">${x.lb}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(x.v)} · ${tot>0?(x.v/tot*100).toFixed(1):'0'}%</div>
+            </div>
+          </div>`).join('')}
       </div>
     </div>
 
@@ -1855,10 +1865,13 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
 }
 
 async function buildClienteSimpleChart(inv){
-  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
-  const data=[rv0,rf0,ol0].filter((_,i)=>([rv0,rf0,ol0][i])>0);
-  const colors=['#5b9cf6','#2dd4a0','#f5a623'].filter((_,i)=>([rv0,rf0,ol0][i])>0);
-  mkDonut('cli-comp-chart',data,colors);
+  const ALLOC_PAL=['#5b9cf6','#4080e0','#2d63c8','#7ab3f8','#3d9be0','#1a4fa0',
+                   '#2dd4a0','#1aaf80','#3eebb5','#0d8060','#f5a623'];
+  const items=[];
+  (inv.rv||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_PAL[i%6]}));
+  (inv.rf||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_PAL[6+(i%4)]}));
+  if((inv.olasVal||0)>0)items.push({lb:'OLA',v:inv.olasVal,c:'#f5a623'});
+  if(items.length>0)mkPie('ov-activo-chart',items.map(x=>x.v),items.map(x=>x.c),items.map(x=>x.lb));
 
   const {data:snaps}=await sb.from('price_snapshots')
     .select('snapshot_date,total_patrimonio')

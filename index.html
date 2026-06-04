@@ -1051,7 +1051,6 @@ async function showApp(){
   } else {
     const inv=await loadInvestor(CU.id);
     CU_DATA=inv;
-    checkObjetivoPrompt(inv);
     ITb='overview'; iTab('overview');
     Promise.all([autoMarcarCobros(inv),autoFetchTcInicio(inv)]).then(([c1,c2])=>{if(c1||c2)renderInv(inv);});
   }
@@ -5084,12 +5083,6 @@ async function saveObjetivo(){
   if(inv)renderInv(inv);
 }
 
-// Show objetivo modal on first login if no goal set
-function checkObjetivoPrompt(inv){
-  if(!inv.objetivo_desc&&!CU.is_admin){
-    setTimeout(()=>oo('m-objetivo'),2000);
-  }
-}
 
 // ── TU CAMINO ────────────────────────────────────────────────
 function rCamino(inv, tot){

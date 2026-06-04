@@ -4731,9 +4731,27 @@ function downloadAllocChart(invId){
   ctx.textAlign='center';
   ctx.fillText('LO Capital · Portfolio Management · '+new Date().toLocaleDateString('es-AR'),W/2,H-12);
 
+  const dataUrl=off.toDataURL('image/png');
+  const filename=(inv.name||'cartera').replace(/\s+/g,'_')+'_distribucion_'+new Date().toISOString().slice(0,10)+'.png';
+
+  // Mobile: use Web Share API (native iOS/Android share sheet → Save Image)
+  if(navigator.canShare){
+    off.toBlob(async blob=>{
+      const file=new File([blob],filename,{type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        try{await navigator.share({files:[file],title:filename});return;}
+        catch(e){if(e.name==='AbortError')return;}
+      }
+      // Share API exists but can't share files → open in new tab
+      const w=window.open();
+      if(w){w.document.write(`<img src="${dataUrl}" style="max-width:100%;display:block;margin:auto"><p style="text-align:center;font-family:sans-serif;font-size:13px;color:#555;margin-top:12px;">Mantené presionada la imagen para guardarla</p>`);w.document.title=filename;}
+    },'image/png');
+    return;
+  }
+
+  // Desktop: trigger file download
   const link=document.createElement('a');
-  link.download=(inv.name||'cartera').replace(/\s+/g,'_')+'_distribucion_'+new Date().toISOString().slice(0,10)+'.png';
-  link.href=off.toDataURL('image/png');link.click();
+  link.download=filename;link.href=dataUrl;link.click();
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

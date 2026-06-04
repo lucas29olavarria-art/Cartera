@@ -3548,14 +3548,33 @@ function rReporteMensual(inv){
       '</div>';
   }
   html+='<div class="card" style="margin-bottom:12px;">'+
-    '<div class="krow">'+
-    '<div class="kpi"><div class="kl">Inicio del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s0.totalValueUSD)+'</div></div>'+
-    '<div class="kpi"><div class="kl">Fin del mes</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(s1.totalValueUSD)+'</div></div>'+
-    '<div class="kpi"><div class="kl">Rendimiento de precios</div><div class="kv" style="color:'+rvC+';font-family:var(--mono);">'+rvSign+' u$s '+fmt(Math.abs(rvDelta))+' ('+rvPct.toFixed(1)+'%)</div></div>'+
-    (spyPct!==null?'<div class="kpi"><div class="kl">vs S&P 500 (SPY)</div><div class="kv" style="font-family:var(--mono);color:'+(spyPct>=0?'var(--green)':'var(--red)')+';">'+(spyPct>=0?'+':'')+spyPct.toFixed(1)+'%</div><div class="ks" style="color:'+(beatMkt?'var(--green)':'var(--amber)')+';">'+(beatMkt?'✓ Le ganaste al índice':'↓ Por debajo del SPY')+'</div></div>':'')+
-    (cobroTotal>0?'<div class="kpi"><div class="kl">Cobros Olas/RF</div><div class="kv" style="color:var(--green);font-family:var(--mono);">+ u$s '+fmt(cobroTotal)+'</div></div>':'')+
-    '<div class="kpi" style="background:rgba(91,156,246,.07);border-radius:8px;padding:8px 10px;"><div class="kl">Total del mes</div><div class="kv" style="color:'+totalC+';font-size:18px;">'+totalSign+' u$s '+fmt(Math.abs(totalMes))+'</div></div>'+
-    '</div></div>';
+    '<div style="text-align:center;padding:18px 10px 12px;">'+
+      '<div style="font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;">Resultado del mes</div>'+
+      '<div style="font-size:36px;font-weight:700;font-family:var(--mono);color:'+totalC+';">'+totalSign+' u$s '+fmt(Math.abs(totalMes))+'</div>'+
+    '</div>'+
+    '<div style="display:flex;gap:0;border-top:1px solid rgba(255,255,255,.06);margin-top:4px;">'+
+      '<div style="flex:1;padding:12px 10px;text-align:center;border-right:1px solid rgba(255,255,255,.06);">'+
+        '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Movimiento de precios</div>'+
+        '<div style="font-family:var(--mono);font-size:15px;font-weight:600;color:'+rvC+';">'+rvSign+' u$s '+fmt(Math.abs(rvDelta))+'</div>'+
+        '<div style="font-size:11px;color:var(--muted);margin-top:2px;">'+rvPct.toFixed(1)+'%</div>'+
+      '</div>'+
+      (cobroTotal>0?
+        '<div style="flex:1;padding:12px 10px;text-align:center;">'+
+          '<div style="font-size:10px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Cobros Olas / RF</div>'+
+          '<div style="font-family:var(--mono);font-size:15px;font-weight:600;color:var(--green);">+ u$s '+fmt(cobroTotal)+'</div>'+
+          '<div style="font-size:11px;color:var(--muted);margin-top:2px;">flujo del período</div>'+
+        '</div>'
+      :'')+
+    '</div>'+
+    '<div style="display:flex;align-items:center;justify-content:center;gap:8px;padding:10px 10px 14px;border-top:1px solid rgba(255,255,255,.06);">'+
+      '<span style="font-size:12px;color:var(--muted);">u$s '+fmt(s0.totalValueUSD)+'</span>'+
+      '<span style="color:var(--muted);font-size:12px;">→</span>'+
+      '<span style="font-size:13px;font-weight:600;font-family:var(--mono);">u$s '+fmt(s1.totalValueUSD)+'</span>'+
+      (spyPct!==null?
+        '<span style="margin-left:8px;font-size:11px;padding:2px 8px;border-radius:20px;background:rgba(91,156,246,.12);color:'+(beatMkt?'var(--green)':'var(--amber)')+';">SPY '+(spyPct>=0?'+':'')+spyPct.toFixed(1)+'% · '+(beatMkt?'✓ por encima':'↓ por debajo')+'</span>'
+      :'')+
+    '</div>'+
+    '</div>';
   if(gainers.length){
     html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Ganadores del mes</div>';
     gainers.forEach(function(t){html+=tkRow(t);});

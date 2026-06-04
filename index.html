@@ -2136,8 +2136,9 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     else{riskLb='Dinámico';riskC='#f06c6c';riskSub='Alta exposición buscando máximo crecimiento';}
   }
 
-  const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50);
-  const olasF=(inv.olasFlows||[]).filter(fl=>olasMonto(fl)/MEP>=50);
+  const today0=new Date().toISOString().slice(0,10);
+  const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50&&fl.fecha>=today0);
+  const olasF=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasMonto(fl)/MEP>=50&&olasDate(fl)>=today0);
   const nextCobro=rfFlows[0]||null;
   const nextOlas=olasF[0]||null;
   const nextAny=nextCobro&&nextOlas?(new Date(nextCobro.fecha)<new Date(olasDate(nextOlas))?nextCobro:null):nextCobro||null;

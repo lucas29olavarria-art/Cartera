@@ -2370,10 +2370,14 @@ function olasSection(inv){
     const nextFutura=futuros[0]?olasDate(futuros[0]):null;
 
     const cobradoARS=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0),0);
-    const cobradoUSD=cobradoARS/MEP;
-    const rendUSD=cobradas.length>0&&capitalUsd&&capitalUsd>0?cobradoUSD/capitalUsd-1:null;
-    const rendPct=rendUSD!==null?(rendUSD*100).toFixed(1):null;
+    // Use each flow's actual tcCobro, fallback to current MEP
+    const cobradoUSD=cobradas.reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+    // % of capital received as interest (no -1: capital stays invested, we measure interest/capital)
+    const rendUSD=cobradas.length>0&&capitalUsd&&capitalUsd>0?cobradoUSD/capitalUsd*100:null;
+    const rendPct=rendUSD!==null?rendUSD.toFixed(1):null;
     const rendColor=rendUSD===null?'var(--muted)':rendUSD>=0?'var(--green)':'var(--red)';
+    const capitalARS=capitalUsd&&MEP?capitalUsd*MEP:0;
+    const rendARSpct=capitalARS>0?(cobradoARS/capitalARS*100).toFixed(1):null;
 
     // Chip color
     const chipClr=isFin?'var(--green)':hasVencidos?'var(--amber)':'var(--blue)';
@@ -2405,8 +2409,8 @@ function olasSection(inv){
       +'<span style="white-space:nowrap;">'
       +(isFin?'✓ ':hasVencidos?'⚠ ':'')
       +proj+'</span>'
-      +'<span style="display:block;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px;">'+cobradas.length+'/'+total
-      +(rendPct!==null?' · '+(+rendPct>=0?'+':'')+rendPct+'%':'')
+      +'<span style="display:block;font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:1px;">'+cobradas.length+'/'+total+' cuotas'
+      +(rendARSpct!==null?' · +'+rendARSpct+'% ARS':'')
       +'</span></button>';
 
     // Historial
@@ -2449,11 +2453,19 @@ function olasSection(inv){
     }
 
     // Rendimiento
-    const rendBlock='<div style="margin-bottom:10px;">'
-      +'<div class="kl" style="margin-bottom:2px;">Rendimiento real USD</div>'
-      +'<div style="font-size:22px;font-weight:700;font-family:var(--mono);color:'+rendColor+';line-height:1;">'
-      +(rendPct!==null?(+rendPct>=0?'+':'')+rendPct+'%':cobradas.length===0?'<span style="font-size:12px;color:var(--muted);">Sin cobros aún</span>':'—')+'</div>'
-      +(rendPct!==null?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">u$s '+fmt(cobradoUSD)+' cobrado · u$s '+fmt(capitalUsd||0)+' invertido</div>':'')
+    const rendBlock='<div style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
+      +'<div style="background:var(--bg4);border-radius:var(--r);padding:10px;">'
+        +'<div class="kl" style="margin-bottom:2px;">Interés cobrado ARS</div>'
+        +'<div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--green);">'
+        +(rendARSpct!==null?'+'+rendARSpct+'%':'—')+'</div>'
+        +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">$'+fmtars(cobradoARS)+'</div>'
+      +'</div>'
+      +'<div style="background:var(--bg4);border-radius:var(--r);padding:10px;">'
+        +'<div class="kl" style="margin-bottom:2px;">Interés cobrado USD</div>'
+        +'<div style="font-size:18px;font-weight:700;font-family:var(--mono);color:'+(cobradoUSD>0?'var(--green)':'var(--muted)')+';">'
+        +(rendPct!==null?'+'+rendPct+'%':cobradas.length===0?'<span style="font-size:12px;color:var(--muted);">Sin cobros</span>':'—')+'</div>'
+        +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">u$s '+fmt(cobradoUSD)+(capitalUsd?' · cap u$s '+fmt(capitalUsd):'')+'</div>'
+      +'</div>'
       +'</div>';
 
     panels+='<div id="olas-panel-'+invId+'-'+projKey+'" style="display:'+(isFirst?'block':'none')+';">'
@@ -2624,8 +2636,9 @@ function olasReport(proj,invId){
   const cobradoUsd=rows.filter(r=>r.cobrado).reduce((s,r)=>s+r.usd,0);
   const totalArs=rows.reduce((s,r)=>s+r.ars,0);
   const totalUsd=rows.reduce((s,r)=>s+r.usd,0);
-  const rentPct=capitalUsd>0?(totalUsd/capitalUsd-1)*100:null;
-  const rentCobradoPct=capitalUsd>0?(cobradoUsd/capitalUsd-1)*100:null;
+  // % of capital recovered as interest (no -1: capital stays invested throughout)
+  const rentPct=capitalUsd>0?(totalUsd/capitalUsd*100):null;
+  const rentCobradoPct=capitalUsd>0?(cobradoUsd/capitalUsd*100):null;
 
   const tableRows=rows.map(r=>`
     <tr style="border-bottom:1px solid var(--line);">

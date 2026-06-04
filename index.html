@@ -381,6 +381,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="atb-historial" onclick="aTab('historial')">Historial</button>
     <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
     <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
+    <button class="tb" id="atb-borrar" onclick="aTab('borrar')" style="color:var(--red);">Borrar import</button>
     <button class="tb" onclick="openImport()">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
@@ -1240,7 +1241,7 @@ async function refreshPrices(){
 // ── ADMIN ─────────────────────────────────────────────────────
 function aTab(t){
   ATb=t;
-  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte'].forEach(name=>{
+  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte','borrar'].forEach(name=>{
     const el=document.getElementById('atb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
@@ -1254,6 +1255,7 @@ function renderAdmin(){
   else if(ATb==='historial')rHistorial();
   else if(ATb==='notas')rNotas();
   else if(ATb==='reporte')rReporte();
+  else if(ATb==='borrar')rBorrarImport();
 }
 
 // ── CONSOLIDADO ───────────────────────────────────────────────
@@ -1598,6 +1600,96 @@ async function saveNota(invId){
 }
 
 // ── REPORTE ───────────────────────────────────────────────────
+function rBorrarImport(){
+  const invs=Object.values(INV_CACHE).filter(i=>!i.is_admin);
+  sc(`<div class="sec-hdr"><h3>Borrar importación</h3></div>
+  <div style="background:rgba(240,108,108,.07);border:1px solid rgba(240,108,108,.25);border-radius:var(--r);padding:11px 13px;font-size:11px;color:var(--red);margin-bottom:14px;">
+    ⚠ Esta acción es irreversible. Borra las posiciones del inversor seleccionado.
+  </div>
+  <div class="fr" style="margin-bottom:14px;">
+    <label class="fl">Inversor</label>
+    <select class="fi" id="bi-sel" onchange="biLoad()" style="max-width:300px;"><option value="">— Seleccioná —</option>${invs.map(i=>`<option value="${i.id}">${i.name}</option>`).join('')}</select>
+  </div>
+  <div id="bi-detail"></div>`);
+}
+
+async function biLoad(){
+  const invId=document.getElementById('bi-sel')?.value;
+  const el=document.getElementById('bi-detail');
+  if(!invId||!el)return;
+  const inv=INV_CACHE[invId];
+  if(!inv){el.innerHTML='<div class="empty">Inversor no encontrado.</div>';return;}
+
+  const rv=inv.rv||[];
+  const rf=inv.rf||[];
+  const olasByProj={};
+  (inv.olasFlows||[]).forEach(f=>{
+    const proj=(f.descripcion||'Ola').split('·')[0].trim();
+    if(!olasByProj[proj])olasByProj[proj]=[];
+    olasByProj[proj].push(f);
+  });
+  const olasProjList=Object.keys(olasByProj);
+
+  let html='';
+
+  // RV + RF block
+  if(rv.length||rf.length){
+    html+=`<div class="card" style="margin-bottom:12px;">
+      <div class="ct">Portafolio RV / RF</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:12px;">${rv.length} posiciones RV · ${rf.length} posiciones RF${inv.last_import_date?' · última import: '+inv.last_import_date:''}</div>
+      ${rv.length?`<div style="font-family:var(--mono);font-size:11px;color:var(--soft);margin-bottom:8px;">${rv.map(p=>p.ticker).join(' · ')}</div>`:''}
+      ${rf.length?`<div style="font-family:var(--mono);font-size:11px;color:var(--soft);margin-bottom:8px;">${rf.map(p=>p.ticker||p.desc||'—').join(' · ')}</div>`:''}
+      <button class="dbtn" style="margin-top:4px;" onclick="biConfirmRVRF('${invId}','${inv.name.replace(/'/g,"\\'")}')">✕ Borrar todas las posiciones RV + RF</button>
+    </div>`;
+  }else{
+    html+=`<div class="card" style="margin-bottom:12px;"><div class="empty">Sin posiciones RV/RF.</div></div>`;
+  }
+
+  // Olas block
+  if(olasProjList.length){
+    html+=`<div class="card"><div class="ct">Fideicomisos Olas</div>`;
+    olasProjList.forEach(proj=>{
+      const flows=olasByProj[proj];
+      const cobradas=flows.filter(f=>f.cobrado).length;
+      const projSafe=proj.replace(/'/g,"\\'");
+      html+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--line);">
+        <div>
+          <div style="font-size:13px;font-weight:500;">${proj}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${flows.length} cuotas · ${cobradas} cobradas</div>
+        </div>
+        <button class="dbtn" onclick="biConfirmOla('${invId}','${inv.name.replace(/'/g,"\\'")}','${projSafe}')">✕ Borrar</button>
+      </div>`;
+    });
+    html+=`</div>`;
+  }else{
+    html+=`<div class="card"><div class="empty">Sin Olas.</div></div>`;
+  }
+
+  el.innerHTML=html;
+}
+
+async function biConfirmRVRF(invId,invName){
+  if(!confirm('¿Borrar TODAS las posiciones RV y RF de '+invName+'? Esta acción no se puede deshacer.'))return;
+  const{error:e1}=await sb.from('positions_rv').delete().eq('investor_id',invId);
+  const{error:e2}=await sb.from('positions_rf').delete().eq('investor_id',invId);
+  if(e1||e2)return showToast('Error: '+(e1||e2).message);
+  // Clear in-memory cache
+  const inv=INV_CACHE[invId];
+  if(inv){inv.rv=[];inv.rf=[];}
+  showToast('✓ Posiciones RV/RF de '+invName+' eliminadas');
+  biLoad();
+}
+
+async function biConfirmOla(invId,invName,proj){
+  if(!confirm('¿Borrar la Ola "'+proj+'" de '+invName+'? Esta acción no se puede deshacer.'))return;
+  const{error}=await sb.from('olas_flows').delete().eq('investor_id',invId).like('descripcion',proj+'%');
+  if(error)return showToast('Error: '+error.message);
+  const inv=INV_CACHE[invId];
+  if(inv)inv.olasFlows=(inv.olasFlows||[]).filter(f=>(f.descripcion||'').split('·')[0].trim()!==proj);
+  showToast('✓ Ola "'+proj+'" de '+invName+' eliminada');
+  biLoad();
+}
+
 function rReporte(){
   const invs=Object.values(INV_CACHE);
   sc(`<div class="sec-hdr"><h3>Reporte de cliente</h3></div>

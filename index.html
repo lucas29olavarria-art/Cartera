@@ -4908,6 +4908,9 @@ async function impConfirm(){
       }
       const newTickers=Object.keys(combined);
       if(newTickers.length){
+        // Delete ALL existing rows for this investor first (clean slate), then insert new batch
+        const {error:eDel}=await sb.from('positions_rv').delete().eq('investor_id',invId);
+        if(eDel)throw new Error('Delete: '+eDel.message);
         const batchTs=new Date().toISOString();
         const rows=Object.values(combined).map(r=>({...r,imported_at:batchTs}));
         const {error:eIns}=await sb.from('positions_rv').insert(rows);

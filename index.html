@@ -2147,7 +2147,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
 
   const waBest=best?'\nMejor posición: '+best.ticker+' '+(best.rend>=0?'+':'')+best.rend.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' u$s':'';
-  const waNext=(nextAny||nextOlasFirst)?(()=>{const n=nextAny||nextOlasFirst;const fecha=n.fecha||olasDate(n);const monto=n.usd?'u$s '+fmt(n.usd):'$'+fmtars(olasMonto(n));return '\nPróximo cobro: '+fecha+' · '+monto;})():'';
+  const waNext=(nextAny||nextOlasFirst)?(()=>{const n=nextAny||nextOlasFirst;const fecha=n.fecha||olasDate(n);const monto=n.usd?'u$s '+fmt(n.usd):'$'+fmtars(olasMonto(n));const prod=n.tipo||(n.descripcion||n.desc||'').split('·')[0].trim();return '\nPróximo cobro: '+fecha+' · '+monto+(prod?' ('+prod+')':'');})():'';
   const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%'+waBest+waNext;
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
 

@@ -2266,7 +2266,7 @@ function sortPos(col, inv, liq){
 // ── POSICIONES ────────────────────────────────────────────────
 function autoConfirmarVencidos(inv){
   const today=new Date().toISOString().slice(0,10);
-  const vencidos=(inv.olasFlows||[]).filter(f=>!f.cobrado&&f.fecha&&f.fecha<today);
+  const vencidos=(inv.olasFlows||[]).filter(f=>!f.cobrado&&f.fecha&&f.fecha<=today);
   if(!vencidos.length)return;
   const tc=MEP||1;
   vencidos.forEach(f=>{f.cobrado=true;f.tcCobro=tc;f.montoRealArs=f.ars;});
@@ -2278,7 +2278,7 @@ function _olasPagosRows(flows,invId,todayStr){
   return flows.sort((a,b)=>new Date(olasDate(a))-new Date(olasDate(b))).map(f=>{
     const ars=f.cobrado?(f.montoRealArs||f.ars||0):(f.ars||0);
     const usd=(ars/(f.tcCobro||MEP)).toFixed(0);
-    const vencido=!f.cobrado&&olasDate(f)<todayStr;
+    const vencido=!f.cobrado&&olasDate(f)<=todayStr;
     const badge=f.cobrado
       ?'<div style="background:rgba(45,212,160,.15);border:1px solid rgba(45,212,160,.3);border-radius:4px;padding:2px 7px;font-size:10px;color:var(--green);flex-shrink:0;">✓</div>'
       :vencido
@@ -4752,7 +4752,7 @@ function impParseOlas(){
       const d=new Date(start);
       d.setMonth(d.getMonth()+i);
       const fecha=d.toISOString().slice(0,10);
-      const cobrado=fecha<today0;
+      const cobrado=fecha<=today0;
       flows.push({fecha,descripcion:`${proyecto} · cuota ${i}/12`,monto_ars:cuotaMensual,cobrado});
     }
     olas.push({proyecto,monto,tna,cuotaMensual,flows});
@@ -4880,7 +4880,7 @@ async function impConfirm(){
         imported=allFlows.length;
       }
       // Mark past flows as cobrado via UPDATE (column may exist from prior migration)
-      const pastFlows=impParsedOlas.flatMap(o=>o.flows.filter(f=>f.fecha<today0).map(f=>f.descripcion));
+      const pastFlows=impParsedOlas.flatMap(o=>o.flows.filter(f=>f.fecha<=today0).map(f=>f.descripcion));
       if(pastFlows.length){
         // Fetch the IDs we just inserted for past flows
         const {data:pastRows}=await sb.from('olas_flows').select('id,descripcion').eq('investor_id',invId).in('descripcion',pastFlows);

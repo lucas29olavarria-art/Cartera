@@ -2440,11 +2440,22 @@ function olasSection(inv){
     // TC section — use projKey in input ID to avoid any mismatch
     const devStr=tcInicio&&MEP?'-'+((1-tcInicio/MEP)*100).toFixed(1)+'%':null;
     const tcSection=tcInicio
-      ?'<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
+      ?'<div style="background:var(--bg4);border-radius:var(--r);padding:8px 10px;margin-bottom:12px;">'
+        +'<div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;">'
         +'<div><div class="kl">Capital USD</div><div style="font-family:var(--mono);font-size:12px;">'+(capitalUsd?'u$s '+fmt(capitalUsd):'<span style="color:var(--muted);">—</span>')+'</div></div>'
         +'<div><div class="kl">TC entrada 🔒</div><div style="font-family:var(--mono);font-size:12px;">$'+fmt(tcInicio)+'</div></div>'
         +'<div><div class="kl">MEP hoy</div><div style="font-family:var(--mono);font-size:12px;">$<span class="live-mep-val">'+fmt(MEP)+'</span></div></div>'
         +(devStr?'<div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:12px;color:var(--red);">'+devStr+'</div></div>':'')
+        +'</div>'
+        +(!capitalUsd
+          ?'<div style="margin-top:8px;padding-top:8px;border-top:1px solid var(--line);">'
+            +'<div style="font-size:10px;color:var(--amber);margin-bottom:6px;">⚠ Ingresá el capital invertido en ARS para calcular el capital en USD</div>'
+            +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+            +'<input id="cap-ars-'+invId+'-'+projKey+'" type="number" class="ifield" style="width:140px;padding:4px 8px;font-size:12px;" placeholder="Capital ARS (ej: 15000000)">'
+            +'<button class="ib pri" style="font-size:10px;padding:4px 10px;" onclick="guardarCapitalArsInline(\''+projSafe+'\',\''+invId+'\',\''+projKey+'\')">Guardar</button>'
+            +'</div>'
+            +'</div>'
+          :'')
         +'</div>'
       :'<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">'
         +'<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:8px;">⚠ Falta el TC de entrada</div>'
@@ -2472,15 +2483,15 @@ function olasSection(inv){
     const rendBlock='<div style="margin-bottom:10px;display:grid;grid-template-columns:1fr 1fr;gap:8px;">'
       +'<div style="background:var(--bg4);border-radius:var(--r);padding:10px;">'
         +'<div class="kl" style="margin-bottom:2px;">Interés cobrado ARS</div>'
-        +'<div style="font-size:18px;font-weight:700;font-family:var(--mono);color:var(--green);">'
-        +(rendARSpct!==null?'+'+rendARSpct+'%':'—')+'</div>'
-        +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">$'+fmtars(cobradoARS)+'</div>'
+        +'<div style="font-size:18px;font-weight:700;font-family:var(--mono);color:'+(cobradoARS>0?'var(--green)':'var(--muted)')+';">'
+        +(cobradoARS>0?'$'+fmtars(cobradoARS):cobradas.length===0?'<span style="font-size:12px;">Sin cobros</span>':'—')+'</div>'
+        +(rendARSpct!==null?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">+'+rendARSpct+'% sobre capital</div>':'')
       +'</div>'
       +'<div style="background:var(--bg4);border-radius:var(--r);padding:10px;">'
         +'<div class="kl" style="margin-bottom:2px;">Interés cobrado USD</div>'
         +'<div style="font-size:18px;font-weight:700;font-family:var(--mono);color:'+(cobradoUSD>0?'var(--green)':'var(--muted)')+';">'
-        +(rendPct!==null?'+'+rendPct+'%':cobradas.length===0?'<span style="font-size:12px;color:var(--muted);">Sin cobros</span>':'—')+'</div>'
-        +'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">u$s '+fmt(cobradoUSD)+(capitalUsd?' · cap u$s '+fmt(capitalUsd):'')+'</div>'
+        +(cobradoUSD>0?'u$s '+fmt(cobradoUSD):cobradas.length===0?'<span style="font-size:12px;">Sin cobros</span>':'—')+'</div>'
+        +(rendPct!==null?'<div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:2px;">+'+rendPct+'% · cap u$s '+fmt(capitalUsd)+'</div>':'')
       +'</div>'
       +'</div>';
 
@@ -2581,6 +2592,24 @@ async function guardarTcInicioInline(proj,invId,projKey){
   }else showToast('Error guardando TC: '+error.message);
 }
 
+async function guardarCapitalArsInline(proj,invId,projKey){
+  const el=document.getElementById('cap-ars-'+invId+'-'+projKey);
+  if(!el)return showToast('No se encontró el campo');
+  const capitalArs=parseFloat(el.value)||0;
+  if(!capitalArs||capitalArs<1000)return showToast('Ingresá un capital en ARS válido');
+  const inv=INV_CACHE[invId]||CU_DATA;
+  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
+  const tcInicio=pFlows[0]?.tcInicio||null;
+  if(!tcInicio)return showToast('Guardá el TC de entrada primero');
+  const capUsd=Math.round(capitalArs/tcInicio);
+  const ids=pFlows.map(f=>f.id);
+  const{error}=await sb.from('olas_flows').update({capital_ars:capitalArs,capital_usd:capUsd}).in('id',ids);
+  if(!error){
+    pFlows.forEach(fl=>{fl.capitalArs=capitalArs;fl.capitalUsd=capUsd;});
+    showToast('✓ Capital guardado: u$s '+fmt(capUsd));
+    renderInv(inv);
+  }else showToast('Error guardando capital: '+error.message);
+}
 
 function olasReport(proj,invId){
   const inv=INV_CACHE[invId]||CU_DATA;

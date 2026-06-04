@@ -4341,14 +4341,17 @@ function impParseOlas(){
     const tna=+inputs[3]?.value||0;
     if(!proyecto||!monto||!fechaInicio||!tna)return;
 
-    // Generate 12 monthly payments
+    // Generate 12 monthly payments; past ones auto-marked as cobrado
     const cuotaMensual=+(monto*tna/100/12).toFixed(2);
     const start=new Date(fechaInicio);
+    const today0=new Date().toISOString().slice(0,10);
     const flows=[];
     for(let i=1;i<=12;i++){
       const d=new Date(start);
       d.setMonth(d.getMonth()+i);
-      flows.push({fecha:d.toISOString().slice(0,10),descripcion:`${proyecto} · cuota ${i}/12`,monto_ars:cuotaMensual});
+      const fecha=d.toISOString().slice(0,10);
+      const cobrado=fecha<today0;
+      flows.push({fecha,descripcion:`${proyecto} · cuota ${i}/12`,monto_ars:cuotaMensual,cobrado});
     }
     olas.push({proyecto,monto,tna,cuotaMensual,flows});
   });
@@ -4359,12 +4362,17 @@ function impParseOlas(){
 
   el.innerHTML=`
   <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--amber);">
-    ✓ ${olas.length} Olas · ${olas.reduce((s,o)=>s+o.flows.length,0)} pagos mensuales calculados
+    ✓ ${olas.length} Olas · ${olas.reduce((s,o)=>s+o.flows.length,0)} pagos calculados
   </div>
-  ${olas.map(o=>`<div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;font-size:11px;">
-    <div style="font-weight:500;margin-bottom:4px;">${o.proyecto} · $${f_ars(o.monto)} · TNA ${o.tna}%</div>
-    <div style="color:var(--muted);">Cuota mensual: $${f_ars(o.cuotaMensual)} · Primer pago: ${o.flows[0].fecha} · Último: ${o.flows[11].fecha}</div>
-  </div>`).join('')}`;
+  ${olas.map(o=>{
+    const cobrados=o.flows.filter(f=>f.cobrado).length;
+    const pendientes=o.flows.length-cobrados;
+    return `<div style="background:var(--bg3);border-radius:var(--r);padding:10px 12px;margin-bottom:6px;font-size:11px;">
+      <div style="font-weight:500;margin-bottom:4px;">${o.proyecto} · $${f_ars(o.monto)} · TNA ${o.tna}%</div>
+      <div style="color:var(--muted);">Cuota mensual: $${f_ars(o.cuotaMensual)} · ${o.flows[0].fecha} → ${o.flows[11].fecha}</div>
+      ${cobrados>0?`<div style="margin-top:4px;"><span style="color:var(--green);font-size:10px;">✓ ${cobrados} ya cobrados</span><span style="color:var(--muted);font-size:10px;"> · ${pendientes} pendientes</span></div>`:''}
+    </div>`;
+  }).join('')}`;
   document.getElementById('imp-confirm-btn').style.display='block';
   document.getElementById('imp-preview-btn').style.display='none';
 }

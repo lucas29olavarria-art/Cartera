@@ -3168,9 +3168,11 @@ function rAnalisis(inv,liq){
   const totalRend2=all.reduce((s,p)=>s+p.rend,0);
   const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);
   const olasVal=inv.olasVal||0;
+  const olasCobradoUSD=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
   const patrimonioTotal=totalValor+olasVal;
   const invertidoTotal=totalVinicial+olasVal;
-  const totalRendPct=invertidoTotal>0?((totalRend2/invertidoTotal)*100).toFixed(1):'—';
+  const gananciaTotal=totalRend2+olasCobradoUSD;
+  const totalRendPct=invertidoTotal>0?((gananciaTotal/invertidoTotal)*100).toFixed(1):'—';
 
   const sorted=[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
     const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
@@ -3242,10 +3244,11 @@ function rAnalisis(inv,liq){
       <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(patrimonioTotal)}</div>
       ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
     </div>
-    <div style="background:var(--bg2);border:1px solid rgba(${totalRend2>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
-      <div class="kl">Ganancia RV+RF</div>
-      <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:2px;">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))}</div>
-      <div style="font-family:var(--mono);font-size:10px;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${totalRend2>=0?'+':''}${totalRendPct}%</div>
+    <div style="background:var(--bg2);border:1px solid rgba(${gananciaTotal>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
+      <div class="kl">Ganancia total</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${gananciaTotal>=0?'#2dd4a0':'#f06c6c'};margin-top:2px;">${gananciaTotal>=0?'+':''}u$s ${fmt(Math.abs(gananciaTotal))}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:${gananciaTotal>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${gananciaTotal>=0?'+':''}${totalRendPct}%</div>
+      ${olasCobradoUSD>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">incl. u$s ${fmt(olasCobradoUSD)} cobrado Olas</div>`:''}
     </div>
   </div>
   <div class="an-charts">

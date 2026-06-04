@@ -1878,11 +1878,6 @@ function renderInv(inv){
 
   inv_ref=inv;
 
-  if(!isA && ITb==='overview'){
-    sc(rClienteSimple(inv,liq,rend,tot,rendPct));
-    setTimeout(()=>{buildClienteSimpleChart(inv);runCountUps();},50);
-    return;
-  }
 
   let body='';
   if(ITb==='overview')body=rOverview(inv,liq,rend,tot,rendPct,best);

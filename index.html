@@ -3861,6 +3861,21 @@ function rReporteMensual(inv){
   const monthSnaps=allSnaps.filter(function(s){
     const d=new Date(s.date);return d>=monthStart&&d<monthEnd;
   }).sort(function(a,b){return new Date(a.date)-new Date(b.date);});
+
+  // If fewer than 2 snapshots this month, build synthetic s0 from last available snapshot + current data as s1
+  const isCurrent=mk===nowMk;
+  let s0,s1;
+  if(monthSnaps.length>=2){
+    s0=monthSnaps[0];s1=monthSnaps[monthSnaps.length-1];
+  }else if(monthSnaps.length===1){
+    s0=monthSnaps[0];
+    s1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:monthSnaps[0];
+  }else{
+    // No snapshots this month — use last available before month as s0, current as s1
+    const prevSnap=allSnaps.filter(function(s){return new Date(s.date)<monthStart;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);})[0]||null;
+    s0=prevSnap;
+    s1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:null;
+  }
   const navHtml=
     '<div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">'+
     '<svg height="38" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">'+
@@ -3882,7 +3897,7 @@ function rReporteMensual(inv){
     '<button class="ib" onclick="printReporte()">🖨 Imprimir</button>'+
     '</div>'+
     '</div>';
-  if(monthSnaps.length<2){
+  if(!s0||!s1){
     // No local snapshots — show current portfolio state (correct numbers, works for clients)
     const liq=totalLiq(inv),rend=totalRend(inv),tot=grand(inv);
     const rendPct=liq>0?(rend/Math.abs(liq-rend)*100).toFixed(1):'0.0';
@@ -3926,8 +3941,6 @@ function rReporteMensual(inv){
     }
     return '<div id="rpt-mensual">'+h+'</div>';
   }
-  const s0=monthSnaps[0];
-  const s1=monthSnaps[monthSnaps.length-1];
   const startPos={};
   (s0.positions||[]).forEach(function(p){startPos[p.ticker]=p;});
   const endPos={};
@@ -4001,7 +4014,7 @@ function rReporteMensual(inv){
   const beatMkt=spyPct!==null&&rvPct>spyPct;
   const allSnapsEvo=snapForInv(inv.id);
   let html='<div id="rpt-mensual">'+navHtml;
-  if(allSnapsEvo.length>=2){
+  if(allSnapsEvo.length>=2||(s0&&s1)){
     html+='<div class="card" style="margin-bottom:12px;">'+
       '<div class="ct" style="margin-bottom:6px;">Evolución patrimonial · <span style="color:var(--amber);">●</span> cobro Olas / RF</div>'+
       '<div style="height:180px;position:relative;margin-top:4px;"><canvas id="rpt-evo"></canvas></div>'+

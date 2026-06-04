@@ -3242,6 +3242,7 @@ function rAnalisis(inv,liq){
   const rm=calcRiskMetrics(inv.id); // used for preview chips in the risk portal card
 
   return `
+  <div style="display:flex;gap:6px;margin-bottom:12px;">${fPill('todos','Todos')}${hasRV?fPill('rv','Solo RV'):''}${hasRF?fPill('rf','Solo RF'):''}</div>
   <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>
@@ -3268,7 +3269,7 @@ function rAnalisis(inv,liq){
   </div>
   <div class="card">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:8px;">
-      <div style="display:flex;gap:5px;">${fPill('todos','Todos')}${hasRV?fPill('rv','Solo RV'):''}${hasRF?fPill('rf','Solo RF'):''}</div>
+      <div class="ct" style="margin-bottom:0;">${sorted.length} posiciones · tap para detalle</div>
       <div style="display:flex;gap:5px;">${sBtn('valor','Monto')}${sBtn('rend','Ganancia')}${sBtn('rendPct','%')}</div>
     </div>
     ${sorted.length?posRows:`<div class="empty" style="padding:20px 0;">Sin posiciones de este tipo.</div>`}

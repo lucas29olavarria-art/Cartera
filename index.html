@@ -3864,17 +3864,20 @@ function rReporteMensual(inv){
 
   // If fewer than 2 snapshots this month, build synthetic s0 from last available snapshot + current data as s1
   const isCurrent=mk===nowMk;
+  const syntheticS1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:null;
   let s0,s1;
   if(monthSnaps.length>=2){
-    s0=monthSnaps[0];s1=monthSnaps[monthSnaps.length-1];
+    s0=monthSnaps[0];
+    // For current month always compare against live portfolio so all positions appear
+    s1=isCurrent?syntheticS1:monthSnaps[monthSnaps.length-1];
   }else if(monthSnaps.length===1){
     s0=monthSnaps[0];
-    s1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:monthSnaps[0];
+    s1=isCurrent?syntheticS1:monthSnaps[0];
   }else{
     // No snapshots this month — use last available before month as s0, current as s1
     const prevSnap=allSnaps.filter(function(s){return new Date(s.date)<monthStart;}).sort(function(a,b){return new Date(b.date)-new Date(a.date);})[0]||null;
     s0=prevSnap;
-    s1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:null;
+    s1=syntheticS1;
   }
   const navHtml=
     '<div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">'+

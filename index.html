@@ -389,7 +389,6 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
-    <button class="tb" id="itb-riesgos" onclick="iTab('riesgos')">Riesgos</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -3221,6 +3220,12 @@ function rAnalisis(inv,liq){
         Necesitás al menos 3 snapshots para calcular métricas de riesgo.<br>
         <span style="font-size:10px;">Los snapshots se generan automáticamente al importar datos.</span>
       </div>`}
+    </div>
+    <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;">
+      <button onclick="event.stopPropagation();iTab('riesgos')" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='rgba(91,156,246,.3)';this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)';this.style.color='var(--muted)'">
+        <span>Beta · Concentración HHI · Análisis de riesgo completo</span>
+        <span style="font-size:13px;">→</span>
+      </button>
     </div>
   </div>
   `;}

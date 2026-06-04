@@ -1835,10 +1835,7 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
       </div>
       <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart"></canvas></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
-        ${[...(inv.rv||[]).map((p,i)=>({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_COLORS[i%ALLOC_COLORS.length]})),
-           ...(inv.rf||[]).map((p,i)=>({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_COLORS[((inv.rv||[]).length+i)%ALLOC_COLORS.length]})),
-           ...((inv.olasVal||0)>0?[{lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal,c:'#f28e2b'}]:[])
-          ].sort((a,b)=>b.v-a.v).map(x=>`
+        ${allocItems(inv).map(x=>`
           <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
             <div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div>
             <div style="flex:1;min-width:0;">
@@ -1865,10 +1862,7 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
 }
 
 async function buildClienteSimpleChart(inv){
-  const items=[];
-  (inv.rv||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-  (inv.rf||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[((inv.rv||[]).length+i)%ALLOC_COLORS.length]}));
-  if((inv.olasVal||0)>0)items.push({lb:'OLA',v:inv.olasVal,c:'#f28e2b'});
+  const items=allocItems(inv);
   if(items.length>0)mkPie('ov-activo-chart',items.map(x=>x.v),items.map(x=>x.c),items.map(x=>x.lb));
 
   const {data:snaps}=await sb.from('price_snapshots')
@@ -2108,13 +2102,10 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
 
   // ── DISTRIBUCIÓN POR ACTIVO ──────────────────────────────────
   {
-    const allItems=[];
-    (inv.rv||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-    (inv.rf||[]).forEach((p,i)=>allItems.push({lb:p.ticker,sub:p.nombre,v:p.valor,c:ALLOC_COLORS[((inv.rv||[]).length+i)%ALLOC_COLORS.length]}));
-    if((inv.olasVal||0)>0)allItems.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal,c:'#f28e2b'});
+    const allItems=allocItems(inv);
     const totAlloc=allItems.reduce((s,x)=>s+x.v,0);
     if(allItems.length>1&&totAlloc>0){
-      const sorted=[...allItems].sort((a,b)=>b.v-a.v);
+      const sorted=allItems; // already sorted by value
       const safeInvId=inv.id;
       html+=`
       <div class="card" style="margin-bottom:14px;">
@@ -3050,13 +3041,8 @@ function buildInvCharts(tab,inv,liq){
     if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
     if(segs.length) mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c));
     // Per-asset chart
-    const activoItems=[];
-    (inv.rv||[]).forEach((p,i)=>activoItems.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-    (inv.rf||[]).forEach((p,i)=>activoItems.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[((inv.rv||[]).length+i)%ALLOC_COLORS.length]}));
-    if(ol0>0)activoItems.push({lb:'OLA',v:ol0,c:'#f28e2b'});
-    if(activoItems.length>1){
-      mkPie('ov-activo-chart',activoItems.map(x=>x.v),activoItems.map(x=>x.c),activoItems.map(x=>x.lb));
-    }
+    const activoItems=allocItems(inv);
+    if(activoItems.length>1)mkPie('ov-activo-chart',activoItems.map(x=>x.v),activoItems.map(x=>x.c),activoItems.map(x=>x.lb));
   }
   else if(tab==='flujo'){
     const rfF=genRFFlows(inv);
@@ -3244,8 +3230,18 @@ function parseFecha(s){
 }
 
 // ── CHART UTILS ───────────────────────────────────────────────
-// Distinct palette for allocation charts (Tableau-inspired)
-const ALLOC_COLORS=['#4e79a7','#f28e2b','#e15759','#76b7b2','#59a14f','#edc948','#b07aa1','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0','#ff6b6b'];
+// Distinct palette — ordered so first colors are maximally contrasting
+const ALLOC_COLORS=['#4e79a7','#f28e2b','#e15759','#59a14f','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0','#ff6b6b'];
+
+// Returns items sorted by value desc, colors assigned by rank (biggest = most distinct)
+function allocItems(inv){
+  const raw=[];
+  (inv.rv||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
+  (inv.rf||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
+  if((inv.olasVal||0)>0)raw.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal});
+  raw.sort((a,b)=>b.v-a.v);
+  return raw.map((x,i)=>({...x,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
+}
 
 function mkPie(id,data,colors,labels){
   const el=document.getElementById(id);if(!el)return;
@@ -3721,13 +3717,9 @@ function downloadReportePDF(){
 function downloadAllocChart(invId){
   const inv=INV_CACHE[invId]||(CU&&!CU.is_admin?CU_DATA:null);
   if(!inv){showToast('Sin datos');return;}
-  const items=[];
-  (inv.rv||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-  (inv.rf||[]).forEach((p,i)=>items.push({lb:p.ticker,v:p.valor,c:ALLOC_COLORS[(inv.rv||[]).length+i%ALLOC_COLORS.length]}));
-  if((inv.olasVal||0)>0)items.push({lb:'OLA / Fideicomiso',v:inv.olasVal,c:'#f28e2b'});
+  const items=allocItems(inv); // sorted by value, colors by rank
   const tot=items.reduce((s,x)=>s+x.v,0);
   if(!tot)return;
-  items.sort((a,b)=>b.v-a.v);
 
   const W=1000,H=820;
   const off=document.createElement('canvas');

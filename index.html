@@ -2266,11 +2266,14 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   if(liq>0||inv.olasVal>0){
     // Include Olas in "tu dinero trabajando"
     const olasVal=inv.olasVal||0;
-    const olasCapital=(inv.olasFlows||[]).reduce((s,f)=>{
+    const olasCapitalRaw=(inv.olasFlows||[]).reduce((s,f)=>{
       if(f.capitalUsd)return s+(+f.capitalUsd);
       if(f.capitalArs&&f.tcInicio)return s+(+f.capitalArs/+f.tcInicio);
       return s;
     },0);
+    // If no TC data available, treat olasVal as pure capital (0 gain) to avoid inflating ganancia
+    const olasCapital=olasCapitalRaw>0?olasCapitalRaw:olasVal;
+    const olasGain=olasVal-olasCapital;
     const totalTrabajando=liq+olasVal;
     const totalRend2=rend+(olasVal-olasCapital);
     const capitalInv=totalTrabajando-totalRend2;

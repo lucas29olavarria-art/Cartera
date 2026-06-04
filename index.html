@@ -1,5 +1,5 @@
 <!-- SQL: alter table investors add column if not exists last_import_date date; alter table investors add column if not exists last_import_source text; -->
-<!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; -->
+<!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; alter table olas_flows add column if not exists capital_ars numeric; -->
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; -->
 <!DOCTYPE html>
 <html lang="es">
@@ -610,9 +610,9 @@ input[type=range]{flex:1;accent-color:var(--blue);}
         Cargá cada Ola con el monto invertido, fecha de inicio y TNA. El sistema calcula automáticamente los 12 pagos mensuales.
       </div>
       <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;background:var(--bg3);border-radius:var(--r);padding:10px 12px;">
-        <span style="font-size:12px;color:var(--soft);">TC MEP al inicio:</span>
-        <input id="imp-olas-tc" type="number" class="fi" style="width:100px;font-size:13px;font-weight:600;" placeholder="ej: 1415">
-        <span style="font-size:10px;color:var(--muted);">Se guarda automáticamente al importar · MEP actual: $<span id="imp-olas-tc-hint">—</span></span>
+        <span style="font-size:12px;color:var(--soft);font-weight:600;">TC MEP al inicio <span style="color:var(--red);">*</span></span>
+        <input id="imp-olas-tc" type="number" class="fi" style="width:110px;font-size:13px;font-weight:600;border-color:rgba(91,156,246,.4);" placeholder="ej: 1415" oninput="if(impParsedOlas.length)impParseOlas()">
+        <span style="font-size:10px;color:var(--muted);">Obligatorio · se guarda con 🔒 al importar · MEP actual: $<span id="imp-olas-tc-hint">—</span></span>
       </div>
       <div id="imp-olas-rows">
         <div class="imp-ola-row" style="display:grid;grid-template-columns:1fr 1fr 80px 60px;gap:8px;margin-bottom:8px;">
@@ -1093,7 +1093,7 @@ async function loadInvestor(id){
   }
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
-  inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null}));
+  inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null,capitalArs:fx.capital_ars||null}));
   autoConfirmarVencidos(inv);
   inv.gastos=[];
   inv.olasVal=inv.olas_val||0;
@@ -2442,17 +2442,17 @@ function olasSection(inv){
     const tcSection=tcInicio
       ?'<div style="display:flex;align-items:center;gap:14px;margin-bottom:12px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
         +'<div><div class="kl">Capital USD</div><div style="font-family:var(--mono);font-size:12px;">'+(capitalUsd?'u$s '+fmt(capitalUsd):'<span style="color:var(--muted);">—</span>')+'</div></div>'
-        +'<div><div class="kl" style="display:flex;align-items:center;gap:4px;">TC entrada 🔒</div><div style="font-family:var(--mono);font-size:12px;">$'+fmt(tcInicio)+'</div></div>'
+        +'<div><div class="kl">TC entrada 🔒</div><div style="font-family:var(--mono);font-size:12px;">$'+fmt(tcInicio)+'</div></div>'
         +'<div><div class="kl">MEP hoy</div><div style="font-family:var(--mono);font-size:12px;">$<span class="live-mep-val">'+fmt(MEP)+'</span></div></div>'
         +(devStr?'<div><div class="kl">Devaluación</div><div style="font-family:var(--mono);font-size:12px;color:var(--red);">'+devStr+'</div></div>':'')
-        +(capitalUsd?'':'<div style="flex:1;"><button class="ib" style="font-size:10px;padding:2px 7px;" onclick="setCapitalUsd(\''+projSafe+'\',\''+invId+'\')">Ingresar capital →</button></div>')
         +'</div>'
-      :'<div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;flex-wrap:wrap;padding:8px 10px;background:var(--bg4);border-radius:var(--r);">'
-        +'<span style="font-size:10px;color:var(--muted);white-space:nowrap;">TC entrada:</span>'
-        +'<input id="tci-'+invId+'-'+projKey+'" type="number" class="ifield" style="width:82px;padding:3px 7px;font-size:11px;" placeholder="TC (ej: 1200)">'
-        +'<span style="font-size:10px;color:var(--muted);white-space:nowrap;">Capital USD:</span>'
-        +'<input id="tci-cap-'+invId+'-'+projKey+'" type="number" class="ifield" style="width:82px;padding:3px 7px;font-size:11px;" placeholder="ej: 5000">'
-        +'<button class="ib pri" style="font-size:10px;padding:3px 8px;" onclick="guardarTcInicioInline(\''+projSafe+'\',\''+invId+'\',\''+projKey+'\')">Guardar</button>'
+      :'<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.3);border-radius:var(--r);padding:10px 12px;margin-bottom:12px;">'
+        +'<div style="font-size:11px;color:var(--amber);font-weight:600;margin-bottom:8px;">⚠ Falta el TC de entrada</div>'
+        +'<div style="font-size:10px;color:var(--muted);margin-bottom:8px;">Ingresalo para calcular el rendimiento en USD correctamente. Una vez guardado no podrá modificarse.</div>'
+        +'<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">'
+          +'<input id="tci-'+invId+'-'+projKey+'" type="number" class="ifield" style="width:100px;padding:4px 8px;font-size:12px;font-weight:600;" placeholder="TC (ej: 1200)">'
+          +'<button class="ib pri" style="font-size:10px;padding:4px 10px;" onclick="guardarTcInicioInline(\''+projSafe+'\',\''+invId+'\',\''+projKey+'\')">Guardar 🔒</button>'
+        +'</div>'
         +'</div>';
 
     // Status block
@@ -2559,108 +2559,28 @@ async function confirmarCobro(flowId,invId){
   setTimeout(()=>{const m=document.getElementById('olas-report-modal');if(!m)return;const p=m.dataset.proj,i=m.dataset.invId;if(p&&i)olasReport(p,i);},100);
 }
 
-function setTcInicio(proj,invId){
-  const inv=INV_CACHE[invId]||CU_DATA;
-  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
-  const curTc=pFlows[0]?.tcInicio||'';
-  const curCap=pFlows[0]?.capitalUsd||'';
-  document.getElementById('tcinicio-modal')?.remove();
-  const overlay=document.createElement('div');
-  overlay.id='tcinicio-modal';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;';
-  overlay.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);padding:24px;width:360px;max-width:100%;animation:up .22s ease;">
-    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Datos de inicio</div>
-    <div style="font-size:14px;font-weight:600;margin-bottom:16px;">${proj}</div>
-    <div style="margin-bottom:12px;">
-      <label class="kl" for="tci-tc">TC MEP al inicio de la Ola</label>
-      <input id="tci-tc" type="number" class="ifield" style="margin-top:4px;" placeholder="ej: 1200" value="${curTc}">
-    </div>
-    <div style="margin-bottom:20px;">
-      <label class="kl" for="tci-cap">Capital invertido USD (este proyecto)</label>
-      <input id="tci-cap" type="number" class="ifield" style="margin-top:4px;" placeholder="ej: 5000" value="${curCap}">
-    </div>
-    <div style="display:flex;gap:8px;">
-      <button class="ib pri" onclick="confirmarTcInicio('${proj.replace(/'/g,"\\'")}','${invId}')">Guardar</button>
-      <button class="ib" onclick="document.getElementById('tcinicio-modal').remove()">Cancelar</button>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
-}
-
-async function confirmarTcInicio(proj,invId){
-  const tc=parseFloat(document.getElementById('tci-tc').value)||0;
-  const cap=parseFloat(document.getElementById('tci-cap').value)||0;
-  if(!tc)return showToast('Ingresá el TC de inicio');
-  const inv=INV_CACHE[invId]||CU_DATA;
-  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
-  for(const fl of pFlows){
-    const upd={tc_inicio:tc};
-    if(cap>0)upd.capital_usd=cap;
-    await sb.from('olas_flows').update(upd).eq('id',fl.id);
-    fl.tcInicio=tc;
-    if(cap>0)fl.capitalUsd=cap;
-  }
-  document.getElementById('tcinicio-modal')?.remove();
-  showToast('✓ Datos de inicio guardados');
-  renderInv(inv);
-}
-
-
 async function guardarTcInicioInline(proj,invId,projKey){
   const tcEl=document.getElementById('tci-'+invId+'-'+projKey);
-  const capEl=document.getElementById('tci-cap-'+invId+'-'+projKey);
   if(!tcEl)return showToast('No se encontró el campo TC');
   const tc=parseFloat(tcEl.value)||0;
-  const cap=parseFloat(capEl?.value)||0;
   if(!tc||tc<100)return showToast('Ingresá un TC válido (ej: 1200)');
   const inv=INV_CACHE[invId]||CU_DATA;
   const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
-  // Never overwrite existing tc_inicio
   if(pFlows[0]?.tcInicio)return showToast('TC de entrada ya registrado para esta Ola');
+  // Auto-calc capital_usd from stored capital_ars / tc
+  const capitalArs=pFlows[0]?.capitalArs||null;
+  const capUsd=capitalArs&&tc>0?Math.round(capitalArs/tc):null;
   const upd={tc_inicio:tc};
-  if(cap>0)upd.capital_usd=cap;
+  if(capUsd)upd.capital_usd=capUsd;
   const ids=pFlows.map(f=>f.id);
   const{error}=await sb.from('olas_flows').update(upd).in('id',ids);
   if(!error){
-    pFlows.forEach(fl=>{fl.tcInicio=tc;if(cap>0)fl.capitalUsd=cap;});
-    showToast('✓ TC guardado: $'+fmt(tc)+(cap>0?' · capital u$s '+fmt(cap):''));
+    pFlows.forEach(fl=>{fl.tcInicio=tc;if(capUsd)fl.capitalUsd=capUsd;});
+    showToast('✓ TC guardado: $'+fmt(tc)+(capUsd?' · capital u$s '+fmt(capUsd):' (reimportá para calcular capital USD)'));
     renderInv(inv);
   }else showToast('Error guardando TC: '+error.message);
 }
 
-function setCapitalUsd(proj,invId){
-  const inv=INV_CACHE[invId]||CU_DATA;
-  document.getElementById('capusd-modal')?.remove();
-  const overlay=document.createElement('div');
-  overlay.id='capusd-modal';
-  overlay.style.cssText='position:fixed;inset:0;background:rgba(0,0,0,.82);z-index:600;display:flex;align-items:center;justify-content:center;padding:16px;';
-  overlay.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3);padding:24px;width:340px;max-width:100%;animation:up .22s ease;">
-    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;">Capital invertido</div>
-    <div style="font-size:14px;font-weight:600;margin-bottom:14px;">${proj}</div>
-    <label class="kl" for="capusd-val">Capital USD invertido en esta Ola</label>
-    <input id="capusd-val" type="number" class="ifield" style="margin-top:4px;" placeholder="ej: 5000">
-    <div style="display:flex;gap:8px;margin-top:16px;">
-      <button class="ib pri" onclick="confirmarCapitalUsd('${proj.replace(/'/g,"\\'")}','${invId}')">Guardar</button>
-      <button class="ib" onclick="document.getElementById('capusd-modal').remove()">Cancelar</button>
-    </div>
-  </div>`;
-  document.body.appendChild(overlay);
-}
-
-async function confirmarCapitalUsd(proj,invId){
-  const cap=parseFloat(document.getElementById('capusd-val')?.value)||0;
-  if(!cap||cap<1)return showToast('Ingresá un capital válido');
-  const inv=INV_CACHE[invId]||CU_DATA;
-  const pFlows=(inv?.olasFlows||[]).filter(f=>(f.desc||f.descripcion||'').split('·')[0].trim()===proj);
-  const ids=pFlows.map(f=>f.id);
-  const{error}=await sb.from('olas_flows').update({capital_usd:cap}).in('id',ids);
-  if(!error){
-    pFlows.forEach(fl=>{fl.capitalUsd=cap;});
-    document.getElementById('capusd-modal')?.remove();
-    showToast('✓ Capital guardado: u$s '+fmt(cap));
-    renderInv(inv);
-  }else showToast('Error guardando capital: '+error.message);
-}
 
 function olasReport(proj,invId){
   const inv=INV_CACHE[invId]||CU_DATA;
@@ -4772,6 +4692,12 @@ function impParseOlas(){
   impParsedOlas=olas;
   const el=document.getElementById('imp-olas-preview');
   if(!olas.length){el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">Completá al menos una Ola con todos los datos.</div>';return;}
+  const tcVal=parseFloat(document.getElementById('imp-olas-tc')?.value)||0;
+  if(!tcVal||tcVal<100){
+    el.innerHTML='<div style="background:rgba(240,108,108,.1);border:1px solid rgba(240,108,108,.3);border-radius:var(--r);padding:10px 12px;font-size:12px;color:var(--red);margin-bottom:8px;">⚠ Ingresá el TC MEP de entrada para continuar. Es obligatorio y no se podrá modificar después.</div>';
+    document.getElementById('imp-confirm-btn').style.display='none';
+    return;
+  }
 
   el.innerHTML=`
   <div style="background:rgba(245,166,35,.06);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--amber);">
@@ -4876,13 +4802,15 @@ async function impConfirm(){
       const allFlows=impParsedOlas.flatMap(o=>{
         const tc=existingTcMap[o.proyecto]||tcOlas;
         const capUsd=existingCapMap[o.proyecto]||Math.round(o.monto/tcOlas);
+        const capitalArs=o.monto||null;
         return o.flows.map(f=>({
           investor_id:invId,
           fecha:f.fecha,
           descripcion:f.descripcion,
           monto_ars:f.monto_ars,
           tc_inicio:tc,
-          capital_usd:capUsd
+          capital_usd:capUsd,
+          capital_ars:capitalArs
         }));
       });
       if(allFlows.length){

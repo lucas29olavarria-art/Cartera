@@ -3928,8 +3928,41 @@ function rReporteMensual(inv){
       }).join('');
       h+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:10px;">Cobros del mes</div><div class="tw"><table><thead><tr><th>Fecha</th><th>Instrumento</th><th style="text-align:right">Monto</th></tr></thead><tbody>'+cr+'</tbody></table></div></div>';
     }
-    if(allPos.length){
-      const rows=allPos.map(function(p){
+    const rvDeltas=(inv.rv||[]).map(function(p){
+      const d=p.rend||0;
+      const pct=p.vinicial>0?(d/p.vinicial*100):0;
+      return{ticker:p.ticker,nombre:p.nombre||p.ticker,v0:p.vinicial||0,v1:p.valor||0,delta:d,pct:pct};
+    }).sort(function(a,b){return b.delta-a.delta;});
+    const rvGainers=rvDeltas.filter(function(t){return t.delta>=0;});
+    const rvLosers=rvDeltas.filter(function(t){return t.delta<0;}).reverse();
+    const maxAbsRv=Math.max.apply(null,rvDeltas.map(function(x){return Math.abs(x.delta);}).concat([1]));
+    function tkRowSimple(t){
+      const bw=Math.round(Math.abs(t.delta)/maxAbsRv*100);
+      const c=t.delta>=0?'var(--green)':'var(--red)';
+      const sg=t.delta>=0?'+':'−';
+      return '<div style="margin-bottom:10px;">'+
+        '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px;">'+
+        '<span style="font-size:12px;font-weight:500;">'+t.ticker+'</span>'+
+        '<div style="display:flex;gap:12px;">'+
+        '<span style="font-family:var(--mono);font-size:11px;color:'+c+';">'+sg+' u$s '+fmt(Math.abs(t.delta))+'</span>'+
+        '<span style="font-family:var(--mono);font-size:11px;color:'+c+';min-width:46px;text-align:right;">'+(t.pct>=0?'+':'')+t.pct.toFixed(1)+'%</span>'+
+        '</div></div>'+
+        '<div style="height:4px;background:rgba(255,255,255,.08);border-radius:2px;">'+
+        '<div style="height:100%;width:'+bw+'%;background:'+c+';border-radius:2px;"></div>'+
+        '</div></div>';
+    }
+    if(rvGainers.length){
+      h+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Ganadores</div>';
+      rvGainers.forEach(function(t){h+=tkRowSimple(t);});
+      h+='</div>';
+    }
+    if(rvLosers.length){
+      h+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Perdedores</div>';
+      rvLosers.forEach(function(t){h+=tkRowSimple(t);});
+      h+='</div>';
+    }
+    if(inv.rf&&inv.rf.length){
+      const rfRows=inv.rf.sort(function(a,b){return b.valor-a.valor;}).map(function(p){
         return '<div class="rpt-row">'+
           '<span class="rpt-ticker">'+p.ticker+'</span>'+
           '<span style="flex:1;padding:0 10px;font-size:11px;color:var(--soft);">'+(p.nombre||'')+'</span>'+
@@ -3937,7 +3970,7 @@ function rReporteMensual(inv){
           '<span style="font-family:var(--mono);font-size:11px;min-width:65px;text-align:right;color:'+((p.rend||0)>=0?'var(--green)':'var(--red)')+';">'+(p.rend>=0?'+':'−')+' u$s '+fmt(Math.abs(p.rend||0))+'</span>'+
           '</div>';
       }).join('');
-      h+='<div class="card"><div class="ct" style="margin-bottom:10px;">Posiciones</div>'+rows+'</div>';
+      h+='<div class="card"><div class="ct" style="margin-bottom:10px;">Renta Fija</div>'+rfRows+'</div>';
     }
     return '<div id="rpt-mensual">'+h+'</div>';
   }

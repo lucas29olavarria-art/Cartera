@@ -3095,12 +3095,17 @@ function rAnalisis(inv,liq){
   const totalValor=all.reduce((s,p)=>s+p.valor,0);
   const totalRend2=all.reduce((s,p)=>s+p.rend,0);
   const totalVinicial=all.reduce((s,p)=>s+p.vinicial,0);
-  const totalRendPct=totalVinicial>0?((totalRend2/totalVinicial)*100).toFixed(1):'—';
+  const olasVal=inv.olasVal||0;
+  const patrimonioTotal=totalValor+olasVal;
+  const invertidoTotal=totalVinicial+olasVal;
+  const totalRendPct=invertidoTotal>0?((totalRend2/invertidoTotal)*100).toFixed(1):'—';
 
   const sorted=[...all].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
     const v=sortCol==='rendPct'?[a.rendPct,b.rendPct]:[a[sortCol]||0,b[sortCol]||0];
     return sortAsc?v[0]-v[1]:v[1]-v[0];
   });
+
+  const maxAllocPct=sorted.reduce((mx,p)=>Math.max(mx,totalValor>0?p.valor/totalValor*100:0),0)||1;
 
   const posRows=sorted.map(p=>{
     const qty=p.qty||1;
@@ -3129,7 +3134,7 @@ function rAnalisis(inv,liq){
         </div>
         <div style="min-width:50px;">
           <div style="background:rgba(255,255,255,.06);border-radius:2px;height:2px;margin-bottom:3px;overflow:hidden;">
-            <div style="width:${Math.min(allocPct*3.5,100)}%;height:100%;background:${c.cl};border-radius:2px;"></div>
+            <div style="width:${(allocPct/maxAllocPct*100).toFixed(0)}%;height:100%;background:${c.cl};border-radius:2px;"></div>
           </div>
           <div style="font-family:var(--mono);font-size:9px;color:var(--muted);text-align:right;">${allocPct.toFixed(0)}%</div>
         </div>
@@ -3157,14 +3162,16 @@ function rAnalisis(inv,liq){
   <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>
-      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(totalVinicial)}</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(invertidoTotal)}</div>
+      ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
-      <div class="kl">Valor hoy</div>
-      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(totalValor)}</div>
+      <div class="kl">Patrimonio total</div>
+      <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(patrimonioTotal)}</div>
+      ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid rgba(${totalRend2>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
-      <div class="kl">Ganancia total</div>
+      <div class="kl">Ganancia RV+RF</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:2px;">${totalRend2>=0?'+':''}u$s ${fmt(Math.abs(totalRend2))}</div>
       <div style="font-family:var(--mono);font-size:10px;color:${totalRend2>=0?'#2dd4a0':'#f06c6c'};margin-top:1px;">${totalRend2>=0?'+':''}${totalRendPct}%</div>
     </div>
@@ -3188,46 +3195,40 @@ function rAnalisis(inv,liq){
   </div>
   ${CU.is_admin?`<div class="card" style="margin-top:14px;"><div class="ct">Alertas</div>${buildAlerts(all,liq)}</div>`:''}
   ${inv.olasFlows&&inv.olasFlows.length>0?olasSection(inv):''}
-  <div class="card" style="margin-top:14px;cursor:pointer;" onclick="(function(){const p=document.getElementById('risk-panel');const a=document.getElementById('risk-arrow');if(!p)return;const op=p.style.display!=='none';p.style.display=op?'none':'block';a.textContent=op?'▼':'▲';})()">
-    <div style="display:flex;align-items:center;justify-content:space-between;">
+  ${rm?`<div class="card" style="margin-top:14px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;">
       <div class="ct" style="margin:0;">⚡ Métricas de riesgo</div>
-      <span id="risk-arrow" style="font-size:11px;color:var(--muted);pointer-events:none;">▼</span>
+      <span style="font-family:var(--mono);font-size:9px;color:var(--muted);">${rm.n} snapshots</span>
     </div>
-    <div id="risk-panel" style="display:none;" onclick="event.stopPropagation()">
-      ${rm ? `
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-top:16px;">
-        <div class="kpi">
-          <div class="kl">Volatilidad</div>
-          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--amber);">${rm.vol}%</div>
-          <div class="ks">mensual</div>
-        </div>
-        <div class="kpi">
-          <div class="kl">Max Drawdown</div>
-          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--red);">${rm.maxDD}%</div>
-          <div class="ks">caída máx. histórica</div>
-        </div>
-        <div class="kpi">
-          <div class="kl">Sharpe ratio</div>
-          <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--blue);">${rm.sharpe}</div>
-          <div class="ks">retorno / riesgo anual</div>
-        </div>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;">
+      <div class="kpi">
+        <div class="kl">Volatilidad</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--amber);">${rm.vol}%</div>
+        <div class="ks">mensual</div>
       </div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);padding:10px 0 2px;border-top:1px solid var(--line);margin-top:12px;line-height:1.7;">
-        Calculado sobre <strong style="color:var(--soft);">${rm.n} snapshots</strong> · Mayor precisión con más datos históricos.<br>
-        Volatilidad = desvío estándar de retornos entre importaciones. Sharpe anualizado (rf=0).
-      </div>` :
-      `<div style="font-size:12px;color:var(--muted);padding:14px 0 4px;">
-        Necesitás al menos 3 snapshots para calcular métricas de riesgo.<br>
-        <span style="font-size:10px;">Los snapshots se generan automáticamente al importar datos.</span>
-      </div>`}
+      <div class="kpi">
+        <div class="kl">Max Drawdown</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--red);">${rm.maxDD}%</div>
+        <div class="ks">caída máx.</div>
+      </div>
+      <div class="kpi">
+        <div class="kl">Sharpe</div>
+        <div style="font-family:var(--mono);font-size:20px;font-weight:600;color:var(--blue);">${rm.sharpe}</div>
+        <div class="ks">retorno/riesgo anual</div>
+      </div>
     </div>
     <div style="border-top:1px solid var(--line);margin-top:14px;padding-top:12px;">
-      <button onclick="event.stopPropagation();iTab('riesgos')" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='rgba(91,156,246,.3)';this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)';this.style.color='var(--muted)'">
+      <button onclick="iTab('riesgos')" style="width:100%;background:transparent;border:1px solid rgba(255,255,255,.08);border-radius:10px;padding:10px 14px;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:border-color .15s,color .15s;" onmouseover="this.style.borderColor='rgba(91,156,246,.3)';this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.borderColor='rgba(255,255,255,.08)';this.style.color='var(--muted)'">
         <span>Beta · Concentración HHI · Análisis de riesgo completo</span>
         <span style="font-size:13px;">→</span>
       </button>
     </div>
-  </div>
+  </div>`:`<div class="card" style="margin-top:14px;">
+    <button onclick="iTab('riesgos')" style="width:100%;background:transparent;border:none;padding:0;color:var(--muted);font-size:11px;cursor:pointer;text-align:left;font-family:var(--font);display:flex;align-items:center;justify-content:space-between;transition:color .15s;" onmouseover="this.style.color='rgba(91,156,246,.9)'" onmouseout="this.style.color='var(--muted)'">
+      <span>Beta · Concentración HHI · Análisis de riesgo completo</span>
+      <span style="font-size:13px;">→</span>
+    </button>
+  </div>`}
   `;}
 function buildAlerts(pos,liq){
   const a=[];

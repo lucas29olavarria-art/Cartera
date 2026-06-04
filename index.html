@@ -5,6 +5,8 @@
 <!-- SQL: create table if not exists movimientos (id uuid default gen_random_uuid() primary key, cartera_id uuid references carteras_destacadas(id) on delete cascade, fecha date not null, ticker text not null, accion text not null, cantidad numeric, notas text, created_at timestamptz default now()); create index if not exists movimientos_cartera_fecha on movimientos(cartera_id, fecha desc); -->
 <!-- SQL: create table if not exists carteras_destacadas (id uuid default gen_random_uuid() primary key, nombre text not null, subtitulo text, tipo text default 'personal', descripcion text, foto_b64 text, posiciones jsonb default '[]'::jsonb, investor_id uuid references investors(id), orden int default 0, activa boolean default true, created_at timestamptz default now()); -->
 <!-- SQL: alter table carteras_destacadas add column if not exists investor_id uuid references investors(id); -->
+<!-- SQL: alter table carteras_destacadas add column if not exists cik text; alter table carteras_destacadas add column if not exists last_synced timestamptz; -->
+<!-- SQL: insert into carteras_destacadas (nombre, subtitulo, tipo, descripcion, cik, orden) values ('Warren Buffett', 'Berkshire Hathaway', 'famoso', 'El mayor inversor de todos los tiempos. Estrategia de valor a largo plazo en empresas con ventajas competitivas duraderas.', '1067983', 1), ('Bill Ackman', 'Pershing Square Capital', 'famoso', 'Inversor activista. Portafolio concentrado en pocas posiciones de alta convicción.', '1336528', 2), ('Michael Burry', 'Scion Asset Management', 'famoso', 'Conocido por predecir la crisis de 2008. Estrategia contrarian y value profundo.', '1649339', 3) on conflict do nothing; -->
 <!DOCTYPE html>
 <html lang="es">
 <head>
@@ -3782,6 +3784,111 @@ async function loadCarteras(){
   CARTERAS_LOADED=true;
 }
 
+// ── SEC EDGAR 13F AUTO-SYNC ───────────────────────────────────
+const SEC_UA={'User-Agent':'LO Capital info@locapital.com.ar'};
+let SEC_NAME_MAP=null; // normalized company name → ticker
+
+async function ensureSecNameMap(){
+  if(SEC_NAME_MAP)return;
+  try{
+    const r=await fetch('https://www.sec.gov/files/company_tickers_exchange.json',{headers:SEC_UA});
+    const raw=await r.json();
+    SEC_NAME_MAP={};
+    Object.values(raw).forEach(row=>{
+      const title=(row.title||'').toUpperCase().replace(/[,.]/g,'').trim();
+      if(title&&row.ticker)SEC_NAME_MAP[title]=row.ticker;
+    });
+  }catch(e){SEC_NAME_MAP={};}
+}
+
+function secNameToTicker(name){
+  if(!SEC_NAME_MAP)return name.split(' ')[0];
+  const key=name.toUpperCase().replace(/[,.]/g,'').trim();
+  if(SEC_NAME_MAP[key])return SEC_NAME_MAP[key];
+  // Strip common suffixes and retry
+  const stripped=key.replace(/\s+(INC|CORP|CO|LTD|LLC|PLC|GROUP|HOLDINGS?|CLASS [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ADR)(\s.*)?$/,'').trim();
+  if(SEC_NAME_MAP[stripped])return SEC_NAME_MAP[stripped];
+  // First-word match
+  const first=stripped.split(' ')[0];
+  const match=Object.entries(SEC_NAME_MAP).find(([k])=>k===first||k.startsWith(first+' '));
+  return match?match[1]:name.split(' ').slice(0,2).join('');
+}
+
+async function syncCarteraFromSec(cartId){
+  const cart=CARTERAS_CACHE.find(c=>c.id===cartId);
+  if(!cart?.cik){toast('Esta cartera no tiene CIK de SEC');return;}
+  toast('Sincronizando con SEC EDGAR…');
+  try{
+    const paddedCik=String(+cart.cik).padStart(10,'0');
+    const cikNum=String(+cart.cik);
+
+    // Step 1 — get submissions to find latest 13F-HR
+    const r1=await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`,{headers:SEC_UA});
+    if(!r1.ok)throw new Error('SEC submissions: '+r1.status);
+    const subs=await r1.json();
+
+    const recent=subs.filings.recent;
+    const i13=recent.form.findIndex(f=>f==='13F-HR');
+    if(i13<0)throw new Error('No 13F-HR encontrado');
+
+    const acc=recent.accessionNumber[i13]; // "0001067983-24-000007"
+    const accND=acc.replace(/-/g,'');
+    const filingDate=recent.filingDate[i13];
+
+    // Step 2 — get filing index to find the holdings XML file
+    let xmlFile=null;
+    try{
+      const r2=await fetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`,{headers:SEC_UA});
+      if(r2.ok){
+        const idx=await r2.json();
+        const files=idx.directory?.item||[];
+        xmlFile=files.find(f=>f.name.toLowerCase().endsWith('.xml')&&/info|table|hold/i.test(f.name)&&!/index/i.test(f.name))
+                ||files.find(f=>f.name.toLowerCase().endsWith('.xml')&&!/index/i.test(f.name));
+      }
+    }catch(e){}
+    const xmlName=xmlFile?.name||'informationtable.xml';
+
+    // Step 3 — fetch and parse the holdings XML
+    const r3=await fetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`,{headers:SEC_UA});
+    if(!r3.ok)throw new Error('Holdings XML no accesible (posible CORS)');
+    const xmlTxt=await r3.text();
+
+    const parser=new DOMParser();
+    const xdoc=parser.parseFromString(xmlTxt,'text/xml');
+    const raw=[];
+    xdoc.querySelectorAll('infoTable').forEach(row=>{
+      const name=(row.querySelector('nameOfIssuer')?.textContent||'').trim();
+      const valueK=+(row.querySelector('value')?.textContent||0);
+      if(name&&valueK>0)raw.push({name,value:valueK*1000});
+    });
+    if(!raw.length)throw new Error('0 posiciones en el XML — revisar formato');
+
+    raw.sort((a,b)=>b.value-a.value);
+    const total=raw.reduce((s,h)=>s+h.value,0);
+
+    // Step 4 — map company names to tickers
+    await ensureSecNameMap();
+    const top=raw.slice(0,30);
+    const posiciones=top.map(h=>{
+      const ticker=secNameToTicker(h.name);
+      const sector=(TICKER_MAP[ticker]||{}).sector||'';
+      return{ticker,nombre:h.name,sector,pct:total>0?+(h.value/total*100).toFixed(2):0,rend_pct:0,notas:''};
+    });
+
+    // Step 5 — save to DB
+    const{error}=await sb.from('carteras_destacadas').update({posiciones,last_synced:new Date().toISOString()}).eq('id',cartId);
+    if(error)throw new Error(error.message);
+    const ci=CARTERAS_CACHE.findIndex(c=>c.id===cartId);
+    if(ci>=0)CARTERAS_CACHE[ci]={...CARTERAS_CACHE[ci],posiciones,last_synced:new Date().toISOString()};
+
+    toast('✓ '+posiciones.length+' posiciones · filing '+filingDate);
+    kc();rMiCartera();
+  }catch(e){
+    toast('Error SEC: '+e.message);
+    console.error('SEC sync error',e);
+  }
+}
+
 async function loadMcMovimientos(cartId){
   const{data}=await sb.from('movimientos').select('*').eq('cartera_id',cartId).order('fecha',{ascending:false});
   MC_MOVIMIENTOS=data||[];
@@ -3885,10 +3992,23 @@ function rCarteraDetail(cart){
     ?`<img src="${cart.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
     :`<span style="font-family:var(--mono);font-size:22px;font-weight:700;color:#fff;">${(cart.nombre||'?')[0].toUpperCase()}</span>`;
 
+  // Auto-sync if cik present and no positions yet
+  if(cart.cik&&!cart.investor_id&&(!segs.length)){
+    sc(`<div style="padding:40px;text-align:center;">
+      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Sin datos. Sincronizando con SEC EDGAR…</div>
+      <button class="ib" onclick="syncCarteraFromSec('${cart.id}')">↻ Sincronizar ahora</button>
+    </div>`);
+    syncCarteraFromSec(cart.id);
+    return;
+  }
+
   let html='';
-  // Back button
-  html+=`<div style="margin-bottom:18px;">
+  // Back + SEC sync button
+  const secBtn=cart.cik?`<button class="ib" style="font-size:10px;" onclick="syncCarteraFromSec('${cart.id}')">↻ SEC</button>`:'';
+  const lastSync=cart.last_synced?`<span style="font-family:var(--mono);font-size:9px;color:var(--muted);">13F: ${new Date(cart.last_synced).toLocaleDateString('es-AR')}</span>`:'';
+  html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
     <button class="ib" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
+    ${secBtn}${lastSync}
   </div>`;
 
   // Header card
@@ -3903,7 +4023,7 @@ function rCarteraDetail(cart){
   </div>`;
 
   // Disclaimer
-  html+=`<div style="background:rgba(245,166,35,.05);border:1px solid rgba(245,166,35,.18);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(245,166,35,.8);margin-bottom:14px;">⚠ Esta cartera se muestra con fines informativos y no constituye recomendación de inversión personalizada.</div>`;
+  html+=`<div style="background:rgba(245,166,35,.05);border:1px solid rgba(245,166,35,.18);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(245,166,35,.8);margin-bottom:14px;">⚠ Datos del último 13F (SEC). Esta cartera se muestra con fines informativos y no constituye recomendación de inversión personalizada.</div>`;
 
   // Donut + legend
   if(segs.length>0){
@@ -4025,6 +4145,9 @@ function openNuevaCartera(editId){
     <div class="fr"><label class="fl">Descripción</label><textarea class="fi" id="ct-desc" rows="3" placeholder="Estrategia, tesis de inversión, perfil de riesgo…" style="resize:vertical;">${cart?cart.descripcion||'':''}</textarea></div>
     <div class="fr"><label class="fl">Foto</label><input class="fi" type="file" id="ct-foto" accept="image/*" onchange="previewCartaFoto(this)"></div>
     <div id="ct-foto-preview" style="margin:4px 0 8px 120px;">${cart&&cart.foto_b64?`<img src="${cart.foto_b64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`:''}</div>
+    <div class="fr"><label class="fl">CIK (SEC)</label><input class="fi" id="ct-cik" placeholder="ej: 1067983 (Buffett)" value="${cart?cart.cik||'':''}">
+    </div>
+    <div style="margin:-6px 0 10px 120px;font-size:10px;color:var(--muted);">Si tiene CIK, las posiciones se sincronizan automáticamente desde SEC EDGAR (13F).</div>
     <div class="fr"><label class="fl" style="line-height:1.3;">Vincular a<br>inversor</label>
       <select class="fi" id="ct-inv" onchange="document.getElementById('ct-pos-wrap').style.display=this.value?'none':'flex'">
         <option value="">— Manual (JSON) —</option>
@@ -4035,7 +4158,7 @@ function openNuevaCartera(editId){
       <label class="fl" style="padding-top:8px;">Posiciones (JSON)</label>
       <textarea class="fi" id="ct-pos" rows="6" style="font-family:var(--mono);font-size:11px;resize:vertical;">${pos}</textarea>
     </div>
-    <div style="margin:0 0 10px 120px;font-size:11px;color:var(--muted);">Si vinculás a un inversor, las posiciones se leen en vivo de su cuenta (sin montos).</div>
+    <div style="margin:0 0 10px 120px;font-size:11px;color:var(--muted);">Si vinculás a un inversor de la app, las posiciones se leen en vivo de su cuenta (sin montos).</div>
     <div class="fb">
       <button class="cancel" onclick="this.closest('.ov').remove()">Cancelar</button>
       <button class="confirm" onclick="guardarCartera(${editId?`'${editId}'`:'null'})">Guardar</button>
@@ -4066,13 +4189,14 @@ async function guardarCartera(editId){
   const fotoInput=document.getElementById('ct-foto');
   const foto_b64=fotoInput.dataset.b64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
   const investor_id=document.getElementById('ct-inv').value||null;
+  const cik=document.getElementById('ct-cik').value.trim()||null;
   let posiciones=[];
   if(!investor_id){
     try{posiciones=JSON.parse(document.getElementById('ct-pos').value);}
     catch(e){toast('JSON de posiciones inválido');return;}
   }
   if(!nombre){toast('Completá el nombre');return;}
-  const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,investor_id,activa:true};
+  const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,investor_id,cik,activa:true};
   let err;
   if(editId){
     ({error:err}=await sb.from('carteras_destacadas').update(row).eq('id',editId));

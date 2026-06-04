@@ -1912,8 +1912,6 @@ let inv_ref=null;
 // ── VISTA CLIENTE SIMPLIFICADA ────────────────────────────────
 function rClienteSimple(inv,liq,rend,tot,rendPct){
   const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
-  const rendDia=(inv.rv||[]).reduce((s,p)=>{if(p.price_change==null||!p.qty||!p.lastPrice)return s;return s+p.qty*p.lastPrice*(p.price_change/100);},0);
-  const rendDiaPct=liq>0?(rendDia/liq*100).toFixed(2):'0.00';
   const advisorMsg=inv.advisor_msg||'';
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):null;
   const staleInfo=staleDays!==null?(staleDays===0?'Hoy':staleDays===1?'Ayer':'Hace '+staleDays+' días'):'';
@@ -1946,9 +1944,9 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
           <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
         </div>
         <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
-          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Hoy</div>
-          <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rendDia>=0?'#2dd4a0':'#f06c6c'};">${rendDia>=0?'+':''}${rendDiaPct}%</div>
-          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rendDia>=0?'+':''}u$s ${fmt(Math.abs(rendDia))}</div>
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Ganancia</div>
+          <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">sobre capital invertido</div>
         </div>
       </div>
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
@@ -2148,7 +2146,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):0;
   const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
 
-  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\nVariación hoy: '+(rendDia>=0?'+':'')+rendDiaPct+'%\n\nSaludos,\nLucas Olavarria · LO Capital · Mat. CNV 2062';
+  const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%\n\nSaludos,\nLucas Olavarria · LO Capital · Mat. CNV 2062';
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
 
   let html='';
@@ -2175,10 +2173,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      ${rendDia!==0?`<div style="display:inline-flex;align-items:center;gap:6px;background:rgba(255,255,255,.05);border-radius:20px;padding:5px 12px;">
-        <span style="width:5px;height:5px;border-radius:50%;background:${rendDia>=0?'#2dd4a0':'#f06c6c'};display:inline-block;flex-shrink:0;"></span>
-        <span style="font-family:var(--mono);font-size:10px;color:${rendDia>=0?'#2dd4a0':'#f06c6c'};">${rendDia>=0?'+':''}${rendDiaPct}% hoy</span>
-      </div>`:''}
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.7)':'rgba(255,255,255,.22)'};">${staleInfo}</div>`:''}
     </div>
   </div>`;

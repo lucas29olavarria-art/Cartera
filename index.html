@@ -4446,24 +4446,38 @@ async function impConfirm(){
 
     if(impCurrentTab==='olas'&&impParsedOlas.length){
       const tcOlas=parseFloat(document.getElementById('imp-olas-tc')?.value)||impTcMep||MEP;
+      if(!tcOlas||tcOlas<=0)throw new Error('TC MEP inválido ('+tcOlas+'). Ingresá el tipo de cambio.');
       // Additive: only delete flows for the projects being imported, keep the rest
       for(const o of impParsedOlas){
-        await sb.from('olas_flows').delete().eq('investor_id',invId).like('descripcion',o.proyecto+'%');
+        const {error:delErr}=await sb.from('olas_flows').delete().eq('investor_id',invId).like('descripcion',o.proyecto+'%');
+        if(delErr)throw new Error('Error borrando flows de '+o.proyecto+': '+delErr.message);
       }
       const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f,tc_inicio:tcOlas,capital_usd:+(o.monto/tcOlas).toFixed(0)})));
       if(allFlows.length){
-        await sb.from('olas_flows').insert(allFlows);
+        const {error:insErr}=await sb.from('olas_flows').insert(allFlows);
+        if(insErr)throw new Error('Error insertando flows: '+insErr.message);
         imported=allFlows.length;
       }
       // Recalculate olas_val from ALL current flows (sum unique project capitals)
-      const {data:allFlowsNow}=await sb.from('olas_flows').select('descripcion,capital_usd').eq('investor_id',invId);
+      const {data:allFlowsNow,error:fetchErr}=await sb.from('olas_flows').select('descripcion,capital_usd').eq('investor_id',invId);
+      if(fetchErr)throw new Error('Error leyendo flows: '+fetchErr.message);
       const projCaps={};
       (allFlowsNow||[]).forEach(f=>{
         const proj=(f.descripcion||'').split('·')[0].trim();
-        if(proj&&f.capital_usd&&!projCaps[proj])projCaps[proj]=f.capital_usd;
+        if(proj&&!projCaps[proj])projCaps[proj]=+(f.capital_usd||0);
       });
       const totalCapUsd=Object.values(projCaps).reduce((s,v)=>s+v,0);
-      await sb.from('investors').update({olas_val:totalCapUsd}).eq('id',invId);
+      const {error:updErr}=await sb.from('investors').update({olas_val:totalCapUsd}).eq('id',invId);
+      if(updErr)throw new Error('Error actualizando olas_val: '+updErr.message);
+      // Verification: show actual DB count
+      const {data:verFlows}=await sb.from('olas_flows').select('id,cobrado').eq('investor_id',invId);
+      const verTotal=verFlows?.length||0;
+      const verCob=verFlows?.filter(f=>f.cobrado).length||0;
+      const verDiv=document.getElementById('imp-confirm-btn');
+      verDiv.insertAdjacentHTML('beforebegin',
+        `<div id="imp-db-ver" style="background:rgba(45,212,160,.1);border:1px solid rgba(45,212,160,.3);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--green);margin-bottom:10px;">
+          ✓ DB: ${verTotal} flows en total · ${verCob} cobrados · ${verTotal-verCob} pendientes · capital u$s ${fmt(totalCapUsd)}
+        </div>`);
       showToast(`✓ ${imported} flujos de Olas importados`);
     }
 

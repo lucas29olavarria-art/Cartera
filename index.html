@@ -4430,16 +4430,24 @@ async function impConfirm(){
 
     if(impCurrentTab==='olas'&&impParsedOlas.length){
       const tcOlas=parseFloat(document.getElementById('imp-olas-tc')?.value)||impTcMep||MEP;
-      // Delete existing olas flows and replace
-      await sb.from('olas_flows').delete().eq('investor_id',invId);
+      // Additive: only delete flows for the projects being imported, keep the rest
+      for(const o of impParsedOlas){
+        await sb.from('olas_flows').delete().eq('investor_id',invId).like('descripcion',o.proyecto+'%');
+      }
       const allFlows=impParsedOlas.flatMap(o=>o.flows.map(f=>({investor_id:invId,...f,tc_inicio:tcOlas,capital_usd:+(o.monto/tcOlas).toFixed(0)})));
       if(allFlows.length){
         await sb.from('olas_flows').insert(allFlows);
         imported=allFlows.length;
       }
-      // Update olas_val with total invested
-      const totalOlas=impParsedOlas.reduce((s,o)=>s+o.monto,0);
-      await sb.from('investors').update({olas_val:+(totalOlas/tcOlas).toFixed(0)}).eq('id',invId);
+      // Recalculate olas_val from ALL current flows (sum unique project capitals)
+      const {data:allFlowsNow}=await sb.from('olas_flows').select('descripcion,capital_usd').eq('investor_id',invId);
+      const projCaps={};
+      (allFlowsNow||[]).forEach(f=>{
+        const proj=(f.descripcion||'').split('·')[0].trim();
+        if(proj&&f.capital_usd&&!projCaps[proj])projCaps[proj]=f.capital_usd;
+      });
+      const totalCapUsd=Object.values(projCaps).reduce((s,v)=>s+v,0);
+      await sb.from('investors').update({olas_val:totalCapUsd}).eq('id',invId);
       showToast(`✓ ${imported} flujos de Olas importados`);
     }
 

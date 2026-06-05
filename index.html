@@ -4283,7 +4283,7 @@ function rCarteraArgentina(cart,segs){
   const fidColor=fidelity>=80?'#2dd4a0':fidelity>=60?'#f5a623':'#f06c6c';
   const fidEmoji=fidelity>=80?'🟢':fidelity>=60?'🟡':'🔴';
 
-  // Simulator: deduplicate by cedearTk (handles GOOGL+GOOG etc)
+  // Deduplicate available by cedearTk (GOOGL+GOOG, AAPL duplicates, etc.)
   const deduped={};
   available.forEach(x=>{
     const k=x.cedearTk;
@@ -4291,6 +4291,15 @@ function rCarteraArgentina(cart,segs){
     deduped[k].pct+=(+x.pct||0);
   });
   const simRows=Object.values(deduped).sort((a,b)=>b.pct-a.pct);
+
+  // Deduplicate unavailable by ticker
+  const unavailDeduped={};
+  withEquiv.forEach(x=>{
+    const k=x.ticker;
+    if(!unavailDeduped[k]){unavailDeduped[k]={...x,pct:0};}
+    unavailDeduped[k].pct+=(+x.pct||0);
+  });
+  const unavailRows=Object.values(unavailDeduped).sort((a,b)=>b.pct-a.pct);
   const simTotal=simRows.reduce((s,x)=>s+x.pct,0)||1;
   const amt=MC_SIM_AMOUNT||5000;
   const tc=MEP||0;
@@ -4309,11 +4318,18 @@ function rCarteraArgentina(cart,segs){
   let html='';
 
   // ── Header ──────────────────────────────────────────────────
-  html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+  html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
     <button class="ib" onclick="MC_ARG_VIEW=false;kc();rMiCartera()">← ${cart.nombre}</button>
-    <div style="margin-left:auto;display:flex;align-items:center;gap:7px;">
-      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:${fidColor};background:${fidColor}18;padding:5px 14px;border-radius:20px;border:1px solid ${fidColor}30;">${fidEmoji} Fidelidad ${fidelity}%</div>
+    <div style="margin-left:auto;">
+      <button onclick="document.getElementById('cob-tooltip').style.display=document.getElementById('cob-tooltip').style.display==='none'?'block':'none'"
+        style="font-family:var(--mono);font-size:11px;font-weight:700;color:${fidColor};background:${fidColor}18;padding:5px 14px;border-radius:20px;border:1px solid ${fidColor}30;cursor:pointer;">
+        ${fidEmoji} Cobertura ${fidelity}% <span style="font-size:9px;opacity:.7;">?</span>
+      </button>
     </div>
+  </div>
+  <div id="cob-tooltip" style="display:none;background:rgba(14,20,32,.95);border:1px solid rgba(255,255,255,.1);border-radius:10px;padding:12px 14px;font-size:11px;color:var(--soft);line-height:1.6;margin-bottom:14px;">
+    Porcentaje del portfolio original que podés replicar desde Argentina usando CEDEARs disponibles en BYMA, incluyendo activos equivalentes cuando no hay CEDEAR directo.<br>
+    <span style="color:#2dd4a0;">🟢 ≥80%</span> · <span style="color:#f5a623;">🟡 60–80%</span> · <span style="color:#f06c6c;">🔴 &lt;60%</span>
   </div>`;
 
   html+=`<div style="margin-bottom:18px;">
@@ -4322,29 +4338,29 @@ function rCarteraArgentina(cart,segs){
     <div style="font-size:11px;color:var(--muted);margin-top:4px;">${directPct.toFixed(1)}% replicable directo${equivPct>0?` · ${equivPct.toFixed(1)}% con equivalentes`:''}</div>
   </div>`;
 
-  // ── Disponibles ────────────────────────────────────────────
+  // ── Disponibles (deduplicated) ─────────────────────────────
   html+=`<div class="card" style="margin-bottom:12px;">
-    <div style="font-size:10px;font-weight:700;color:#2dd4a0;letter-spacing:.06em;margin-bottom:10px;">✅ DISPONIBLES COMO CEDEAR · ${available.length} posiciones</div>
-    ${available.sort((a,b)=>b.pct-a.pct).map((x,i)=>`
-    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<available.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+    <div style="font-size:10px;font-weight:700;color:#2dd4a0;letter-spacing:.06em;margin-bottom:10px;">✅ DISPONIBLES COMO CEDEAR · ${simRows.length} posiciones</div>
+    ${simRows.map((x,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<simRows.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
       <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#2dd4a0;min-width:46px;">${x.cedearTk}</div>
-      <div style="flex:1;font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre||x.ticker}</div>
-      <div style="font-family:var(--mono);font-size:11px;color:${x.c};flex-shrink:0;">${(+x.pct||0).toFixed(1)}%</div>
+      <div style="flex:1;font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.displayNombre}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:${x.c};flex-shrink:0;">${x.pct.toFixed(1)}%</div>
     </div>`).join('')}
   </div>`;
 
   // ── Sin CEDEAR ─────────────────────────────────────────────
-  if(withEquiv.length){
+  if(unavailRows.length){
     html+=`<div class="card" style="margin-bottom:12px;">
-      <div style="font-size:10px;font-weight:700;color:#f06c6c;letter-spacing:.06em;margin-bottom:10px;">❌ SIN CEDEAR DIRECTO · ${withEquiv.length} posiciones</div>
-      ${withEquiv.sort((a,b)=>b.pct-a.pct).map((x,i)=>`
-      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<withEquiv.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+      <div style="font-size:10px;font-weight:700;color:#f06c6c;letter-spacing:.06em;margin-bottom:10px;">❌ SIN CEDEAR DIRECTO · ${unavailRows.length} posiciones</div>
+      ${unavailRows.map((x,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<unavailRows.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
         <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);min-width:46px;">${x.ticker}</div>
         <div style="flex:1;min-width:0;">
           <div style="font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre||x.ticker}</div>
           ${x.equivs.length?`<div style="font-size:9px;color:#f5a623;margin-top:2px;font-family:var(--mono);">→ equiv: ${x.equivs.join(' · ')}</div>`:`<div style="font-size:9px;color:var(--muted);margin-top:2px;">sin equivalente cercano</div>`}
         </div>
-        <div style="font-family:var(--mono);font-size:11px;color:${x.equivs.length?'#f5a623':'var(--muted)'};flex-shrink:0;">${(+x.pct||0).toFixed(1)}%</div>
+        <div style="font-family:var(--mono);font-size:11px;color:${x.equivs.length?'#f5a623':'var(--muted)'};flex-shrink:0;">${x.pct.toFixed(1)}%</div>
       </div>`).join('')}
     </div>`;
   }

@@ -3785,7 +3785,8 @@ const BETA_CACHE={};
 // ── CARTERAS RECOMENDADAS ─────────────────────────────────────
 let CARTERAS_CACHE=[];
 let CARTERAS_LOADED=false;
-let MC_CURRENT_ID=null; // null = listing, uuid = detail
+let MC_CURRENT_ID=null;
+let MC_FOTO_B64=null; // stores pending photo base64 (too large for dataset attribute)
 let MC_TAB='composicion';
 let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
@@ -4265,8 +4266,8 @@ function previewCartaFoto(input){
   const f=input.files[0];if(!f)return;
   const r=new FileReader();
   r.onload=e=>{
-    document.getElementById('ct-foto-preview').innerHTML=`<img src="${e.target.result}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
-    input.dataset.b64=e.target.result;
+    MC_FOTO_B64=e.target.result;
+    document.getElementById('ct-foto-preview').innerHTML=`<img src="${MC_FOTO_B64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
   };
   r.readAsDataURL(f);
 }
@@ -4276,8 +4277,7 @@ async function guardarCartera(editId){
   const subtitulo=document.getElementById('ct-subtitulo').value.trim();
   const tipo=document.getElementById('ct-tipo').value;
   const descripcion=document.getElementById('ct-desc').value.trim();
-  const fotoInput=document.getElementById('ct-foto');
-  const foto_b64=fotoInput.dataset.b64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
+  const foto_b64=MC_FOTO_B64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
   const investor_id=document.getElementById('ct-inv').value||null;
   const cik=document.getElementById('ct-cik').value.trim()||null;
   let posiciones=[];
@@ -4294,6 +4294,7 @@ async function guardarCartera(editId){
     ({error:err}=await sb.from('carteras_destacadas').insert(row));
   }
   if(err){showToast('Error: '+err.message);return;}
+  MC_FOTO_B64=null;
   document.getElementById('m-cartera')?.remove();
   CARTERAS_LOADED=false;CARTERAS_CACHE=[];
   await loadCarteras();

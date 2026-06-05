@@ -2170,6 +2170,7 @@ function renderInv(inv){
       <button class="ib" onclick="openRV('${inv.id}')">+ RV</button>
       <button class="ib" onclick="openRF('${inv.id}')">+ RF</button>
       <button class="ib" onclick="editNotes('${inv.id}')">📝 Notas</button>
+      <button class="ib" onclick="resetPPC('${inv.id}')" style="background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);" title="Iguala el costo base (PPC) al valor actual de cada posición RV">🔄 Reset PPC</button>
       <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`:''}
     </div>
   </div>`;
@@ -6210,14 +6211,19 @@ function impParseTenencias(rows){
     const vm=nombre.match(/[Vv][Tt][Oo]\.?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/);
     if(vm)vencimiento=`${vm[3]}-${vm[2].padStart(2,'0')}-${vm[1].padStart(2,'0')}`;
 
+    // precio_compra as % of face value in USD: loadInvestor uses vinicial = vn_total * precio_compra/100
+    const precioCompraPct=parseFloat((costoUsd/vn*100).toFixed(4));
+    const precioActivoPct=parseFloat((valorUsd/vn*100).toFixed(4));
     impParsedTenencias.push({
       ticker,
       nombre,
       tipo:section==='Bonos'?'Bono':'Fondo',
       vn_total:vn,
-      moneda: section==='Bonos'?'USD':'ARS', // bonds are USD-denominated, funds can be ARS
+      moneda: section==='Bonos'?'USD':'ARS',
       valor:parseFloat(valorUsd.toFixed(2)),
       vinicial:parseFloat(costoUsd.toFixed(2)),
+      precio_compra:precioCompraPct,
+      precio_activo:precioActivoPct,
       vencimiento,
     });
   }
@@ -6263,7 +6269,7 @@ async function impConfirmTenencias(){
       vn_total:p.vn_total,
       moneda:p.moneda,
       valor:p.valor,
-      vinicial:p.vinicial,
+      precio_compra:p.precio_compra,
       vencimiento:p.vencimiento,
     }));
     const{error}=await sb.from('positions_rf').insert(toInsert);
@@ -7287,6 +7293,22 @@ function buildCaminoCharts(inv){
         }
       });
     });
+}
+
+// ── RESET PPC ─────────────────────────────────────────────────
+async function resetPPC(invId){
+  const inv=INV_CACHE[invId];
+  if(!inv?.rv?.length){showToast('No hay posiciones RV para resetear');return;}
+  if(!confirm(`¿Resetear el costo base (PPC) de ${inv.rv.length} posiciones RV de ${inv.name}?\n\nEsto igualará el PPC al valor actual de cada posición, dejando rendimiento = 0%.\nUsarlo solo cuando el PPC histórico está mal por un cambio de TC o importación incorrecta.`))return;
+  try{
+    const updates=inv.rv.map(p=>sb.from('positions_rv').update({vinicial:p.valor}).eq('id',p.id));
+    await Promise.all(updates);
+    const fresh=await loadInvestor(invId);
+    kc();renderInv(fresh);
+    showToast(`✓ PPC reseteado en ${inv.rv.length} posiciones de ${inv.name}`);
+  }catch(e){
+    showToast('Error: '+e.message);
+  }
 }
 
 // ── ELIMINAR PORTFOLIO / OLAS ─────────────────────────────────

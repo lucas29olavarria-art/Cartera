@@ -876,10 +876,10 @@ const KNOWN_COMPANY_TICKERS={
   'ROBLOX':'RBLX','ROBLOX CORP':'RBLX',
   // Finanzas
   'JPMORGAN CHASE':'JPM','JPMORGAN CHASE CO':'JPM','JP MORGAN':'JPM','JPMORGAN':'JPM',
-  'BANK OF AMERICA':'BAC','BANK OF AMERICA CORP':'BAC',
-  'WELLS FARGO':'WFC','WELLS FARGO CO':'WFC','WELLS FARGO & CO':'WFC',
-  'GOLDMAN SACHS':'GS','GOLDMAN SACHS GROUP':'GS','GOLDMAN SACHS GROUP INC':'GS',
-  'MORGAN STANLEY':'MS','MORGAN STANLEY INC':'MS',
+  'BANK OF AMERICA':'BAC','BANK OF AMERICA CORP':'BAC','BANK OF AMERICA CORPORATION':'BAC',
+  'WELLS FARGO':'WFC','WELLS FARGO CO':'WFC','WELLS FARGO & CO':'WFC','WELLS FARGO & COMPANY':'WFC',
+  'GOLDMAN SACHS':'GS','GOLDMAN SACHS GROUP':'GS','GOLDMAN SACHS GROUP INC':'GS','GOLDMAN SACHS GROUP THE':'GS',
+  'MORGAN STANLEY':'MS','MORGAN STANLEY INC':'MS','MORGAN STANLEY CORPORATION':'MS',
   'CITIGROUP':'C','CITIGROUP INC':'C',
   'VISA':'V','VISA INC':'V',
   'MASTERCARD':'MA','MASTERCARD INC':'MA',
@@ -983,7 +983,7 @@ const KNOWN_COMPANY_TICKERS={
 // Resuelve el ticker CEDEAR considerando el ticker almacenado y el nombre de empresa
 // Strip company suffixes iteratively (handles "CO LTD", "SA ADS", etc.)
 function stripSuffixes(s){
-  const re=/\s+(INC|CORP|CO|LTD|LLC|PLC|NV|SA|AG|AB|GBH|PTE|GROUP|HOLDINGS?|CLASS [AB]|CL [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ORD SHS|ADR|ADS|SPON ADR|SPON ADS|DEL|SOCIEDAD ANONIMA|ANONIMA|THE)(\s.*)?$/i;
+  const re=/\s+(CORPORATION|INCORPORATED|COMPANY|COMPANIES|LIMITED|INC|CORP|CO|LTD|LLC|PLC|NV|SA|AG|AB|GBH|PTE|GROUP|HOLDINGS?|CLASS [AB]|CL [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ORD SHS|ADR|ADS|SPON ADR|SPON ADS|DEL|SOCIEDAD ANONIMA|ANONIMA|THE)(\s.*)?$/i;
   let prev='';
   while(s!==prev){prev=s;s=s.replace(re,'').trim();}
   return s;
@@ -991,7 +991,7 @@ function stripSuffixes(s){
 
 function resolveCEDEARTicker(ticker,nombre){
   if(CEDEAR_LIST.has(ticker))return ticker;
-  const norm=s=>s.toUpperCase().replace(/[,\.&]/g,'').trim();
+  const norm=s=>s.toUpperCase().replace(/[,\.]/g,'').replace(/&/g,' ').replace(/\s+/g,' ').trim();
   const nk=norm(nombre||'');
   const tk=norm(ticker||'');
   const keys=[nk, stripSuffixes(nk), tk, stripSuffixes(tk)];
@@ -4313,12 +4313,18 @@ const CEDEAR_EQUIVALENTS={
   'BRK.B':['JPM','BAC','KO'],'BRKB':['JPM','BAC','KO'],
 };
 
-// Sector → mejor ETF CEDEAR disponible en BYMA
+// Sector → mejor ETF CEDEAR disponible en BYMA (keys = SECTOR_NORM output values)
 const SECTOR_ETF_MAP={
-  'Tecnología':'XLK','Financiero':'XLF','Energía':'XLE',
-  'Salud':'XLV','Consumo Discrecional':'XLY','Consumo Básico':'XLP',
-  'Industrial':'XLI','Servicios Públicos':'XLU','Inmobiliario':'VNQ',
-  'Materiales':'GLD','Comunicaciones':'QQQ','Otro':'SPY',
+  'Tech':      'QQQ',   // Nasdaq-100, cubre tech + semis
+  'Finanzas':  'XLF',   // Financial Select Sector
+  'Energía':   'XLE',   // Energy Select Sector
+  'Consumo':   'XLP',   // Consumer Staples Select Sector
+  'Industrial':'XLI',   // Industrial Select Sector
+  'Salud':     'XLV',   // Health Care Select Sector
+  'Cripto':    'IBIT',  // iShares Bitcoin ETF
+  'ETF':       'SPY',   // para posiciones ya en ETF
+  'Renta Fija':'TLT',   // iShares 20+ Year Treasury Bond
+  'Otro':      'SPY',
 };
 
 function rCarteraArgentina(cart,segs){

@@ -3945,6 +3945,7 @@ let MC_TAB='composicion';
 let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
 let MC_SIM_AMOUNT=5000;
+let MC_ARG_VIEW=false;
 let MC_MONTH_FILTER=new Date().toISOString().slice(0,7);
 
 async function loadCarteras(){
@@ -4193,7 +4194,7 @@ function rCarterasListing(){
       const posLabel=c.investor_id?(INV_CACHE[c.investor_id]?.rv?.length||'—')+' pos. en vivo':pos.length+' posiciones';
       const rc=riesgoConf(c.riesgo);
       html+=`<div class="card" style="cursor:pointer;transition:border-color .2s;min-height:155px;background:linear-gradient(140deg,${cardBg} 0%,transparent 55%);position:relative;"
-        onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];rMiCartera();"
+        onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];MC_ARG_VIEW=false;rMiCartera();"
         onmouseover="this.style.borderColor='rgba(91,156,246,.45)'" onmouseout="this.style.borderColor=''">
         <div style="position:absolute;top:14px;right:14px;display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
           <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:${tipC};background:${tipC}1a;padding:3px 9px;border-radius:5px;border:1px solid ${tipC}30;">${tipLb}</div>
@@ -4223,6 +4224,202 @@ function rCarterasListing(){
   sc(html);
 }
 
+// CEDEARs equivalentes para posiciones sin acceso directo desde Argentina
+const CEDEAR_EQUIVALENTS={
+  // Financiero
+  'AXP':['V','MA'],'ALLY':['BAC','JPM'],'USB':['JPM','BAC'],
+  'BK':['JPM','GS'],'PNC':['JPM','BAC'],'MCO':['SPGI'],
+  'PGR':['V','MA'],'CB':['JPM','GS'],'TRV':['JPM'],
+  // Consumo / Retail
+  'ULTA':['NKE','SBUX'],'QSR':['MCD','SBUX'],'HLT':['MCD','SBUX'],
+  'ROST':['TGT','WMT'],'DG':['WMT','TGT'],'DLTR':['WMT'],
+  // Energía
+  'OXY':['CVX','VIST','YPFD'],'MPC':['CVX','XOM'],'PSX':['CVX','XOM'],
+  'VLO':['CVX','XOM'],'EOG':['CVX','XOM'],'HES':['CVX'],
+  'CNQ':['CVX','XOM'],'SU':['CVX'],'BP':['XOM','CVX'],
+  // Tech / Media
+  'VRSN':['CSCO','NET'],'CHTR':['NFLX','DIS'],'PARA':['DIS','NFLX'],
+  'WBD':['DIS','NFLX'],'HPQ':['IBM','MSFT'],'HPE':['IBM','INTC'],
+  'EPAM':['MSFT','ORCL'],'TWLO':['CRM','MSFT'],
+  // Industrial
+  'TDG':['HON','RTX'],'GD':['LMT','RTX'],'NOC':['LMT','RTX'],
+  'L3H':['RTX','HON'],'ITW':['CAT','HON'],'PH':['CAT','HON'],
+  'IR':['HON','CAT'],'ROK':['HON'],'EMR':['HON','CAT'],
+  // Salud
+  'DVA':['JNJ','UNH'],'HCA':['UNH','CVS'],'MOH':['UNH'],
+  'CNC':['UNH','CVS'],'DGX':['JNJ'],'LH':['JNJ'],
+  // ETFs sin CEDEAR
+  'VWO':['EEM'],'IEMG':['EEM'],'VT':['SPY','EEM'],
+  'LQD':['TLT'],'IEF':['TLT'],'SHY':['TLT'],
+  'HYG':['TLT','SPY'],'AGG':['TLT'],'BND':['TLT'],
+  'ACWI':['SPY','EEM'],'MCHI':['EEM'],
+  // Transporte / Logística
+  'CP':['FDX','UPS'],'CNI':['FDX','UPS'],'NSC':['FDX','UPS'],
+  'CSX':['FDX','UPS'],'UAL':['DAL','LUV'],'AAL':['DAL','LUV'],
+  // GOOG/GOOGL dedup (ambos = misma CEDEAR)
+  'GOOG':['GOOGL'],
+  // BRK
+  'BRK.B':['JPM','BAC','KO'],'BRKB':['JPM','BAC','KO'],
+};
+
+function rCarteraArgentina(cart,segs){
+  const sc_=x=>({...x,cedearTk:resolveCEDEARTicker(x.ticker,x.nombre)});
+  const resolved=segs.map(sc_);
+  const available=resolved.filter(x=>x.cedearTk);
+  const unavailable=resolved.filter(x=>!x.cedearTk);
+
+  // Build equiv suggestions for unavailable
+  const withEquiv=unavailable.map(x=>{
+    const tk=x.ticker.toUpperCase();
+    const raw=(CEDEAR_EQUIVALENTS[tk]||[]).filter(t=>CEDEAR_LIST.has(t));
+    return{...x,equivs:raw};
+  });
+
+  // Fidelity = direct pct + equiv pct
+  const totalPct=segs.reduce((s,x)=>s+(+x.pct||0),0)||100;
+  const directPct=available.reduce((s,x)=>s+(+x.pct||0),0);
+  const equivPct=withEquiv.filter(x=>x.equivs.length).reduce((s,x)=>s+(+x.pct||0),0);
+  const fidelity=Math.min(100,Math.round((directPct+equivPct)/totalPct*100));
+  const fidColor=fidelity>=80?'#2dd4a0':fidelity>=60?'#f5a623':'#f06c6c';
+  const fidEmoji=fidelity>=80?'🟢':fidelity>=60?'🟡':'🔴';
+
+  // Simulator: deduplicate by cedearTk (handles GOOGL+GOOG etc)
+  const deduped={};
+  available.forEach(x=>{
+    const k=x.cedearTk;
+    if(!deduped[k]){deduped[k]={...x,pct:0,displayNombre:x.nombre||x.ticker};}
+    deduped[k].pct+=(+x.pct||0);
+  });
+  const simRows=Object.values(deduped).sort((a,b)=>b.pct-a.pct);
+  const simTotal=simRows.reduce((s,x)=>s+x.pct,0)||1;
+  const amt=MC_SIM_AMOUNT||5000;
+  const tc=MEP||0;
+  const simData=simRows.map(x=>{
+    const adj=x.pct/simTotal*100;
+    const usd=amt*adj/100;
+    return{...x,adj,usd,ars:tc?usd*tc:null};
+  });
+
+  // Sector breakdown original vs argentina
+  const origSec={},argSec={};
+  segs.forEach(x=>{const sn=SECTOR_NORM[x.sector||'']||'Otro';origSec[sn]=(origSec[sn]||0)+(+x.pct||0);});
+  simData.forEach(x=>{const sn=SECTOR_NORM[x.sector||'']||'Otro';argSec[sn]=(argSec[sn]||0)+x.adj;});
+  const sectors=[...new Set([...Object.keys(origSec),...Object.keys(argSec)])].sort((a,b)=>(origSec[b]||0)-(origSec[a]||0)).slice(0,6);
+
+  let html='';
+
+  // ── Header ──────────────────────────────────────────────────
+  html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:20px;flex-wrap:wrap;">
+    <button class="ib" onclick="MC_ARG_VIEW=false;kc();rMiCartera()">← ${cart.nombre}</button>
+    <div style="margin-left:auto;display:flex;align-items:center;gap:7px;">
+      <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:${fidColor};background:${fidColor}18;padding:5px 14px;border-radius:20px;border:1px solid ${fidColor}30;">${fidEmoji} Fidelidad ${fidelity}%</div>
+    </div>
+  </div>`;
+
+  html+=`<div style="margin-bottom:18px;">
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);margin-bottom:5px;">Versión argentina</div>
+    <div style="font-size:19px;font-weight:700;color:#eceef3;">${cart.nombre}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:4px;">${directPct.toFixed(1)}% replicable directo${equivPct>0?` · ${equivPct.toFixed(1)}% con equivalentes`:''}</div>
+  </div>`;
+
+  // ── Disponibles ────────────────────────────────────────────
+  html+=`<div class="card" style="margin-bottom:12px;">
+    <div style="font-size:10px;font-weight:700;color:#2dd4a0;letter-spacing:.06em;margin-bottom:10px;">✅ DISPONIBLES COMO CEDEAR · ${available.length} posiciones</div>
+    ${available.sort((a,b)=>b.pct-a.pct).map((x,i)=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<available.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+      <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#2dd4a0;min-width:46px;">${x.cedearTk}</div>
+      <div style="flex:1;font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre||x.ticker}</div>
+      <div style="font-family:var(--mono);font-size:11px;color:${x.c};flex-shrink:0;">${(+x.pct||0).toFixed(1)}%</div>
+    </div>`).join('')}
+  </div>`;
+
+  // ── Sin CEDEAR ─────────────────────────────────────────────
+  if(withEquiv.length){
+    html+=`<div class="card" style="margin-bottom:12px;">
+      <div style="font-size:10px;font-weight:700;color:#f06c6c;letter-spacing:.06em;margin-bottom:10px;">❌ SIN CEDEAR DIRECTO · ${withEquiv.length} posiciones</div>
+      ${withEquiv.sort((a,b)=>b.pct-a.pct).map((x,i)=>`
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;${i<withEquiv.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+        <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:var(--muted);min-width:46px;">${x.ticker}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre||x.ticker}</div>
+          ${x.equivs.length?`<div style="font-size:9px;color:#f5a623;margin-top:2px;font-family:var(--mono);">→ equiv: ${x.equivs.join(' · ')}</div>`:`<div style="font-size:9px;color:var(--muted);margin-top:2px;">sin equivalente cercano</div>`}
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:${x.equivs.length?'#f5a623':'var(--muted)'};flex-shrink:0;">${(+x.pct||0).toFixed(1)}%</div>
+      </div>`).join('')}
+    </div>`;
+  }
+
+  // ── Simulador ──────────────────────────────────────────────
+  html+=`<div class="card" style="margin-bottom:12px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:12px;flex-wrap:wrap;">
+      <div style="font-size:13px;font-weight:700;color:#eceef3;">Simulador</div>
+      ${tc?`<div style="font-size:10px;color:var(--muted);">MEP <b style="color:#5b9cf6;font-family:var(--mono);">$${tc.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0})}</b></div>`:''}
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
+      <span style="font-size:14px;color:var(--soft);">$</span>
+      <input type="number" id="arg-sim-input" value="${amt}" min="100" step="100"
+        style="width:110px;font-family:var(--mono);font-size:15px;font-weight:700;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;color:#eceef3;outline:none;"
+        oninput="MC_SIM_AMOUNT=+this.value||5000"
+        onkeydown="if(event.key==='Enter'){MC_SIM_AMOUNT=+this.value||5000;kc();rMiCartera();}">
+      <span style="font-size:11px;color:var(--soft);">USD</span>
+      <button class="ib" onclick="MC_SIM_AMOUNT=+(document.getElementById('arg-sim-input')?.value)||5000;kc();rMiCartera()">Calcular</button>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+          <th style="text-align:left;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--muted);font-weight:500;">CEDEAR</th>
+          <th style="text-align:left;padding:5px 8px;font-size:9px;color:var(--muted);font-weight:500;">EMPRESA</th>
+          <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">PESO</th>
+          <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">USD</th>
+          ${tc?`<th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">ARS</th>`:''}
+        </tr></thead>
+        <tbody>${simData.map((x,i)=>`
+          <tr style="${i<simData.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+            <td style="padding:8px;font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.cedearTk}</td>
+            <td style="padding:8px;font-size:10px;color:var(--soft);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.displayNombre}</td>
+            <td style="padding:8px;font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};text-align:right;">${x.adj.toFixed(1)}%</td>
+            <td style="padding:8px;font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;text-align:right;">$${Math.round(x.usd).toLocaleString('en-US')}</td>
+            ${tc?`<td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--soft);text-align:right;">$${Math.round(x.ars||0).toLocaleString('es-AR')}</td>`:''}
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>
+  </div>`;
+
+  // ── Sector comparison ──────────────────────────────────────
+  if(sectors.length>1){
+    const maxPctSec=Math.max(...sectors.map(sn=>Math.max(origSec[sn]||0,argSec[sn]||0)),1);
+    html+=`<div class="card">
+      <div style="font-size:12px;font-weight:700;color:#eceef3;margin-bottom:14px;">Exposición sectorial</div>
+      ${sectors.map(sn=>{
+        const o=origSec[sn]||0;const a=argSec[sn]||0;
+        const cf=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
+        return`<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px;">
+            <span style="font-size:10px;color:var(--soft);">${cf.ic} ${sn}</span>
+            <div style="display:flex;gap:14px;">
+              <span style="font-size:10px;color:var(--muted);">${o.toFixed(0)}%</span>
+              <span style="font-size:10px;font-weight:600;color:#5b9cf6;">${a.toFixed(0)}%</span>
+            </div>
+          </div>
+          <div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;margin-bottom:3px;">
+            <div style="width:${(o/maxPctSec*100).toFixed(0)}%;height:100%;background:rgba(255,255,255,.18);border-radius:3px;"></div>
+          </div>
+          <div style="height:4px;background:rgba(91,156,246,.12);border-radius:3px;">
+            <div style="width:${(a/maxPctSec*100).toFixed(0)}%;height:100%;background:#5b9cf6;border-radius:3px;"></div>
+          </div>
+        </div>`;
+      }).join('')}
+      <div style="display:flex;gap:14px;margin-top:4px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);">
+        <div style="display:flex;align-items:center;gap:5px;"><div style="width:10px;height:5px;background:rgba(255,255,255,.18);border-radius:2px;"></div><span style="font-size:9px;color:var(--muted);">Original</span></div>
+        <div style="display:flex;align-items:center;gap:5px;"><div style="width:10px;height:4px;background:#5b9cf6;border-radius:2px;"></div><span style="font-size:9px;color:var(--muted);">Versión Argentina</span></div>
+      </div>
+    </div>`;
+  }
+
+  sc(html);
+}
+
 function rCarteraDetail(cart){
   let segs=[];
   if(cart.investor_id){
@@ -4245,6 +4442,9 @@ function rCarteraDetail(cart){
     const pos=cart.posiciones||[];
     segs=pos.map((p,i)=>({...p,c:CHC[i%CHC.length]}));
   }
+  // Delegate to Argentina view if requested
+  if(MC_ARG_VIEW){rCarteraArgentina(cart,segs);return;}
+
   const donutVals=segs.map(x=>+(+x.pct).toFixed(2));
   const donutCols=segs.map(x=>x.c);
 
@@ -4273,10 +4473,11 @@ function rCarteraDetail(cart){
   // ── Back button + SEC sync icon ────────────────────────────
   const lastSyncTip=cart.last_synced?`Actualizar desde SEC EDGAR · último: ${new Date(cart.last_synced).toLocaleDateString('es-AR')}`:'Sincronizar con SEC EDGAR';
   const secIcon=cart.cik?`<button title="${lastSyncTip}" onclick="syncCarteraFromSec('${cart.id}')" style="background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:13px;transition:border-color .2s;" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)'">↻</button>`:'';
-  const pngBtn=segs.length?`<button class="ib" style="margin-left:auto;font-size:11px;" onclick="downloadCarteraChart('${cart.id}')">⬇ PNG</button>`:'';
-  html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
-    <button class="ib" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
-    ${secIcon}${pngBtn}
+  const pngBtn=segs.length?`<button class="ib" style="font-size:11px;" onclick="downloadCarteraChart('${cart.id}')">⬇ PNG</button>`:'';
+  const argBtn=segs.length?`<button onclick="MC_ARG_VIEW=true;kc();rMiCartera()" style="margin-left:auto;font-size:11px;font-weight:700;padding:7px 14px;border-radius:8px;border:1px solid rgba(45,212,160,.35);background:rgba(45,212,160,.09);color:#2dd4a0;cursor:pointer;transition:all .18s;" onmouseover="this.style.background='rgba(45,212,160,.18)'" onmouseout="this.style.background='rgba(45,212,160,.09)'">🇦🇷 Replicar desde Argentina</button>`:'';
+  html+=`<div style="display:flex;align-items:center;gap:8px;margin-bottom:18px;flex-wrap:wrap;">
+    <button class="ib" onclick="MC_CURRENT_ID=null;MC_ARG_VIEW=false;rMiCartera()">← Volver</button>
+    ${secIcon}${pngBtn}${argBtn}
   </div>`;
 
   // ── Header ─────────────────────────────────────────────────
@@ -4351,10 +4552,9 @@ function rCarteraDetail(cart){
   }
 
   // ── Subtabs ────────────────────────────────────────────────
-  html+=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
+  html+=`<div style="display:flex;gap:6px;margin-bottom:14px;">
     <button class="tb${MC_TAB==='composicion'?' active':''}" onclick="MC_TAB='composicion';kc();rMiCartera()">Composición</button>
     <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';kc();rMiCartera()">Movimientos</button>
-    <button class="tb${MC_TAB==='simulador'?' active':''}" onclick="MC_TAB='simulador';kc();rMiCartera()" style="margin-left:auto;">🇦🇷 Simulador CEDEAR</button>
   </div>`;
 
   // ── Composición (visual bars) ──────────────────────────────
@@ -4393,10 +4593,6 @@ function rCarteraDetail(cart){
         </div>`;
       }).join('')}</div>`;
     }
-
-  // ── Simulador CEDEAR ──────────────────────────────────────
-  } else if(MC_TAB==='simulador'){
-    html+=rCEDEARSim(segs);
 
   // ── Movimientos (timeline) ─────────────────────────────────
   } else {

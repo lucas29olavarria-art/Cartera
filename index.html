@@ -3828,8 +3828,12 @@ function secNameToTicker(name){
 }
 
 async function secProxyFetch(url){
-  // data.sec.gov/Archives blocks CORS — use allorigins proxy
-  const r=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+  // Calls Supabase Edge Function sec-proxy which fetches SEC server-side (no CORS issue)
+  const r=await fetch(`${SB_URL}/functions/v1/sec-proxy`,{
+    method:'POST',
+    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+    body:JSON.stringify({url})
+  });
   if(!r.ok)throw new Error('Proxy HTTP '+r.status+' para '+url.split('/').pop());
   return r;
 }

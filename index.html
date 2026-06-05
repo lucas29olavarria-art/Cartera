@@ -3829,8 +3829,8 @@ function secNameToTicker(name){
 
 async function syncCarteraFromSec(cartId){
   const cart=CARTERAS_CACHE.find(c=>c.id===cartId);
-  if(!cart?.cik){toast('Esta cartera no tiene CIK de SEC');return;}
-  toast('Sincronizando con SEC EDGAR…');
+  if(!cart?.cik){showToast('Esta cartera no tiene CIK de SEC');return;}
+  showToast('Sincronizando con SEC EDGAR…');
   try{
     const paddedCik=String(+cart.cik).padStart(10,'0');
     const cikNum=String(+cart.cik);
@@ -3894,12 +3894,12 @@ async function syncCarteraFromSec(cartId){
     const ci=CARTERAS_CACHE.findIndex(c=>c.id===cartId);
     if(ci>=0)CARTERAS_CACHE[ci]={...CARTERAS_CACHE[ci],posiciones,last_synced:new Date().toISOString()};
 
-    toast('✓ '+posiciones.length+' posiciones · filing '+filingDate);
+    showToast('✓ '+posiciones.length+' posiciones · filing '+filingDate);
     kc();rMiCartera();
   }catch(e){
     console.error('SEC sync error',e);
     const errMsg=e.message||'Error desconocido';
-    toast('Error SEC: '+errMsg);
+    showToast('Error SEC: '+errMsg);
     const cart2=CARTERAS_CACHE.find(c=>c.id===cartId);
     if(cart2){
       sc(`<div style="padding:40px;text-align:center;">
@@ -4216,9 +4216,9 @@ async function guardarCartera(editId){
   let posiciones=[];
   if(!investor_id){
     try{posiciones=JSON.parse(document.getElementById('ct-pos').value);}
-    catch(e){toast('JSON de posiciones inválido');return;}
+    catch(e){showToast('JSON de posiciones inválido');return;}
   }
-  if(!nombre){toast('Completá el nombre');return;}
+  if(!nombre){showToast('Completá el nombre');return;}
   const row={nombre,subtitulo:subtitulo||null,tipo,descripcion:descripcion||null,foto_b64,posiciones,investor_id,cik,activa:true};
   let err;
   if(editId){
@@ -4226,12 +4226,12 @@ async function guardarCartera(editId){
   } else {
     ({error:err}=await sb.from('carteras_destacadas').insert(row));
   }
-  if(err){toast('Error: '+err.message);return;}
+  if(err){showToast('Error: '+err.message);return;}
   document.getElementById('m-cartera')?.remove();
   CARTERAS_LOADED=false;CARTERAS_CACHE=[];
   await loadCarteras();
   rMiCartera();
-  toast(editId?'Cartera actualizada':'Cartera creada');
+  showToast(editId?'Cartera actualizada':'Cartera creada');
 }
 
 async function deleteCartera(id){
@@ -4273,9 +4273,9 @@ async function guardarMovimiento(cartId){
   const accion=document.getElementById('mv-accion').value;
   const cantidad=document.getElementById('mv-cantidad').value||null;
   const notas=document.getElementById('mv-notas').value||null;
-  if(!fecha||!ticker){toast('Completá fecha y ticker');return;}
+  if(!fecha||!ticker){showToast('Completá fecha y ticker');return;}
   const{error}=await sb.from('movimientos').insert({cartera_id:cartId,fecha,ticker,accion,cantidad:cantidad?+cantidad:null,notas});
-  if(error){toast('Error: '+error.message);return;}
+  if(error){showToast('Error: '+error.message);return;}
   document.getElementById('m-movimiento')?.remove();
   MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];
   await loadMcMovimientos(cartId);

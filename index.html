@@ -3845,12 +3845,13 @@ async function syncCarteraFromSec(cartId){
 
     const acc=recent.accessionNumber[i13];
     const filingDate=recent.filingDate[i13];
+    const primaryDoc=recent.primaryDocument?.[i13]||null;
 
     // Step 2+3 — Edge Function finds correct XML filename and returns content (no CORS)
     const r2=await fetch(`${SB_URL}/functions/v1/sec-proxy`,{
       method:'POST',
       headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
-      body:JSON.stringify({cik:cart.cik,acc})
+      body:JSON.stringify({cik:cart.cik,acc,primaryDoc})
     });
     if(!r2.ok){
       const errBody=await r2.text().catch(()=>'');

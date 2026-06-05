@@ -4264,12 +4264,24 @@ function openEditCartera(id){openNuevaCartera(id);}
 
 function previewCartaFoto(input){
   const f=input.files[0];if(!f)return;
-  const r=new FileReader();
-  r.onload=e=>{
-    MC_FOTO_B64=e.target.result;
-    document.getElementById('ct-foto-preview').innerHTML=`<img src="${MC_FOTO_B64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    const img=new Image();
+    img.onload=()=>{
+      // Resize + center-crop to 220×220 JPEG — keeps base64 small enough for Supabase
+      const size=220;
+      const canvas=document.createElement('canvas');
+      canvas.width=size;canvas.height=size;
+      const ctx=canvas.getContext('2d');
+      const src=Math.min(img.width,img.height);
+      const ox=(img.width-src)/2,oy=(img.height-src)/2;
+      ctx.drawImage(img,ox,oy,src,src,0,0,size,size);
+      MC_FOTO_B64=canvas.toDataURL('image/jpeg',0.82);
+      document.getElementById('ct-foto-preview').innerHTML=`<img src="${MC_FOTO_B64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
+    };
+    img.src=e.target.result;
   };
-  r.readAsDataURL(f);
+  reader.readAsDataURL(f);
 }
 
 async function guardarCartera(editId){

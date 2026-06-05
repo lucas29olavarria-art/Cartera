@@ -2259,7 +2259,7 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
         <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);">Distribución por activo</div>
         <button class="ib" style="font-size:10px;padding:3px 10px;" onclick="downloadAllocChart('${inv.id}')">⬇ PNG</button>
       </div>
-      <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart"></canvas></div>
+      <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart" style="display:block;width:100%;height:100%;"></canvas></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
         ${allocItems(inv).map(x=>`
           <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
@@ -2539,7 +2539,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
           <button class="ib" style="font-size:11px;padding:4px 12px;" onclick="downloadAllocChart('${safeInvId}')">⬇ PNG</button>
         </div>
         <div style="position:relative;height:280px;margin-bottom:16px;">
-          <canvas id="ov-activo-chart"></canvas>
+          <canvas id="ov-activo-chart" style="display:block;width:100%;height:100%;"></canvas>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
           ${sorted.map(x=>`
@@ -4012,9 +4012,44 @@ function allocItems(inv){
 
 function mkPie(id,data,colors,labels){
   const el=document.getElementById(id);if(!el)return;
+  if(el._pBadgeOut){document.removeEventListener('pointerdown',el._pBadgeOut);el._pBadgeOut=null;}
   if(CHS[id])CHS[id].destroy();
   const tot=data.reduce((s,v)=>s+v,0);
-  CHS[id]=new Chart(el,{type:'pie',data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:5}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>c.label+': u$s '+fmt(c.parsed)+' ('+((c.parsed/tot)*100).toFixed(1)+'%)'}}},animation:{duration:500}}});
+  const wrap=el.parentElement;
+  function removeBadge(){const b=wrap.querySelector('.pie-badge');if(b){b.style.opacity='0';b.style.transform='scale(.85)';setTimeout(()=>b.remove(),190);}}
+  CHS[id]=new Chart(el,{
+    type:'pie',
+    data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:14}]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      layout:{padding:10},
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      animation:{duration:600,easing:'easeOutQuart'},
+      onClick(evt,elements){
+        if(!elements.length){removeBadge();if(el._pBadgeOut){document.removeEventListener('pointerdown',el._pBadgeOut);el._pBadgeOut=null;}return;}
+        const idx=elements[0].index;
+        const arc=CHS[id].getDatasetMeta(0).data[idx];
+        const mid=(arc.startAngle+arc.endAngle)/2;
+        const bx=arc.x+Math.cos(mid)*arc.outerRadius*0.68;
+        const by=arc.y+Math.sin(mid)*arc.outerRadius*0.68;
+        const pct=tot>0?(data[idx]/tot*100).toFixed(1):'0';
+        removeBadge();
+        if(el._pBadgeOut){document.removeEventListener('pointerdown',el._pBadgeOut);el._pBadgeOut=null;}
+        const badge=document.createElement('div');
+        badge.className='pie-badge';
+        badge.style.cssText='position:absolute;background:rgba(13,15,20,.95);border:1.5px solid '+colors[idx]+';border-radius:10px;padding:8px 13px;font-family:var(--mono);pointer-events:none;transition:opacity .2s,transform .2s;opacity:0;transform:scale(.85);z-index:10;text-align:center;white-space:nowrap;box-shadow:0 4px 22px rgba(0,0,0,.6);';
+        badge.innerHTML='<div style="font-size:11px;font-weight:700;color:'+colors[idx]+';margin-bottom:3px;">'+labels[idx]+'</div><div style="font-size:13px;font-weight:700;color:#eceef3;">u$s '+fmt(data[idx])+'</div><div style="font-size:10px;color:var(--muted);margin-top:2px;">'+pct+'% del total</div>';
+        wrap.appendChild(badge);
+        const bw=badge.offsetWidth||150,bh=badge.offsetHeight||65,pw=wrap.offsetWidth,ph=wrap.offsetHeight;
+        badge.style.left=Math.max(4,Math.min(pw-bw-4,bx-bw/2))+'px';
+        badge.style.top=Math.max(4,Math.min(ph-bh-4,by-bh/2))+'px';
+        requestAnimationFrame(()=>{badge.style.opacity='1';badge.style.transform='scale(1)';});
+        function onOut(e){if(e.target!==el){removeBadge();document.removeEventListener('pointerdown',onOut);el._pBadgeOut=null;}}
+        el._pBadgeOut=onOut;
+        setTimeout(()=>document.addEventListener('pointerdown',onOut),80);
+      }
+    }
+  });
 }
 function mkDonut(id,data,colors){
   const el=document.getElementById(id);if(!el)return;

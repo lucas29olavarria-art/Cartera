@@ -832,6 +832,127 @@ const CEDEAR_LIST=new Set([
   'BRKB','WDAY','NOW','SQ','ZM','DOCU','LYFT','TWLO','SNAP','SHOP',
 ]);
 
+// Mapa de nombres SEC → ticker para resolver posiciones 13F sin API
+const KNOWN_COMPANY_TICKERS={
+  // Tech
+  'APPLE':'AAPL','APPLE INC':'AAPL',
+  'MICROSOFT':'MSFT','MICROSOFT CORP':'MSFT',
+  'AMAZON':'AMZN','AMAZON COM':'AMZN','AMAZON COM INC':'AMZN',
+  'ALPHABET':'GOOGL','ALPHABET INC':'GOOGL','ALPHABET INC CL A':'GOOGL','ALPHABET INC CL C':'GOOG',
+  'META PLATFORMS':'META','META PLATFORMS INC':'META','FACEBOOK':'META',
+  'NVIDIA':'NVDA','NVIDIA CORP':'NVDA',
+  'TESLA':'TSLA','TESLA INC':'TSLA',
+  'NETFLIX':'NFLX','NETFLIX INC':'NFLX',
+  'WALT DISNEY':'DIS','WALT DISNEY CO':'DIS','DISNEY':'DIS',
+  'INTEL':'INTC','INTEL CORP':'INTC',
+  'ADVANCED MICRO DEVICES':'AMD','AMD':'AMD',
+  'QUALCOMM':'QCOM','QUALCOMM INC':'QCOM',
+  'CISCO':'CSCO','CISCO SYSTEMS':'CSCO','CISCO SYSTEMS INC':'CSCO',
+  'ORACLE':'ORCL','ORACLE CORP':'ORCL',
+  'INTERNATIONAL BUSINESS MACHINES':'IBM','IBM':'IBM',
+  'ADOBE':'ADBE','ADOBE INC':'ADBE',
+  'SALESFORCE':'CRM','SALESFORCE INC':'CRM','SALESFORCE COM':'CRM','SALESFORCECOM':'CRM',
+  'BROADCOM':'AVGO','BROADCOM INC':'AVGO',
+  'TEXAS INSTRUMENTS':'TXN','TEXAS INSTRUMENTS INC':'TXN',
+  'APPLIED MATERIALS':'AMAT','APPLIED MATERIALS INC':'AMAT',
+  'MICRON':'MU','MICRON TECHNOLOGY':'MU','MICRON TECHNOLOGY INC':'MU',
+  'TAIWAN SEMICONDUCTOR':'TSM','TAIWAN SEMICONDUCTOR MFG':'TSM','TSMC':'TSM',
+  'ASML':'ASML','ASML HOLDING':'ASML','ASML HOLDING NV':'ASML',
+  'PAYPAL':'PYPL','PAYPAL HOLDINGS':'PYPL','PAYPAL HOLDINGS INC':'PYPL',
+  'UBER':'UBER','UBER TECHNOLOGIES':'UBER','UBER TECHNOLOGIES INC':'UBER',
+  'AIRBNB':'ABNB','AIRBNB INC':'ABNB',
+  'SPOTIFY':'SPOT','SPOTIFY TECHNOLOGY':'SPOT',
+  'PALANTIR':'PLTR','PALANTIR TECHNOLOGIES':'PLTR',
+  'SNOWFLAKE':'SNOW','SNOWFLAKE INC':'SNOW',
+  'CLOUDFLARE':'NET','CLOUDFLARE INC':'NET',
+  'DATADOG':'DDOG','DATADOG INC':'DDOG',
+  'COINBASE':'COIN','COINBASE GLOBAL':'COIN',
+  'BLOCK':'SQ','BLOCK INC':'SQ',
+  'ROBLOX':'RBLX','ROBLOX CORP':'RBLX',
+  // Finanzas
+  'JPMORGAN CHASE':'JPM','JPMORGAN CHASE CO':'JPM','JP MORGAN':'JPM','JPMORGAN':'JPM',
+  'BANK OF AMERICA':'BAC','BANK OF AMERICA CORP':'BAC',
+  'WELLS FARGO':'WFC','WELLS FARGO CO':'WFC','WELLS FARGO & CO':'WFC',
+  'GOLDMAN SACHS':'GS','GOLDMAN SACHS GROUP':'GS','GOLDMAN SACHS GROUP INC':'GS',
+  'MORGAN STANLEY':'MS','MORGAN STANLEY INC':'MS',
+  'CITIGROUP':'C','CITIGROUP INC':'C',
+  'VISA':'V','VISA INC':'V',
+  'MASTERCARD':'MA','MASTERCARD INC':'MA',
+  'AMERICAN EXPRESS':'AXP','AMERICAN EXPRESS CO':'AXP',
+  'BLACKROCK':'BLK','BLACKROCK INC':'BLK',
+  'CHARLES SCHWAB':'SCHW','CHARLES SCHWAB CORP':'SCHW',
+  'CAPITAL ONE':'COF','CAPITAL ONE FINANCIAL':'COF',
+  'BERKSHIRE HATHAWAY':'BRKB','BERKSHIRE HATHAWAY INC':'BRKB',
+  'MOODYS':'MCO','MOODYS CORP':'MCO','MOODYS CORPORATION':'MCO',
+  'SP GLOBAL':'SPGI','S&P GLOBAL':'SPGI','S P GLOBAL':'SPGI',
+  // Salud
+  'JOHNSON & JOHNSON':'JNJ','JOHNSON JOHNSON':'JNJ','JOHNSON AND JOHNSON':'JNJ',
+  'PFIZER':'PFE','PFIZER INC':'PFE',
+  'MERCK':'MRK','MERCK CO':'MRK','MERCK & CO':'MRK',
+  'ABBVIE':'ABBV','ABBVIE INC':'ABBV',
+  'ELI LILLY':'LLY','ELI LILLY CO':'LLY','ELI LILLY AND CO':'LLY',
+  'UNITEDHEALTH':'UNH','UNITEDHEALTH GROUP':'UNH','UNITEDHEALTH GROUP INC':'UNH',
+  'AMGEN':'AMGN','AMGEN INC':'AMGN',
+  'BRISTOL-MYERS SQUIBB':'BMY','BRISTOL MYERS SQUIBB':'BMY','BRISTOLMYERS SQUIBB':'BMY',
+  'GILEAD SCIENCES':'GILD','GILEAD':'GILD',
+  'CVS HEALTH':'CVS','CVS HEALTH CORP':'CVS','CVS':'CVS',
+  'ABBOTT LABORATORIES':'ABT','ABBOTT':'ABT',
+  'THERMO FISHER':'TMO','THERMO FISHER SCIENTIFIC':'TMO',
+  'INTUITIVE SURGICAL':'ISRG','INTUITIVE SURGICAL INC':'ISRG',
+  // Consumo
+  'COCA COLA':'KO','COCA-COLA':'KO','COCACOLA':'KO','COCA COLA CO':'KO','COCA-COLA CO':'KO','COCACOLA CO':'KO',
+  'PEPSICO':'PEP','PEPSICO INC':'PEP',
+  'WALMART':'WMT','WALMART INC':'WMT',
+  'COSTCO':'COST','COSTCO WHOLESALE':'COST','COSTCO WHOLESALE CORP':'COST',
+  'HOME DEPOT':'HD','HOME DEPOT INC':'HD',
+  'LOWES':'LOW','LOWES COS':'LOW','LOWES COMPANIES':'LOW',
+  'TARGET':'TGT','TARGET CORP':'TGT',
+  'MCDONALDS':'MCD','MCDONALDS CORP':'MCD','MCDONALD S':'MCD','MCDONALD S CORP':'MCD',
+  'STARBUCKS':'SBUX','STARBUCKS CORP':'SBUX',
+  'NIKE':'NKE','NIKE INC':'NKE',
+  'PROCTER & GAMBLE':'PG','PROCTER AND GAMBLE':'PG','PROCTER GAMBLE':'PG',
+  'PHILIP MORRIS INTERNATIONAL':'PM','PHILIP MORRIS INTL':'PM','PHILIP MORRIS':'PM',
+  'ALTRIA':'MO','ALTRIA GROUP':'MO',
+  'KRAFT HEINZ':'KHC','KRAFT HEINZ CO':'KHC',
+  'ALIBABA':'BABA','ALIBABA GROUP':'BABA',
+  'MERCADOLIBRE':'MELI','MERCADOLIBRE INC':'MELI',
+  'NU HOLDINGS':'NU','NU HOLDINGS LTD':'NU',
+  // Energía
+  'EXXON MOBIL':'XOM','EXXONMOBIL':'XOM','EXXON MOBIL CORP':'XOM',
+  'CHEVRON':'CVX','CHEVRON CORP':'CVX',
+  'CONOCOPHILLIPS':'COP','CONOCO PHILLIPS':'COP',
+  'SCHLUMBERGER':'SLB','SCHLUMBERGER NV':'SLB','SLB':'SLB',
+  'OCCIDENTAL PETROLEUM':'OXY','OCCIDENTAL PETROLEUM CORP':'OXY','OCCIDENTAL':'OXY',
+  // Industrial
+  'CATERPILLAR':'CAT','CATERPILLAR INC':'CAT',
+  'BOEING':'BA','BOEING CO':'BA',
+  'GENERAL ELECTRIC':'GE','GE AEROSPACE':'GE','GE':'GE',
+  '3M':'MMM','3M CO':'MMM','MINNESOTA MINING':'MMM',
+  'HONEYWELL':'HON','HONEYWELL INTL':'HON','HONEYWELL INTERNATIONAL':'HON',
+  'RAYTHEON':'RTX','RAYTHEON TECHNOLOGIES':'RTX','RTX CORP':'RTX',
+  'LOCKHEED MARTIN':'LMT','LOCKHEED MARTIN CORP':'LMT',
+  'DEERE':'DE','DEERE CO':'DE','JOHN DEERE':'DE',
+  'UNITED PARCEL SERVICE':'UPS','UPS':'UPS',
+  'FEDEX':'FDX','FEDEX CORP':'FDX',
+  'DELTA AIR LINES':'DAL','DELTA AIRLINES':'DAL',
+};
+
+// Resuelve el ticker CEDEAR considerando el ticker almacenado y el nombre de empresa
+function resolveCEDEARTicker(ticker,nombre){
+  if(CEDEAR_LIST.has(ticker))return ticker;
+  const norm=s=>s.toUpperCase().replace(/[,\.]/g,'').trim();
+  const keys=[
+    norm(nombre||''),
+    norm(nombre||'').replace(/\s+(INC|CORP|CO|LTD|LLC|PLC|GROUP|HOLDINGS?|CLASS [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ADR)(\s.*)?$/,'').trim(),
+    norm(ticker||''),
+  ];
+  for(const k of keys){
+    if(KNOWN_COMPANY_TICKERS[k]&&CEDEAR_LIST.has(KNOWN_COMPANY_TICKERS[k]))return KNOWN_COMPANY_TICKERS[k];
+    if(CEDEAR_LIST.has(k))return k;
+  }
+  return null;
+}
+
 // Frases de inversores famosos
 const FRASES=[
   {frase:'El riesgo viene de no saber lo que estás haciendo.',autor:'Warren Buffett'},
@@ -3824,8 +3945,6 @@ let MC_TAB='composicion';
 let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
 let MC_SIM_AMOUNT=5000;
-let MC_CCL_CACHE=null;
-let MC_CCL_LOADING=false;
 let MC_MONTH_FILTER=new Date().toISOString().slice(0,7);
 
 async function loadCarteras(){
@@ -3852,16 +3971,21 @@ async function ensureSecNameMap(){
 }
 
 function secNameToTicker(name){
-  if(!SEC_NAME_MAP)return name.split(' ')[0];
   const key=name.toUpperCase().replace(/[,.]/g,'').trim();
-  if(SEC_NAME_MAP[key])return SEC_NAME_MAP[key];
-  // Strip common suffixes and retry
   const stripped=key.replace(/\s+(INC|CORP|CO|LTD|LLC|PLC|GROUP|HOLDINGS?|CLASS [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ADR)(\s.*)?$/,'').trim();
-  if(SEC_NAME_MAP[stripped])return SEC_NAME_MAP[stripped];
-  // First-word match
-  const first=stripped.split(' ')[0];
-  const match=Object.entries(SEC_NAME_MAP).find(([k])=>k===first||k.startsWith(first+' '));
-  return match?match[1]:name.split(' ').slice(0,2).join('');
+  // 1. Known hardcoded map first (no API needed)
+  if(KNOWN_COMPANY_TICKERS[key])return KNOWN_COMPANY_TICKERS[key];
+  if(KNOWN_COMPANY_TICKERS[stripped])return KNOWN_COMPANY_TICKERS[stripped];
+  // 2. SEC API map (if loaded successfully)
+  if(SEC_NAME_MAP){
+    if(SEC_NAME_MAP[key])return SEC_NAME_MAP[key];
+    if(SEC_NAME_MAP[stripped])return SEC_NAME_MAP[stripped];
+    const first=stripped.split(' ')[0];
+    const match=Object.entries(SEC_NAME_MAP).find(([k])=>k===first||k.startsWith(first+' '));
+    if(match)return match[1];
+  }
+  // 3. Fallback: first word (better than garbage concatenation)
+  return stripped.split(' ')[0]||key.split(' ')[0];
 }
 
 async function syncCarteraFromSec(cartId){
@@ -3968,46 +4092,29 @@ function rMiCartera(){
   }
 }
 
-async function fetchCCLRate(){
-  if(MC_CCL_LOADING)return;
-  MC_CCL_LOADING=true;
-  try{
-    const r=await fetch('https://dolarapi.com/v1/dolares/contadoconliqui');
-    if(!r.ok)throw new Error('HTTP '+r.status);
-    const d=await r.json();
-    const rate=d.venta||d.compra;
-    if(!rate)throw new Error('sin dato');
-    const fecha=d.fechaActualizacion?new Date(d.fechaActualizacion).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'hoy';
-    MC_CCL_CACHE={rate,fecha};
-    kc();rMiCartera();
-  }catch(e){MC_CCL_CACHE={rate:null,fecha:null};}
-  finally{MC_CCL_LOADING=false;}
-}
-
 function rCEDEARSim(segs){
-  const cedearSegs=segs.filter(x=>CEDEAR_LIST.has(x.ticker));
+  // Resolve CEDEAR ticker for each position (handles bad SEC-mapped tickers via nombre)
+  const resolved=segs.map(x=>({...x,cedearTk:resolveCEDEARTicker(x.ticker,x.nombre)}));
+  const cedearSegs=resolved.filter(x=>x.cedearTk);
   const totalPct=cedearSegs.reduce((s,x)=>s+(+x.pct||0),0);
   if(!cedearSegs.length)return`<div class="card" style="margin-top:14px;padding:24px;text-align:center;"><div style="font-size:13px;color:var(--muted);">Ninguna posición tiene CEDEAR disponible en Argentina.</div></div>`;
   const amt=MC_SIM_AMOUNT||5000;
-  const ccl=MC_CCL_CACHE;
-  if(!ccl)fetchCCLRate();
+  // Use existing MEP (already live-fetched at app load via dolarapi.com/bolsa)
+  const tc=MEP||0;
   const rows=cedearSegs.map(x=>{
     const adj=totalPct>0?(+x.pct/totalPct)*100:0;
     const usd=amt*adj/100;
-    const ars=ccl&&ccl.rate?usd*ccl.rate:null;
+    const ars=tc?usd*tc:null;
     return{...x,adj,usd,ars};
   }).sort((a,b)=>b.adj-a.adj);
-  const cclTxt=ccl
-    ?(ccl.rate?`CCL: <b style="color:#5b9cf6;font-family:var(--mono);">$${ccl.rate.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}</b> · ${ccl.fecha}`:'CCL: no disponible')
-    :'CCL: cargando…';
-  const hasARS=ccl&&ccl.rate;
+  const mepTxt=tc?`MEP: <b style="color:#5b9cf6;font-family:var(--mono);">$${tc.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}</b>`:'MEP: cargando…';
   return`<div class="card" style="margin-top:14px;">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
       <div>
         <div style="font-size:13px;font-weight:700;color:#eceef3;">🇦🇷 Simulador CEDEAR</div>
         <div style="font-size:11px;color:var(--muted);margin-top:3px;">${cedearSegs.length} de ${segs.length} posiciones disponibles · ${totalPct.toFixed(1)}% del portfolio</div>
       </div>
-      <div style="font-size:10px;color:var(--muted);text-align:right;">${cclTxt}</div>
+      <div style="font-size:10px;color:var(--muted);text-align:right;">${mepTxt}</div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
       <span style="font-size:11px;color:var(--soft);">Monto a invertir:</span>
@@ -4022,26 +4129,26 @@ function rCEDEARSim(segs){
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08);">
-          <th style="text-align:left;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);font-weight:500;">TICKER</th>
+          <th style="text-align:left;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);font-weight:500;">CEDEAR</th>
           <th style="text-align:left;padding:5px 8px;font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">EMPRESA</th>
           <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">ORIG.</th>
           <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">AJUST.</th>
           <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">USD</th>
-          ${hasARS?`<th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">ARS aprox.</th>`:''}
+          ${tc?`<th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">ARS aprox.</th>`:''}
         </tr></thead>
         <tbody>${rows.map((x,i)=>`
           <tr style="${i<rows.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
-            <td style="padding:9px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.ticker}</td>
-            <td style="padding:9px 8px;font-size:10px;color:var(--soft);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre&&x.nombre!==x.ticker?x.nombre:'—'}</td>
+            <td style="padding:9px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.cedearTk}</td>
+            <td style="padding:9px 8px;font-size:10px;color:var(--soft);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre||x.ticker||'—'}</td>
             <td style="padding:9px 8px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;">${(+x.pct||0).toFixed(1)}%</td>
             <td style="padding:9px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};text-align:right;">${x.adj.toFixed(1)}%</td>
             <td style="padding:9px 8px;font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;text-align:right;">$${Math.round(x.usd).toLocaleString('en-US')}</td>
-            ${hasARS?`<td style="padding:9px 8px;font-family:var(--mono);font-size:11px;color:var(--soft);text-align:right;">$${Math.round(x.ars).toLocaleString('es-AR')}</td>`:''}
+            ${tc?`<td style="padding:9px 8px;font-family:var(--mono);font-size:11px;color:var(--soft);text-align:right;">$${Math.round(x.ars).toLocaleString('es-AR')}</td>`:''}
           </tr>`).join('')}</tbody>
       </table>
     </div>
     <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);font-size:9px;color:var(--muted);line-height:1.6;">
-      Pesos ajustados re-distribuyen el monto sólo entre las posiciones con CEDEAR disponible en BYMA. Dividí el USD por el precio actual en USD del activo subyacente para estimar la cantidad de láminas (considerando el ratio CEDEAR). Tipo de cambio CCL vía dolarapi.com.
+      Pesos ajustados re-distribuyen el monto sólo entre posiciones con CEDEAR disponible en BYMA. Para cantidad de láminas: dividí el USD por el precio actual del CEDEAR en ARS y dividí por el ratio (ver BYMA). TC MEP vía dolarapi.com.
     </div>
   </div>`;
 }
@@ -4262,7 +4369,7 @@ function rCarteraDetail(cart){
         const rPct=+(x.rend_pct||0);
         const barW=Math.round((+x.pct||0)/maxPct*100);
         const isLast=xi===segs.length-1;
-        const isCEDEAR=CEDEAR_LIST.has(x.ticker);
+        const isCEDEAR=!!resolveCEDEARTicker(x.ticker,x.nombre);
         return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;${isLast?'':'border-bottom:1px solid rgba(255,255,255,.04)'};">
           <div style="width:3px;height:40px;border-radius:2px;background:${sc_.cl};flex-shrink:0;"></div>
           <div style="min-width:60px;">

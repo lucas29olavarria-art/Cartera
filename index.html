@@ -4264,24 +4264,29 @@ function openEditCartera(id){openNuevaCartera(id);}
 
 function previewCartaFoto(input){
   const f=input.files[0];if(!f)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    const img=new Image();
-    img.onload=()=>{
-      // Resize + center-crop to 220×220 JPEG — keeps base64 small enough for Supabase
-      const size=220;
-      const canvas=document.createElement('canvas');
-      canvas.width=size;canvas.height=size;
-      const ctx=canvas.getContext('2d');
-      const src=Math.min(img.width,img.height);
-      const ox=(img.width-src)/2,oy=(img.height-src)/2;
-      ctx.drawImage(img,ox,oy,src,src,0,0,size,size);
-      MC_FOTO_B64=canvas.toDataURL('image/jpeg',0.82);
-      document.getElementById('ct-foto-preview').innerHTML=`<img src="${MC_FOTO_B64}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
+  // Just show a quick preview using object URL — compression happens on save
+  const url=URL.createObjectURL(f);
+  document.getElementById('ct-foto-preview').innerHTML=`<img src="${url}" style="width:48px;height:48px;border-radius:50%;object-fit:cover;">`;
+}
+
+async function comprimirFoto(file){
+  return new Promise(resolve=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const size=220;
+        const canvas=document.createElement('canvas');
+        canvas.width=size;canvas.height=size;
+        const ctx=canvas.getContext('2d');
+        const src=Math.min(img.width,img.height);
+        ctx.drawImage(img,(img.width-src)/2,(img.height-src)/2,src,src,0,0,size,size);
+        resolve(canvas.toDataURL('image/jpeg',0.82));
+      };
+      img.src=e.target.result;
     };
-    img.src=e.target.result;
-  };
-  reader.readAsDataURL(f);
+    reader.readAsDataURL(file);
+  });
 }
 
 async function guardarCartera(editId){
@@ -4289,7 +4294,10 @@ async function guardarCartera(editId){
   const subtitulo=document.getElementById('ct-subtitulo').value.trim();
   const tipo=document.getElementById('ct-tipo').value;
   const descripcion=document.getElementById('ct-desc').value.trim();
-  const foto_b64=MC_FOTO_B64||(editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null);
+  // Read and compress photo at save time (avoids async race conditions)
+  const fotoInput=document.getElementById('ct-foto');
+  let foto_b64=editId?CARTERAS_CACHE.find(c=>c.id===editId)?.foto_b64||null:null;
+  if(fotoInput&&fotoInput.files[0])foto_b64=await comprimirFoto(fotoInput.files[0]);
   const investor_id=document.getElementById('ct-inv').value||null;
   const cik=document.getElementById('ct-cik').value.trim()||null;
   let posiciones=[];

@@ -2474,56 +2474,83 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
 
   // ── CAPITAL vs RENDIMIENTO ────────────────────────────────────
   if(liq>0||inv.olasVal>0){
-    // Include Olas in "tu dinero trabajando"
+    const safeNum=v=>{const n=+v;return isFinite(n)&&n>0?n:0;};
+    const fmtRend=(r,cap)=>{
+      if(r===null)return'—';
+      const sign=r>=0?'+':'−';
+      const pct=cap>0?(Math.abs(r)/cap*100).toFixed(1)+'%':'';
+      return`${sign}u$s ${fmt(Math.abs(r))}${pct?` <span style="font-size:9px;color:inherit;opacity:.7;">(${sign}${pct})</span>`:''}`;
+    };
+
+    // ── RV
+    const rvVal=totalRV(inv);
+    const rvCap=(inv.rv||[]).reduce((s,p)=>s+safeNum(p.vinicial),0);
+    const rvHasCost=rvCap>0;
+    const rvRend=rvHasCost?rvVal-rvCap:null;
+
+    // ── RF
+    const rfVal=totalRF(inv);
+    const rfCap=(inv.rf||[]).reduce((s,p)=>s+safeNum(+p.vn_total*(+p.precio_compra||0)/100),0);
+    const rfHasCost=rfCap>0;
+    const rfRend=rfHasCost?rfVal-rfCap:null;
+
+    // ── Olas
     const olasVal=inv.olasVal||0;
-    const olasCapitalRaw=(inv.olasFlows||[]).reduce((s,f)=>{
-      if(f.capitalUsd)return s+(+f.capitalUsd);
-      if(f.capitalArs&&f.tcInicio)return s+(+f.capitalArs/+f.tcInicio);
+    const olasCapRaw=(inv.olasFlows||[]).reduce((s,f)=>{
+      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
       return s;
     },0);
-    // If no TC data available, treat olasVal as pure capital (0 gain) to avoid inflating ganancia
-    const olasCapital=olasCapitalRaw>0?olasCapitalRaw:olasVal;
-    const olasGain=olasVal-olasCapital;
-    const totalTrabajando=liq+olasVal;
-    const totalRend2=rend+(olasVal-olasCapital);
-    const capitalInv=totalTrabajando-totalRend2;
-    const capitalPct=totalTrabajando>0?+(capitalInv/totalTrabajando*100).toFixed(1):0;
-    const rendC=totalRend2>=0?'#2dd4a0':'#f06c6c';
-    const rendSign=totalRend2>=0?'+':'−';
-    const rendPctInv=capitalInv>0?(Math.abs(totalRend2)/capitalInv*100).toFixed(1):'0.0';
-    const totalLabel=olasVal>0?'Total RV + RF + Olas':'Total RV + RF';
+    const olasCap=olasCapRaw>0?olasCapRaw:olasVal;
+    const olasHasCost=olasCapRaw>0;
+    const olasRend=olasHasCost?olasVal-olasCap:null;
+
+    // ── Totals
+    const totalCap=rvCap+rfCap+olasCap;
+    const totalVal=rvVal+rfVal+olasVal;
+    const hasCostTotal=rvHasCost||rfHasCost||olasHasCost;
+    const totalRendCalc=hasCostTotal?totalVal-totalCap:null;
+    const capBar=totalCap>0?Math.min(120,totalVal/totalCap*100):100;
+    const totalC=totalRendCalc===null?'#5b9cf6':totalRendCalc>=0?'#2dd4a0':'#f06c6c';
+
+    const mkCatRow=(ic,label,val,cap,hasCost,rnd)=>{
+      if(val<=0)return'';
+      const rc=rnd===null?'var(--muted)':rnd>=0?'#2dd4a0':'#f06c6c';
+      return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);">
+        <div style="display:flex;align-items:center;gap:7px;min-width:100px;">
+          <span style="font-size:14px;line-height:1;">${ic}</span>
+          <span style="font-size:11px;color:var(--soft);">${label}</span>
+        </div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:#eceef3;">u$s ${fmt(val)}</div>
+          ${hasCost&&cap>0?`<div style="font-size:9px;color:var(--muted);">Invertido: u$s ${fmt(cap)}</div>`:''}
+        </div>
+        <div style="text-align:right;min-width:90px;">
+          <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${rc};">${fmtRend(rnd,cap)}</div>
+        </div>
+      </div>`;
+    };
+
     html+=`
     <div class="card" style="margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:16px;">Tu dinero trabajando</div>
-      <div style="height:8px;background:rgba(255,255,255,.06);border-radius:4px;overflow:hidden;margin-bottom:14px;">
-        <div style="display:flex;height:100%;">
-          <div style="width:${capitalPct}%;background:#424b5c;transition:width .7s ease;border-radius:4px 0 0 4px;"></div>
-          <div style="flex:1;background:${rendC};opacity:.85;border-radius:0 4px 4px 0;"></div>
-        </div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Tu dinero trabajando</div>
+      ${hasCostTotal?`
+      <div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:4px;">
+        <div style="width:${Math.min(100,capBar).toFixed(1)}%;height:100%;background:${totalC};border-radius:3px;transition:width .7s;"></div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:7px;height:7px;border-radius:2px;background:#424b5c;flex-shrink:0;"></div>
-          <span style="font-size:12px;color:var(--soft);">Capital aportado</span>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--muted);text-align:right;margin-bottom:14px;">${totalRendCalc!==null?(totalRendCalc>=0?'▲':'▼')+' '+(Math.abs(totalRendCalc)/totalCap*100).toFixed(1)+'% sobre capital':''}</div>`:''}
+      ${mkCatRow('💹','Acciones',rvVal,rvCap,rvHasCost,rvRend)}
+      ${mkCatRow('📄','Bonos',rfVal,rfCap,rfHasCost,rfRend)}
+      ${mkCatRow('🌊','Olas (Yont)',olasVal,olasCap,olasHasCost,olasRend)}
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-top:10px;">
+        <div>
+          <div style="font-size:12px;font-weight:700;color:#eceef3;">Total</div>
+          ${hasCostTotal?`<div style="font-size:9px;color:var(--muted);margin-top:2px;">Capital: u$s ${fmt(totalCap)}</div>`:''}
         </div>
         <div style="text-align:right;">
-          <span style="font-family:var(--mono);font-size:12px;font-weight:500;">u$s ${fmt(capitalInv)}</span>
-          <span style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-left:6px;">${capitalPct}%</span>
+          <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#eceef3;">u$s ${fmt(totalVal)}</div>
+          ${totalRendCalc!==null?`<div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${totalC};">${fmtRend(totalRendCalc,totalCap)}</div>`:''}
         </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:9px 0;border-bottom:1px solid var(--line);">
-        <div style="display:flex;align-items:center;gap:8px;">
-          <div style="width:7px;height:7px;border-radius:2px;background:${rendC};flex-shrink:0;"></div>
-          <span style="font-size:12px;color:var(--soft);">Ganancia generada</span>
-        </div>
-        <div style="text-align:right;">
-          <span style="font-family:var(--mono);font-size:12px;font-weight:600;color:${rendC};">${rendSign} u$s ${fmt(Math.abs(totalRend2))}</span>
-          <span style="font-family:var(--mono);font-size:10px;color:${rendC};margin-left:6px;">${totalRend2>=0?'+':'−'}${rendPctInv}%</span>
-        </div>
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding-top:9px;">
-        <span style="font-size:12px;font-weight:600;color:var(--soft);">${totalLabel}</span>
-        <span style="font-family:var(--mono);font-size:13px;font-weight:700;">u$s ${fmt(totalTrabajando)}</span>
       </div>
     </div>`;
   }

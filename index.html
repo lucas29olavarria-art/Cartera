@@ -566,10 +566,31 @@ input[type=range]{flex:1;accent-color:var(--blue);}
       <button onclick="co('m-import')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">✕</button>
     </div>
 
-    <!-- PASO 1: SELECCIONAR INVERSOR -->
+    <!-- PASO 1: SELECCIONAR / CREAR INVERSOR -->
     <div style="background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">
-      <div class="fl" style="margin-bottom:6px;">Inversor</div>
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div class="fl" style="margin-bottom:0;">Inversor</div>
+        <button id="imp-new-inv-btn" onclick="impToggleNewInv()" style="background:rgba(45,212,160,.1);border:1px solid rgba(45,212,160,.25);color:var(--green);border-radius:6px;font-size:11px;padding:3px 10px;cursor:pointer;">+ Nuevo cliente</button>
+      </div>
       <select class="fi" id="imp-inv" style="max-width:300px;"></select>
+
+      <!-- Formulario inline de creación rápida -->
+      <div id="imp-new-inv-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(45,212,160,.15);">
+        <div style="font-size:10px;color:var(--green);font-weight:600;letter-spacing:.06em;margin-bottom:10px;">NUEVO CLIENTE</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
+          <input class="fi" id="imp-new-name" placeholder="Nombre completo" style="font-size:12px;">
+          <input class="fi" id="imp-new-pin" placeholder="PIN (4 dígitos)" maxlength="4" type="password" inputmode="numeric" style="font-size:12px;">
+        </div>
+        <div style="margin-bottom:10px;">
+          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Color</div>
+          <div id="imp-new-cp" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
+        </div>
+        <div style="display:flex;gap:8px;">
+          <button class="bok" id="imp-new-save-btn" onclick="impSaveNewInv()" style="flex:1;background:var(--green);border-color:var(--green);">✓ Crear cliente</button>
+          <button class="bno" onclick="impToggleNewInv()" style="flex:0 0 auto;">Cancelar</button>
+        </div>
+        <div id="imp-new-inv-msg" style="margin-top:6px;font-size:11px;"></div>
+      </div>
     </div>
 
     <!-- TABS -->
@@ -5918,6 +5939,62 @@ async function cancelarOperacion(movId, invId){
 // ── IMPORTADOR ────────────────────────────────────────────────
 let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
 
+// ── CREAR CLIENTE INLINE EN IMPORT ───────────────────────────
+let impNewInvColor=PAL[0];
+
+function impToggleNewInv(){
+  const form=document.getElementById('imp-new-inv-form');
+  const open=form.style.display==='none';
+  form.style.display=open?'block':'none';
+  if(open){
+    document.getElementById('imp-new-name').value='';
+    document.getElementById('imp-new-pin').value='';
+    document.getElementById('imp-new-inv-msg').innerHTML='';
+    impNewInvColor=PAL[Math.floor(Math.random()*PAL.length)];
+    const cp=document.getElementById('imp-new-cp');
+    cp.innerHTML=PAL.map(c=>`<div onclick="impPickNewColor('${c}')" style="width:20px;height:20px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${c===impNewInvColor?'#fff':'transparent'};transition:border .15s;" id="imp-cp-${c.replace('#','')}"></div>`).join('');
+    document.getElementById('imp-new-name').focus();
+  }
+}
+
+function impPickNewColor(c){
+  impNewInvColor=c;
+  document.querySelectorAll('#imp-new-cp div').forEach(d=>{
+    d.style.border=`2px solid ${d.style.background===c?'#fff':'transparent'}`;
+  });
+}
+
+async function impSaveNewInv(){
+  const name=document.getElementById('imp-new-name').value.trim();
+  const pin=document.getElementById('imp-new-pin').value.trim();
+  const msg=document.getElementById('imp-new-inv-msg');
+  if(!name){msg.innerHTML='<span style="color:var(--red);">Ingresá un nombre</span>';return;}
+  if(!/^\d{4}$/.test(pin)){msg.innerHTML='<span style="color:var(--red);">PIN debe ser exactamente 4 dígitos</span>';return;}
+  const btn=document.getElementById('imp-new-save-btn');
+  btn.disabled=true;btn.textContent='Creando...';
+  try{
+    const hashed=await hashPin(pin);
+    const{data,error}=await sb.from('investors').insert({name,pin:hashed,color:impNewInvColor,olas_val:0,is_admin:false}).select().single();
+    if(error)throw error;
+    INV_CACHE[data.id]={...data,rv:[],rf:[],rfFlows:[],olasFlows:[],gastos:[],olasVal:0};
+    // Add to selector and select the new investor
+    const sel=document.getElementById('imp-inv');
+    const opt=document.createElement('option');
+    opt.value=data.id;opt.textContent=data.name;
+    sel.appendChild(opt);
+    sel.value=data.id;
+    // Hide form
+    document.getElementById('imp-new-inv-form').style.display='none';
+    showToast('✓ '+data.name+' creado — ya podés importar');
+    // Also refresh investors view if visible
+    if(document.getElementById('igrid')||document.querySelector('.igrid'))rInversores();
+  }catch(e){
+    msg.innerHTML=`<span style="color:var(--red);">Error: ${e.message}</span>`;
+  }finally{
+    btn.disabled=false;btn.textContent='✓ Crear cliente';
+  }
+}
+
 function openImport(){
   // If investor (not admin), pre-select themselves
   let invs;
@@ -5928,7 +6005,9 @@ function openImport(){
   }
   const sel=document.getElementById('imp-inv');
   sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
-  sel.disabled=!CU.is_admin; // investors can't change who they import for
+  sel.disabled=!CU.is_admin;
+  document.getElementById('imp-new-inv-btn').style.display=CU.is_admin?'':'none';
+  document.getElementById('imp-new-inv-form').style.display='none';
   impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';

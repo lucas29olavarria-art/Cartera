@@ -2141,13 +2141,14 @@ function renderInv(inv){
   // Olas P&L: (cobrado + outstanding) - invested capital
   const olasCobradoProfile=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
   const olasCapProfile=(()=>{
+    const sn=v=>{const n=+v;return isFinite(n)&&n>0?n:0;};
     const seen=new Set();
     return (inv.olasFlows||[]).reduce((s,f)=>{
       const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
       if(seen.has(proj))return s;
       seen.add(proj);
-      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
-      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
+      if(f.capitalUsd)return s+sn(f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+sn(+f.capitalArs/+f.tcInicio);
       return s;
     },0);
   })();
@@ -3618,13 +3619,14 @@ function rAnalisis(inv,liq){
   const olasCobradoUSD=analisisFiltro==='todos'?(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0):0;
   // Olas capital invested (dedup, same logic as "Tu dinero trabajando")
   const olasCapKPI=analisisFiltro==='todos'?(()=>{
+    const sn=v=>{const n=+v;return isFinite(n)&&n>0?n:0;};
     const seen=new Set();
     return (inv.olasFlows||[]).reduce((s,f)=>{
       const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
       if(seen.has(proj))return s;
       seen.add(proj);
-      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
-      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
+      if(f.capitalUsd)return s+sn(f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+sn(+f.capitalArs/+f.tcInicio);
       return s;
     },0);
   })():0;

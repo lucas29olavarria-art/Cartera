@@ -3827,24 +3827,12 @@ function secNameToTicker(name){
   return match?match[1]:name.split(' ').slice(0,2).join('');
 }
 
-async function secProxyFetch(url){
-  // Calls Supabase Edge Function sec-proxy which fetches SEC server-side (no CORS issue)
-  const r=await fetch(`${SB_URL}/functions/v1/sec-proxy`,{
-    method:'POST',
-    headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
-    body:JSON.stringify({url})
-  });
-  if(!r.ok)throw new Error('Proxy HTTP '+r.status+' para '+url.split('/').pop());
-  return r;
-}
-
 async function syncCarteraFromSec(cartId){
   const cart=CARTERAS_CACHE.find(c=>c.id===cartId);
   if(!cart?.cik){showToast('Esta cartera no tiene CIK de SEC');return;}
   showToast('Sincronizando con SEC EDGAR…');
   try{
     const paddedCik=String(+cart.cik).padStart(10,'0');
-    const cikNum=String(+cart.cik);
 
     // Step 1 — get submissions (data.sec.gov/submissions has CORS enabled)
     const r1=await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`);
@@ -3856,26 +3844,21 @@ async function syncCarteraFromSec(cartId){
     if(i13<0)throw new Error('No 13F-HR encontrado');
 
     const acc=recent.accessionNumber[i13];
-    const accND=acc.replace(/-/g,'');
     const filingDate=recent.filingDate[i13];
 
-    // Step 2 — filing index via proxy (Archives blocks CORS)
-    let xmlFile=null;
-    try{
-      const r2=await secProxyFetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`);
-      if(r2.ok){
-        const idx=await r2.json();
-        const files=idx.directory?.item||[];
-        xmlFile=files.find(f=>f.name.toLowerCase().endsWith('.xml')&&/info|table|hold/i.test(f.name)&&!/index/i.test(f.name))
-                ||files.find(f=>f.name.toLowerCase().endsWith('.xml')&&!/index/i.test(f.name));
-      }
-    }catch(e){}
-    const xmlName=xmlFile?.name||'informationtable.xml';
-
-    // Step 3 — holdings XML via proxy
-    const r3=await secProxyFetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`);
-    if(!r3.ok)throw new Error('Holdings XML error: '+r3.status);
-    const xmlTxt=await r3.text();
+    // Step 2+3 — Edge Function finds correct XML filename and returns content (no CORS)
+    const r2=await fetch(`${SB_URL}/functions/v1/sec-proxy`,{
+      method:'POST',
+      headers:{'Content-Type':'application/json','apikey':SB_KEY,'Authorization':'Bearer '+SB_KEY},
+      body:JSON.stringify({cik:cart.cik,acc})
+    });
+    if(!r2.ok){
+      const errBody=await r2.text().catch(()=>'');
+      let errMsg='HTTP '+r2.status;
+      try{const j=JSON.parse(errBody);if(j.error)errMsg=j.error;}catch(e){}
+      throw new Error(errMsg);
+    }
+    const xmlTxt=await r2.text();
 
     const parser=new DOMParser();
     const xdoc=parser.parseFromString(xmlTxt,'text/xml');

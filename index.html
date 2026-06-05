@@ -606,6 +606,13 @@ input[type=range]{flex:1;accent-color:var(--blue);}
         <span><strong>Importar:</strong> reemplaza todas las posiciones actuales con las del archivo.</span>
         <button onclick="impLimpiarBroker()" style="background:rgba(255,80,80,.12);border:1px solid rgba(255,80,80,.3);color:var(--red);border-radius:4px;font-size:10px;padding:3px 8px;cursor:pointer;white-space:nowrap;">&#128465; Limpiar posiciones</button>
       </div>
+      <!-- PPC mode toggle -->
+      <div style="display:flex;align-items:center;gap:10px;margin-bottom:10px;background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.2);border-radius:var(--r);padding:8px 12px;">
+        <input type="checkbox" id="imp-use-current-ppc" onchange="impApplyPPCMode()" style="accent-color:var(--amber);width:14px;height:14px;cursor:pointer;">
+        <label for="imp-use-current-ppc" style="font-size:11px;color:var(--amber);cursor:pointer;flex:1;">
+          <strong>Usar precio actual como PPC</strong> — ignora el PPC del archivo, vinicial = valor actual (P&amp;L parte de 0%)
+        </label>
+      </div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px;">
         <!-- Inviu -->
         <div>
@@ -6025,7 +6032,7 @@ async function cancelarOperacion(movId, invId){
   }
 }
 // ── IMPORTADOR ────────────────────────────────────────────────
-let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impParsedTenencias=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
+let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impParsedTenencias=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={}, _impRawRV=[];
 
 // ── CREAR CLIENTE INLINE EN IMPORT ───────────────────────────
 let impNewInvColor=PAL[0];
@@ -6096,7 +6103,7 @@ function openImport(){
   sel.disabled=!CU.is_admin;
   document.getElementById('imp-new-inv-btn').style.display=CU.is_admin?'':'none';
   document.getElementById('imp-new-inv-form').style.display='none';
-  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[];
+  impParsedRV=[]; _impRawRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
@@ -6545,6 +6552,7 @@ function impParseInviu(rows){
   }
 
   console.log('[Inviu] total parseado: u$s',positions.reduce((s,p)=>s+p.valor,0).toFixed(0),'('+positions.length+' pos)');
+  _impRawRV=positions.map(p=>({...p})); // store original ppc data
   impParsedRV=positions;
   // Store debug info for preview
   impInviuDebug={hdrRowIdx,tickerCol,qtyCol,precioCol,valCol,ppcCol,tc:impTcMep,
@@ -6560,28 +6568,45 @@ function impShowRVPreview(){
     el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el Excel correcto de Inviu.${dbg}</div>`;
     return;
   }
+  const useCurrentPPC=document.getElementById('imp-use-current-ppc')?.checked;
   const totalInviu=impParsedRV.reduce((s,p)=>s+p.valor,0);
+  const totalVinicial=impParsedRV.reduce((s,p)=>s+p.vinicial,0);
+  const ppcSuspect=!useCurrentPPC&&totalVinicial>totalInviu*2;
   el.innerHTML=`
+  ${ppcSuspect?`<div style="background:rgba(245,166,35,.1);border:1px solid rgba(245,166,35,.35);border-radius:var(--r);padding:8px 12px;margin-bottom:8px;font-size:11px;color:var(--amber);">
+    ⚠ El PPC total (u$s ${fmt(totalVinicial)}) es ${(totalVinicial/totalInviu).toFixed(1)}× el valor actual (u$s ${fmt(totalInviu)}) — puede ser que el PPC del archivo esté desactualizado.<br>
+    <strong>Activá "Usar precio actual como PPC"</strong> si no querés mostrar pérdidas históricas.
+  </div>`:''}
   <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);padding:10px 12px;margin-bottom:10px;font-size:11px;color:var(--green);display:flex;justify-content:space-between;align-items:center;">
     <span>✓ ${impParsedRV.length} posiciones · TC MEP: $${fmt(impTcMep)}</span>
     <span style="font-family:var(--mono);font-weight:700;">Total: u$s ${fmt(totalInviu)}</span>
   </div>
-  <div class="tw" style="max-height:260px;overflow-y:auto;">
+  <div class="tw" style="max-height:240px;overflow-y:auto;">
   <table style="min-width:500px;">
-    <thead><tr><th>Ticker</th><th>Nombre</th><th>Cantidad</th><th style="text-align:right">Precio USD</th><th style="text-align:right">Valor USD</th><th style="text-align:right">PPC USD</th><th style="text-align:right">Rend.</th></tr></thead>
-    <tbody>${impParsedRV.map(p=>`<tr>
+    <thead><tr><th>Ticker</th><th>Cantidad</th><th style="text-align:right">Precio</th><th style="text-align:right">Valor</th><th style="text-align:right">PPC</th><th style="text-align:right">Rend.</th></tr></thead>
+    <tbody>${impParsedRV.map(p=>{
+      const rendPct=p.vinicial>0?((p.rend/p.vinicial)*100).toFixed(1):null;
+      const rc=p.rend>=0?'var(--green)':'var(--red)';
+      return`<tr>
       <td><span class="bdg">${p.ticker}</span></td>
-      <td style="font-size:11px;color:var(--soft);">${p.nombre}</td>
       <td style="font-family:var(--mono);font-size:11px;">${p.qty}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;">u$s ${fmtd(p.precioUSD)}</td>
       <td style="text-align:right;font-family:var(--mono);font-size:11px;">u$s ${fmt(p.valor)}</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:11px;">u$s ${fmtd(p.ppcUSD)}</td>
-      <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${p.rend>=0?'var(--green)':'var(--red)'};">${p.rend>=0?'+':''}u$s ${fmt(Math.abs(p.rend))}</td>
-    </tr>`).join('')}</tbody>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px;${useCurrentPPC?'color:var(--muted);':''}">u$s ${fmtd(p.ppcUSD)}${useCurrentPPC?' <span style="font-size:9px;opacity:.5;">(=precio)</span>':''}</td>
+      <td style="text-align:right;font-family:var(--mono);font-size:11px;color:${rc};">${useCurrentPPC?'<span style="color:var(--muted);">—</span>':(rendPct?`${p.rend>=0?'+':''}${rendPct}%`:'—')}</td>
+    </tr>`;}).join('')}</tbody>
   </table></div>`;
   impUpdateCombined();
 }
 
+function impApplyPPCMode(){
+  const useCurrentPPC=document.getElementById('imp-use-current-ppc')?.checked;
+  impParsedRV=_impRawRV.map(p=>{
+    const vinicial=useCurrentPPC?p.valor:p.vinicial;
+    return{...p,vinicial,ppcUSD:p.qty>0?vinicial/p.qty:0,rend:p.valor-vinicial};
+  });
+  impShowRVPreview();
+}
 
 // ── BALANZ PDF PARSER ─────────────────────────────────────────
 let impParsedBalanz=[];

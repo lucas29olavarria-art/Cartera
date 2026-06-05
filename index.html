@@ -3946,6 +3946,7 @@ let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
 let MC_SIM_AMOUNT=5000;
 let MC_ARG_VIEW=false;
+let MC_USE_EQUIV=false;
 let MC_MONTH_FILTER=new Date().toISOString().slice(0,7);
 
 async function loadCarteras(){
@@ -4262,6 +4263,14 @@ const CEDEAR_EQUIVALENTS={
   'BRK.B':['JPM','BAC','KO'],'BRKB':['JPM','BAC','KO'],
 };
 
+// Sector → mejor ETF CEDEAR disponible en BYMA
+const SECTOR_ETF_MAP={
+  'Tecnología':'XLK','Financiero':'XLF','Energía':'XLE',
+  'Salud':'XLV','Consumo Discrecional':'XLY','Consumo Básico':'XLP',
+  'Industrial':'XLI','Servicios Públicos':'XLU','Inmobiliario':'VNQ',
+  'Materiales':'GLD','Comunicaciones':'QQQ','Otro':'SPY',
+};
+
 function rCarteraArgentina(cart,segs){
   const sc_=x=>({...x,cedearTk:resolveCEDEARTicker(x.ticker,x.nombre)});
   const resolved=segs.map(sc_);
@@ -4285,14 +4294,43 @@ function rCarteraArgentina(cart,segs){
 
   // Deduplicate available by cedearTk (GOOGL+GOOG, AAPL duplicates, etc.)
   const deduped={};
+  const colorIdx={}; let ci2=0;
   available.forEach(x=>{
     const k=x.cedearTk;
-    if(!deduped[k]){deduped[k]={...x,pct:0,displayNombre:x.nombre||x.ticker};}
+    if(!deduped[k]){deduped[k]={...x,pct:0,displayNombre:x.nombre||x.ticker,rowType:'direct',c:x.c};}
     deduped[k].pct+=(+x.pct||0);
   });
+
+  // If MC_USE_EQUIV: fill gaps with company equivalents or sector ETFs
+  if(MC_USE_EQUIV){
+    withEquiv.forEach(x=>{
+      // Priority 1: company equivalent
+      const compEquiv=(CEDEAR_EQUIVALENTS[x.ticker]||[]).filter(t=>CEDEAR_LIST.has(t))[0];
+      // Priority 2: sector ETF
+      const sn=SECTOR_NORM[x.sector||'']||'Otro';
+      const etfTk=SECTOR_ETF_MAP[sn]||'SPY';
+      const tk=compEquiv||etfTk;
+      const rowType=compEquiv?'equiv':'etf';
+      if(!deduped[tk]){
+        // New row: pick a color not used yet
+        const usedColors=Object.values(deduped).map(r=>r.c);
+        const freeColor=CHC.find(c=>!usedColors.includes(c))||CHC[ci2++%CHC.length];
+        deduped[tk]={cedearTk:tk,pct:0,displayNombre:tk,rowType,c:freeColor,equivFor:x.ticker};
+      } else if(deduped[tk].rowType==='direct'){
+        // Already held directly — just bump the weight, mark as 'direct+' to show in tooltip
+        deduped[tk].pct+=(+x.pct||0);
+        deduped[tk].rowType='direct+';
+        deduped[tk].equivFor=(deduped[tk].equivFor?deduped[tk].equivFor+',':'')+x.ticker;
+      } else {
+        deduped[tk].pct+=(+x.pct||0);
+      }
+      if(deduped[tk].rowType!=='direct'&&deduped[tk].rowType!=='direct+')deduped[tk].rowType=rowType;
+    });
+  }
+
   const simRows=Object.values(deduped).sort((a,b)=>b.pct-a.pct);
 
-  // Deduplicate unavailable by ticker
+  // Deduplicate unavailable by ticker (for the "sin CEDEAR" display card)
   const unavailDeduped={};
   withEquiv.forEach(x=>{
     const k=x.ticker;
@@ -4300,6 +4338,7 @@ function rCarteraArgentina(cart,segs){
     unavailDeduped[k].pct+=(+x.pct||0);
   });
   const unavailRows=Object.values(unavailDeduped).sort((a,b)=>b.pct-a.pct);
+
   const simTotal=simRows.reduce((s,x)=>s+x.pct,0)||1;
   const amt=MC_SIM_AMOUNT||5000;
   const tc=MEP||0;
@@ -4319,7 +4358,7 @@ function rCarteraArgentina(cart,segs){
 
   // ── Header ──────────────────────────────────────────────────
   html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap;">
-    <button class="ib" onclick="MC_ARG_VIEW=false;kc();rMiCartera()">← ${cart.nombre}</button>
+    <button class="ib" onclick="MC_ARG_VIEW=false;MC_USE_EQUIV=false;kc();rMiCartera()">← ${cart.nombre}</button>
     <div style="margin-left:auto;">
       <button onclick="document.getElementById('cob-tooltip').style.display=document.getElementById('cob-tooltip').style.display==='none'?'block':'none'"
         style="font-family:var(--mono);font-size:11px;font-weight:700;color:${fidColor};background:${fidColor}18;padding:5px 14px;border-radius:20px;border:1px solid ${fidColor}30;cursor:pointer;">
@@ -4371,6 +4410,7 @@ function rCarteraArgentina(cart,segs){
       <div style="font-size:13px;font-weight:700;color:#eceef3;">Simulador</div>
       ${tc?`<div style="font-size:10px;color:var(--muted);">MEP <b style="color:#5b9cf6;font-family:var(--mono);">$${tc.toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0})}</b></div>`:''}
     </div>
+
     <div style="display:flex;align-items:center;gap:8px;margin-bottom:14px;flex-wrap:wrap;">
       <span style="font-size:14px;color:var(--soft);">$</span>
       <input type="number" id="arg-sim-input" value="${amt}" min="100" step="100"
@@ -4380,26 +4420,62 @@ function rCarteraArgentina(cart,segs){
       <span style="font-size:11px;color:var(--soft);">USD</span>
       <button class="ib" onclick="MC_SIM_AMOUNT=+(document.getElementById('arg-sim-input')?.value)||5000;kc();rMiCartera()">Calcular</button>
     </div>
+
+    <button onclick="MC_USE_EQUIV=!MC_USE_EQUIV;kc();rMiCartera()"
+      style="width:100%;margin-bottom:14px;padding:10px 14px;border-radius:10px;border:1px solid ${MC_USE_EQUIV?'rgba(245,166,35,.4)':'rgba(255,255,255,.1)'};background:${MC_USE_EQUIV?'rgba(245,166,35,.08)':'transparent'};color:${MC_USE_EQUIV?'#f5a623':'var(--muted)'};font-size:11px;font-weight:600;cursor:pointer;text-align:left;display:flex;align-items:center;gap:8px;transition:all .18s;">
+      <span style="font-size:15px;">${MC_USE_EQUIV?'✅':'⬜'}</span>
+      <div>
+        <div>Completar con equivalentes y ETFs sectoriales</div>
+        <div style="font-size:9px;font-weight:400;margin-top:2px;opacity:.7;">${MC_USE_EQUIV?'Mostrando cartera completa — incluye empresas similares y ETFs para cubrir los huecos':'Solo CEDEARs con acceso directo en BYMA'}</div>
+      </div>
+    </button>
+
     <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
       <table style="width:100%;border-collapse:collapse;">
         <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08);">
           <th style="text-align:left;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--muted);font-weight:500;">CEDEAR</th>
-          <th style="text-align:left;padding:5px 8px;font-size:9px;color:var(--muted);font-weight:500;">EMPRESA</th>
+          <th style="text-align:left;padding:5px 8px;font-size:9px;color:var(--muted);font-weight:500;">DETALLE</th>
           <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">PESO</th>
           <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">USD</th>
           ${tc?`<th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;color:var(--muted);font-weight:500;">ARS</th>`:''}
         </tr></thead>
-        <tbody>${simData.map((x,i)=>`
-          <tr style="${i<simData.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
-            <td style="padding:8px;font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.cedearTk}</td>
-            <td style="padding:8px;font-size:10px;color:var(--soft);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.displayNombre}</td>
+        <tbody>${simData.map((x,i)=>{
+          const isDirect=x.rowType==='direct'||x.rowType==='direct+';
+          const isEquiv=x.rowType==='equiv'||x.rowType==='direct+';
+          const isEtf=x.rowType==='etf';
+          const tkColor=isDirect&&!isEquiv?'#eceef3':isEtf?'#5b9cf6':'#f5a623';
+          const badge=isEtf
+            ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(91,156,246,.15);color:#5b9cf6;border:1px solid rgba(91,156,246,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">ETF sector</span>`
+            :isEquiv&&!isDirect
+            ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">≈ equiv.</span>`
+            :x.rowType==='direct+'
+            ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">+equiv.</span>`
+            :'';
+          const subtext=isEtf
+            ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;">por ${x.equivFor||'sin CEDEAR'}</div>`
+            :isEquiv&&!isDirect
+            ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;">por ${x.equivFor||''}</div>`
+            :x.rowType==='direct+'
+            ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;">directo + equiv. ${x.equivFor||''}</div>`
+            :'';
+          return`<tr style="${i<simData.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+            <td style="padding:8px;font-family:var(--mono);font-size:12px;font-weight:700;color:${tkColor};white-space:nowrap;">${x.cedearTk}${badge}</td>
+            <td style="padding:8px;font-size:10px;color:var(--soft);max-width:110px;">
+              <div style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.displayNombre}</div>
+              ${subtext}
+            </td>
             <td style="padding:8px;font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};text-align:right;">${x.adj.toFixed(1)}%</td>
             <td style="padding:8px;font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;text-align:right;">$${Math.round(x.usd).toLocaleString('en-US')}</td>
             ${tc?`<td style="padding:8px;font-family:var(--mono);font-size:11px;color:var(--soft);text-align:right;">$${Math.round(x.ars||0).toLocaleString('es-AR')}</td>`:''}
-          </tr>`).join('')}
+          </tr>`;
+        }).join('')}
         </tbody>
       </table>
     </div>
+    ${MC_USE_EQUIV?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);font-size:9px;color:var(--muted);line-height:1.6;">
+      <span style="color:#f5a623;">≈ equiv.</span> = empresa similar con CEDEAR disponible &nbsp;·&nbsp;
+      <span style="color:#5b9cf6;">ETF sector</span> = exposición sectorial indirecta. Los pesos se re-normalizan sobre el total invertido.
+    </div>`:''}
   </div>`;
 
   // ── Sector comparison ──────────────────────────────────────

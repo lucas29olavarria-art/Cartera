@@ -3851,7 +3851,7 @@ async function syncCarteraFromSec(cartId){
     // Step 2 — get filing index to find the holdings XML file
     let xmlFile=null;
     try{
-      const r2=await fetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`,{headers:SEC_UA});
+      const r2=await fetch(`https://data.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`);
       if(r2.ok){
         const idx=await r2.json();
         const files=idx.directory?.item||[];
@@ -3862,7 +3862,7 @@ async function syncCarteraFromSec(cartId){
     const xmlName=xmlFile?.name||'informationtable.xml';
 
     // Step 3 — fetch and parse the holdings XML
-    const r3=await fetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`,{headers:SEC_UA});
+    const r3=await fetch(`https://data.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`);
     if(!r3.ok)throw new Error('Holdings XML no accesible (posible CORS)');
     const xmlTxt=await r3.text();
 
@@ -3897,8 +3897,18 @@ async function syncCarteraFromSec(cartId){
     toast('✓ '+posiciones.length+' posiciones · filing '+filingDate);
     kc();rMiCartera();
   }catch(e){
-    toast('Error SEC: '+e.message);
     console.error('SEC sync error',e);
+    const errMsg=e.message||'Error desconocido';
+    toast('Error SEC: '+errMsg);
+    const cart2=CARTERAS_CACHE.find(c=>c.id===cartId);
+    if(cart2){
+      sc(`<div style="padding:40px;text-align:center;">
+        <div style="font-size:13px;color:var(--danger);margin-bottom:8px;">Error al sincronizar con SEC EDGAR</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);margin-bottom:16px;">${errMsg}</div>
+        <button class="ib" onclick="syncCarteraFromSec('${cartId}')">↻ Reintentar</button>
+        <button class="ib" style="margin-left:8px;" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
+      </div>`);
+    }
   }
 }
 

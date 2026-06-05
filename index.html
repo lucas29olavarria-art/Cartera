@@ -1318,6 +1318,7 @@ async function loadInvestor(id){
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null,capitalArs:fx.capital_ars||null}));
   autoConfirmarVencidos(inv);
+  autoEliminarVencidosRF(inv);
   inv.gastos=[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';
@@ -2643,6 +2644,16 @@ function autoConfirmarVencidos(inv){
   const tc=MEP||1;
   vencidos.forEach(f=>{f.cobrado=true;f.tcCobro=tc;f.montoRealArs=f.ars;});
   sb.from('olas_flows').upsert(vencidos.map(f=>({id:f.id,cobrado:true,tc_cobro:tc,monto_real_ars:f.ars})),{onConflict:'id'});
+}
+
+// Elimina posiciones de RF cuyo vencimiento ya pasó — el bono volvió, ya no existe en cartera
+function autoEliminarVencidosRF(inv){
+  const today=new Date().toISOString().slice(0,10);
+  const vencidos=(inv.rf||[]).filter(p=>p.vencimiento&&p.vencimiento<today);
+  if(!vencidos.length)return;
+  const ids=vencidos.map(p=>p.id);
+  inv.rf=inv.rf.filter(p=>!ids.includes(p.id));
+  sb.from('positions_rf').delete().in('id',ids); // fire and forget
 }
 
 function _olasPagosRows(flows,invId,todayStr){

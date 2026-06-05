@@ -659,16 +659,34 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 
     <!-- RF FLOWS PANEL -->
     <div id="imp-rf-panel" style="display:none;">
-      <div style="background:rgba(91,156,246,.05);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--blue);margin-bottom:10px;">
-        Importá el Excel "Flujo de Caja Bonos" de Inviu. Reemplaza los flujos existentes y los usa para el calendario de cobros en lugar de la estimación automática.
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+
+        <!-- Tenencias (posiciones) -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;">1 · Tenencias Inviu (.xlsx)</div>
+          <div id="imp-ten-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-ten-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impTenDrop(event)">
+            <div style="font-size:22px;margin-bottom:4px;">📋</div>
+            <div style="font-size:11px;color:var(--soft);">Arrastrá el Excel de Tenencias</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">Crea las posiciones RF con valores actuales</div>
+          </div>
+          <input type="file" id="imp-ten-file" accept=".xlsx" style="display:none;" onchange="impTenFile(this.files[0])">
+          <div id="imp-ten-preview" style="margin-top:8px;"></div>
+        </div>
+
+        <!-- Flujo de Caja (pagos futuros) -->
+        <div>
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#9b7ff4;margin-bottom:6px;">2 · Flujo de Caja Inviu (.xlsx)</div>
+          <div id="imp-rf-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-rf-file').click()" ondragover="event.preventDefault();this.style.borderColor='#9b7ff4'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impRFDrop(event)">
+            <div style="font-size:22px;margin-bottom:4px;">📊</div>
+            <div style="font-size:11px;color:var(--soft);">Arrastrá el Flujo de Caja</div>
+            <div style="font-size:10px;color:var(--muted);margin-top:3px;">Calendario exacto de cupones y amortizaciones</div>
+          </div>
+          <input type="file" id="imp-rf-file" accept=".xlsx" style="display:none;" onchange="impRFFlowsFile(this.files[0])">
+          <div id="imp-rf-preview" style="margin-top:8px;"></div>
+        </div>
+
       </div>
-      <div id="imp-rf-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:26px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-rf-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impRFDrop(event)">
-        <div style="font-size:28px;margin-bottom:6px;">📊</div>
-        <div style="font-size:12px;color:var(--soft);">Arrastrá el Excel o hacé click</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Columnas: Instrumento · Tipo de pago · Moneda · Fecha · Monto</div>
-      </div>
-      <input type="file" id="imp-rf-file" accept=".xlsx" style="display:none;" onchange="impRFFlowsFile(this.files[0])">
-      <div id="imp-rf-preview" style="margin-top:10px;"></div>
+      <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Podés importar uno o ambos archivos de forma independiente.</div>
     </div>
 
     <div class="macts" style="margin-top:16px;">
@@ -5943,7 +5961,7 @@ async function cancelarOperacion(movId, invId){
   }
 }
 // ── IMPORTADOR ────────────────────────────────────────────────
-let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
+let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impParsedTenencias=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
 
 // ── CREAR CLIENTE INLINE EN IMPORT ───────────────────────────
 let impNewInvColor=PAL[0];
@@ -6014,7 +6032,7 @@ function openImport(){
   sel.disabled=!CU.is_admin;
   document.getElementById('imp-new-inv-btn').style.display=CU.is_admin?'':'none';
   document.getElementById('imp-new-inv-form').style.display='none';
-  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[];
+  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
@@ -6041,6 +6059,159 @@ function impTab(tab){
     const tcHint=document.getElementById('imp-olas-tc-hint');
     if(tcField&&!tcField.value)tcField.value=MEP;
     if(tcHint)tcHint.textContent=fmt(MEP);
+  }
+}
+
+// ── TENENCIAS IMPORT ─────────────────────────────────────────
+function impTenDrop(e){
+  e.preventDefault();
+  document.getElementById('imp-ten-dropzone').style.borderColor='var(--line2)';
+  const file=e.dataTransfer.files[0];
+  if(file)impTenFile(file);
+}
+
+function impTenFile(file){
+  if(!file)return;
+  document.getElementById('imp-ten-preview').innerHTML='<div style="color:var(--blue);font-size:12px;padding:8px;"><span class="spinner"></span> Leyendo...</div>';
+  const reader=new FileReader();
+  reader.onload=ev=>{
+    try{
+      const wb=XLSX.read(ev.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      impParseTenencias(rows);
+    }catch(err){
+      document.getElementById('imp-ten-preview').innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error: ${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function impParseTenencias(rows){
+  // Find TC MEP
+  let tcMep=1;
+  for(const r of rows){
+    const a=String(r[0]||'').trim();
+    if(/TC USD MEP/i.test(a)){
+      const v=parseFloat(String(r[1]||'').replace(/\./g,'').replace(',','.'));
+      if(isFinite(v)&&v>1)tcMep=v;
+      break;
+    }
+  }
+
+  impParsedTenencias=[];
+  let section=''; // 'Bonos' | 'Fondos' | skip
+
+  for(const r of rows){
+    // Detect section header in col N (index 13)
+    const sectionCell=String(r[13]||'').trim();
+    if(/Tipo de Activo:\s*Bonos/i.test(sectionCell)){section='Bonos';continue;}
+    if(/Tipo de Activo:\s*Fondos/i.test(sectionCell)){section='Fondos';continue;}
+    if(/Tipo de Activo:/i.test(sectionCell)){section='skip';continue;}
+
+    if(!section||section==='skip')continue;
+
+    const colA=String(r[0]||'').trim();
+    if(!colA||colA==='Ticker'||colA==='Subtotal'||colA==='Total')continue;
+    // Skip rows that look like totals (no VN or price)
+    const rawVN=r[4];
+    const rawPrecio=r[6];
+    const rawPPC=r[9];
+    if(rawVN==null||rawPrecio==null)continue;
+
+    const ticker=colA.toUpperCase();
+    const nombre=String(r[1]||'').trim();
+    const moneda=String(r[5]||'USD').trim().toUpperCase()||'USD';
+
+    const toNum=v=>{
+      if(v==null)return 0;
+      const s=String(v).replace(/\./g,'').replace(',','.');
+      const n=parseFloat(s);
+      return isFinite(n)?n:0;
+    };
+
+    const vn=toNum(rawVN);
+    const precioArs=toNum(rawPrecio);
+    const ppcArs=toNum(rawPPC);
+
+    if(vn<=0||precioArs<=0)continue;
+
+    // Convert to USD: valor = VN × precio_ars / tc_mep (bond prices quoted as % of VN in ARS)
+    // For bonos: price is ARS per unit of VN=1 (i.e. precio is per 1 VN, so valor = vn × precio / tcMep)
+    const valorUsd=vn*precioArs/tcMep;
+    // Cost: PPC is ARS price paid per 1 VN → same conversion
+    const costoUsd=ppcArs>0?vn*ppcArs/tcMep:valorUsd;
+
+    // Extract vencimiento from nombre
+    let vencimiento=null;
+    const vm=nombre.match(/[Vv][Tt][Oo]\.?\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+    if(vm)vencimiento=`${vm[3]}-${vm[2].padStart(2,'0')}-${vm[1].padStart(2,'0')}`;
+
+    impParsedTenencias.push({
+      ticker,
+      nombre,
+      tipo:section==='Bonos'?'Bono':'Fondo',
+      vn_total:vn,
+      moneda: section==='Bonos'?'USD':'ARS', // bonds are USD-denominated, funds can be ARS
+      valor:parseFloat(valorUsd.toFixed(2)),
+      vinicial:parseFloat(costoUsd.toFixed(2)),
+      vencimiento,
+    });
+  }
+
+  impShowTenPreview();
+}
+
+function impShowTenPreview(){
+  const el=document.getElementById('imp-ten-preview');
+  if(!impParsedTenencias.length){
+    el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el formato Tenencias de Inviu.</div>';
+    return;
+  }
+  const rows=impParsedTenencias.map(p=>`
+    <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+      <td style="font-family:var(--mono);font-size:11px;font-weight:700;padding:6px 8px;">${p.ticker}</td>
+      <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.tipo}</td>
+      <td style="font-size:11px;color:var(--green);padding:6px 8px;">u$s ${fmt(p.valor)}</td>
+      <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.vencimiento||'—'}</td>
+    </tr>`).join('');
+  const total=impParsedTenencias.reduce((s,p)=>s+p.valor,0);
+  el.innerHTML=`
+    <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
+      <div style="padding:8px 10px;font-size:10px;color:var(--green);border-bottom:1px solid rgba(45,212,160,.15);">${impParsedTenencias.length} posiciones · u$s ${fmt(total)}</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+    </div>
+    <button class="bok" onclick="impConfirmTenencias()" style="width:100%;font-size:13px;background:var(--green);">📥 Crear ${impParsedTenencias.length} posiciones RF</button>`;
+}
+
+async function impConfirmTenencias(){
+  const invId=document.getElementById('imp-inv').value;
+  if(!invId||!impParsedTenencias.length)return;
+  const el=document.getElementById('imp-ten-preview');
+  el.innerHTML='<div style="color:var(--blue);font-size:12px;padding:10px;"><span class="spinner"></span> Guardando posiciones...</div>';
+  try{
+    // Delete existing RF positions for this investor and replace
+    await sb.from('positions_rf').delete().eq('investor_id',invId);
+    const toInsert=impParsedTenencias.map(p=>({
+      investor_id:invId,
+      ticker:p.ticker,
+      nombre:p.nombre,
+      tipo:p.tipo,
+      vn_total:p.vn_total,
+      moneda:p.moneda,
+      valor:p.valor,
+      vinicial:p.vinicial,
+      vencimiento:p.vencimiento,
+    }));
+    const{error}=await sb.from('positions_rf').insert(toInsert);
+    if(error)throw error;
+    impParsedTenencias=[];
+    const inv=await loadInvestor(invId);
+    kc();renderInv(inv);
+    showToast(`✓ ${toInsert.length} posiciones RF importadas`);
+    el.innerHTML=`<div style="color:var(--green);font-size:12px;padding:8px;">✓ ${toInsert.length} posiciones creadas correctamente</div>`;
+  }catch(e){
+    el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error: ${e.message}</div>`;
   }
 }
 

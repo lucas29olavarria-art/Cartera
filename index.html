@@ -4021,9 +4021,11 @@ function rCarteraDetail(cart){
 
   // Auto-sync if cik present and no positions yet
   if(cart.cik&&!cart.investor_id&&(!segs.length)){
-    sc(`<div style="padding:40px;text-align:center;">
-      <div style="font-size:13px;color:var(--muted);margin-bottom:16px;">Sin datos. Sincronizando con SEC EDGAR…</div>
-      <button class="ib" onclick="syncCarteraFromSec('${cart.id}')">↻ Sincronizar ahora</button>
+    sc(`<div style="padding:70px 40px;text-align:center;">
+      <div style="margin:0 auto 22px;width:44px;height:44px;border:3px solid rgba(91,156,246,.15);border-top-color:#5b9cf6;border-radius:50%;animation:spin .9s linear infinite;"></div>
+      <div style="font-size:16px;font-weight:600;color:#eceef3;margin-bottom:7px;">Cargando posiciones…</div>
+      <div style="font-size:12px;color:var(--muted);margin-bottom:20px;">Aguardá un segundo, estamos buscando el portfolio en SEC EDGAR</div>
+      <button class="ib" onclick="syncCarteraFromSec('${cart.id}')" style="font-size:11px;">↻ Reintentar manualmente</button>
     </div>`);
     syncCarteraFromSec(cart.id);
     return;
@@ -4033,10 +4035,11 @@ function rCarteraDetail(cart){
 
   // ── Back button + SEC sync icon ────────────────────────────
   const lastSyncTip=cart.last_synced?`Actualizar desde SEC EDGAR · último: ${new Date(cart.last_synced).toLocaleDateString('es-AR')}`:'Sincronizar con SEC EDGAR';
-  const secIcon=cart.cik?`<button title="${lastSyncTip}" onclick="syncCarteraFromSec('${cart.id}')" style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:13px;transition:border-color .2s;" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)'">↻</button>`:'';
+  const secIcon=cart.cik?`<button title="${lastSyncTip}" onclick="syncCarteraFromSec('${cart.id}')" style="background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:13px;transition:border-color .2s;" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)'">↻</button>`:'';
+  const pngBtn=segs.length?`<button class="ib" style="margin-left:auto;font-size:11px;" onclick="downloadCarteraChart('${cart.id}')">⬇ PNG</button>`:'';
   html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
     <button class="ib" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
-    ${secIcon}
+    ${secIcon}${pngBtn}
   </div>`;
 
   // ── Header ─────────────────────────────────────────────────
@@ -4049,6 +4052,29 @@ function rCarteraDetail(cart){
       ${cart.descripcion?`<div style="font-size:12px;color:var(--soft);margin-top:6px;line-height:1.5;">${cart.descripcion}</div>`:''}
     </div>
   </div>`;
+
+  // ── Métricas strip ─────────────────────────────────────────
+  if(segs.length>0){
+    const sectorMap={};
+    segs.forEach(x=>{const sn=SECTOR_NORM[x.sector||'']||'Otro';sectorMap[sn]=(sectorMap[sn]||0)+(+x.pct||0);});
+    const topSectorEntry=Object.entries(sectorMap).sort((a,b)=>b[1]-a[1])[0];
+    const topSectorLabel=topSectorEntry?`${SECTOR_CFG[topSectorEntry[0]]?.ic||''} ${topSectorEntry[0]}`:'—';
+    const topPct=topSectorEntry?topSectorEntry[1].toFixed(1)+'%':'';
+    html+=`<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:14px;">
+      <div class="card" style="padding:14px;text-align:center;">
+        <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:#eceef3;">${segs.length}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Posiciones</div>
+      </div>
+      <div class="card" style="padding:14px;text-align:center;">
+        <div style="font-size:13px;font-weight:700;color:#eceef3;">${topSectorLabel}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Sector líder · ${topPct}</div>
+      </div>
+      <div class="card" style="padding:14px;text-align:center;">
+        <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:${segs[0].c};">${segs[0].ticker}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Top holding · ${(+segs[0].pct||0).toFixed(1)}%</div>
+      </div>
+    </div>`;
+  }
 
   // ── Donut + legend ─────────────────────────────────────────
   if(segs.length>0){
@@ -4090,47 +4116,39 @@ function rCarteraDetail(cart){
     <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';kc();rMiCartera()">Movimientos</button>
   </div>`;
 
-  // ── Composición ────────────────────────────────────────────
+  // ── Composición (visual bars) ──────────────────────────────
   if(MC_TAB==='composicion'){
     if(!segs.length){
       html+=`<div class="empty">Sin posiciones cargadas.</div>`;
     } else {
-      const hasNotas=segs.some(x=>x.notas&&x.notas.trim());
       const maxPct=Math.max(...segs.map(x=>+x.pct||0))||1;
-      html+=`<div class="card"><div class="tw"><table>
-        <thead><tr>
-          <th>Ticker</th><th>Sector</th>
-          <th style="text-align:right;min-width:100px;">Asignación</th>
-          <th style="text-align:right">Rend.</th>
-          ${hasNotas?'<th>Notas</th>':''}
-        </tr></thead>
-        <tbody>${segs.map(x=>{
-          const sn=SECTOR_NORM[x.sector||'']||'Otro';
-          const sc_=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
-          const rPct=+(x.rend_pct||0);
-          const barW=Math.round((+x.pct||0)/maxPct*100);
-          return `<tr>
-            <td>
-              <div style="display:flex;align-items:center;gap:8px;">
-                <div style="width:3px;height:32px;border-radius:2px;background:${sc_.cl};flex-shrink:0;"></div>
-                <div>
-                  <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.ticker}</div>
-                  ${x.nombre&&x.nombre!==x.ticker?`<div style="font-size:10px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre}</div>`:''}
-                </div>
+      html+=`<div class="card">${segs.map((x,xi)=>{
+        const sn=SECTOR_NORM[x.sector||'']||'Otro';
+        const sc_=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
+        const rPct=+(x.rend_pct||0);
+        const barW=Math.round((+x.pct||0)/maxPct*100);
+        const isLast=xi===segs.length-1;
+        return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;${isLast?'':'border-bottom:1px solid rgba(255,255,255,.04)'};">
+          <div style="width:3px;height:40px;border-radius:2px;background:${sc_.cl};flex-shrink:0;"></div>
+          <div style="min-width:54px;">
+            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;">${x.ticker}</div>
+            <div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;">${sc_.ic} ${sn}</div>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;">
+              <span style="font-size:10px;color:var(--soft);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:55%;">${x.nombre&&x.nombre!==x.ticker?x.nombre:''}</span>
+              <div style="flex-shrink:0;margin-left:8px;display:flex;align-items:baseline;gap:7px;">
+                <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:${x.c};">${(+x.pct||0).toFixed(1)}%</span>
+                ${rPct!==0?`<span style="font-family:var(--mono);font-size:10px;color:${rPct>=0?'var(--green)':'var(--red)'};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</span>`:''}
+                ${x.notas?`<span style="font-size:10px;color:var(--muted);font-style:italic;">${x.notas}</span>`:''}
               </div>
-            </td>
-            <td><span style="font-size:11px;color:var(--soft);">${sc_.ic} ${sn}</span></td>
-            <td style="text-align:right;">
-              <div style="font-family:var(--mono);font-size:12px;color:#eceef3;">${(+x.pct||0).toFixed(1)}%</div>
-              <div style="width:64px;height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin-left:auto;margin-top:4px;">
-                <div style="width:${barW}%;height:100%;background:${x.c};border-radius:2px;"></div>
-              </div>
-            </td>
-            <td style="text-align:right;font-family:var(--mono);font-size:12px;color:${rPct>=0?'var(--green)':'var(--red)'};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</td>
-            ${hasNotas?`<td style="font-size:11px;color:var(--muted);">${x.notas||''}</td>`:''}
-          </tr>`;
-        }).join('')}</tbody>
-      </table></div></div>`;
+            </div>
+            <div style="height:5px;background:rgba(255,255,255,.07);border-radius:3px;">
+              <div style="width:${barW}%;height:100%;background:${x.c};border-radius:3px;"></div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}</div>`;
     }
 
   // ── Movimientos (timeline) ─────────────────────────────────
@@ -4824,6 +4842,111 @@ function downloadAllocChart(invId){
   // Desktop: trigger file download
   const link=document.createElement('a');
   link.download=filename;link.href=dataUrl;link.click();
+}
+
+function downloadCarteraChart(cartId){
+  const cart=CARTERAS_CACHE.find(c=>c.id===cartId);
+  if(!cart)return;
+  let segs=[];
+  if(cart.investor_id){
+    const inv=INV_CACHE[cart.investor_id];
+    if(!inv){showToast('Sin datos cargados');return;}
+    const rv=inv.rv||[];const totRV=rv.reduce((s,p)=>s+p.valor,0)||1;
+    segs=rv.map((p,i)=>({ticker:p.ticker,nombre:p.nombre||p.ticker,pct:+(p.valor/totRV*100).toFixed(2),c:CHC[i%CHC.length]})).sort((a,b)=>b.pct-a.pct);
+  } else {
+    segs=(cart.posiciones||[]).map((p,i)=>({...p,c:CHC[i%CHC.length]}));
+  }
+  if(!segs.length){showToast('Sin posiciones para descargar');return;}
+
+  const W=1000,H=700;
+  const off=document.createElement('canvas');
+  off.width=W;off.height=H;
+  const ctx=off.getContext('2d');
+
+  // Dark bg
+  ctx.fillStyle='#07080b';ctx.fillRect(0,0,W,H);
+  // subtle horizontal lines
+  ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
+  for(let y=60;y<H;y+=55){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // LO Capital wordmark
+  ctx.fillStyle='#5b9cf6';ctx.font='bold 13px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('LO CAPITAL',40,36);
+  ctx.fillStyle='rgba(255,255,255,.28)';ctx.font='10px Arial,sans-serif';ctx.fillText('PORTFOLIO MANAGEMENT',40,52);
+  // Cartera name center
+  ctx.fillStyle='#eceef3';ctx.font='bold 24px Georgia,serif';ctx.textAlign='center';
+  ctx.fillText(cart.nombre,W/2,38);
+  if(cart.subtitulo){ctx.fillStyle='rgba(255,255,255,.4)';ctx.font='12px Arial,sans-serif';ctx.fillText(cart.subtitulo,W/2,58);}
+  // Date right
+  ctx.fillStyle='rgba(255,255,255,.22)';ctx.font='11px Arial,sans-serif';ctx.textAlign='right';
+  ctx.fillText(new Date().toLocaleDateString('es-AR'),W-40,38);
+  // Divider
+  ctx.strokeStyle='rgba(91,156,246,.18)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(40,68);ctx.lineTo(W-40,68);ctx.stroke();
+
+  // Donut left
+  const cx=220,cy=380,R=155;
+  const total=segs.reduce((s,x)=>s+(+x.pct||0),0)||1;
+  let ang=-Math.PI/2;
+  segs.forEach(seg=>{
+    const sw=(+seg.pct||0)/total*2*Math.PI;
+    ctx.beginPath();ctx.moveTo(cx,cy);ctx.arc(cx,cy,R,ang,ang+sw);ctx.closePath();
+    ctx.fillStyle=seg.c;ctx.fill();
+    ctx.strokeStyle='#07080b';ctx.lineWidth=2.5;ctx.stroke();
+    seg._mid=ang+sw/2;ang+=sw;
+  });
+  ctx.beginPath();ctx.arc(cx,cy,R*.46,0,2*Math.PI);ctx.fillStyle='#07080b';ctx.fill();
+  ctx.fillStyle='rgba(255,255,255,.55)';ctx.font='bold 13px Arial,sans-serif';ctx.textAlign='center';
+  ctx.fillText(segs.length+' posiciones',cx,cy-7);
+  ctx.fillStyle='rgba(255,255,255,.3)';ctx.font='10px Arial,sans-serif';ctx.fillText('Composición',cx,cy+10);
+
+  // Positions list right
+  const listX=430,startY=90,rowH=Math.min(34,Math.floor((H-120)/Math.min(segs.length,16)));
+  const show=segs.slice(0,Math.min(16,Math.floor((H-130)/rowH)));
+  const maxPct=Math.max(...show.map(x=>+x.pct||0))||1;
+  ctx.textAlign='left';
+  show.forEach((seg,i)=>{
+    const y=startY+i*rowH;
+    ctx.beginPath();ctx.arc(listX+7,y+rowH/2,5,0,2*Math.PI);ctx.fillStyle=seg.c;ctx.fill();
+    ctx.fillStyle='#eceef3';ctx.font='bold 12px Arial,sans-serif';
+    ctx.fillText(seg.ticker,listX+20,y+rowH/2+4);
+    if(seg.nombre&&seg.nombre!==seg.ticker){
+      ctx.fillStyle='rgba(255,255,255,.35)';ctx.font='9px Arial,sans-serif';
+      const n=seg.nombre.length>30?seg.nombre.slice(0,28)+'…':seg.nombre;
+      ctx.fillText(n,listX+20,y+rowH/2+15);
+    }
+    const barX=listX+145,barMaxW=200,barH=4;
+    ctx.fillStyle='rgba(255,255,255,.07)';
+    ctx.fillRect(barX,y+rowH/2-2,barMaxW,barH);
+    ctx.fillStyle=seg.c;
+    ctx.fillRect(barX,y+rowH/2-2,Math.max(3,(+seg.pct||0)/maxPct*barMaxW),barH);
+    ctx.fillStyle=seg.c;ctx.font='bold 11px Arial,sans-serif';ctx.textAlign='right';
+    ctx.fillText((+seg.pct||0).toFixed(1)+'%',listX+145+barMaxW+36,y+rowH/2+4);
+    ctx.textAlign='left';
+  });
+  if(segs.length>show.length){
+    ctx.fillStyle='rgba(255,255,255,.25)';ctx.font='10px Arial,sans-serif';ctx.textAlign='left';
+    ctx.fillText('… y '+(segs.length-show.length)+' más',listX+20,startY+show.length*rowH+14);
+  }
+
+  // Footer
+  ctx.strokeStyle='rgba(91,156,246,.12)';ctx.lineWidth=1;
+  ctx.beginPath();ctx.moveTo(40,H-32);ctx.lineTo(W-40,H-32);ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.18)';ctx.font='10px Arial,sans-serif';ctx.textAlign='center';
+  ctx.fillText('LO Capital · Portfolio Management'+(cart.cik?' · Datos: SEC EDGAR 13F':'')+' · '+new Date().toLocaleDateString('es-AR')+' · Con fines informativos',W/2,H-14);
+
+  const filename=(cart.nombre||'cartera').replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.png';
+  const dataUrl=off.toDataURL('image/png');
+  if(navigator.canShare){
+    off.toBlob(async blob=>{
+      const file=new File([blob],filename,{type:'image/png'});
+      if(navigator.canShare({files:[file]})){
+        try{await navigator.share({files:[file],title:filename});return;}catch(e){if(e.name==='AbortError')return;}
+      }
+      const w=window.open();
+      if(w){w.document.write(`<img src="${dataUrl}" style="max-width:100%;display:block;margin:auto"><p style="text-align:center;font-family:sans-serif;font-size:12px;color:#aaa;margin-top:10px;">Mantené presionada para guardar</p>`);w.document.title=filename;}
+    },'image/png');return;
+  }
+  const link=document.createElement('a');link.download=filename;link.href=dataUrl;link.click();
 }
 
 // ── ADMIN SNAPSHOTS ──────────────────────────────────────────

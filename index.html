@@ -799,6 +799,39 @@ const CEDEAR_RATIOS={
   'BABA':5,'JNJ':5,'JPM':10,'BAC':10,'KO':10,'PEP':10,
 };
 
+// CEDEARs listados en BYMA (Argentina)
+const CEDEAR_LIST=new Set([
+  // Tecnología
+  'AAPL','MSFT','AMZN','GOOGL','GOOG','META','NVDA','TSLA','NFLX','DIS',
+  'INTC','AMD','QCOM','CSCO','ORCL','IBM','ADBE','CRM','AVGO','TXN','AMAT',
+  'MU','TSM','ASML','PYPL','UBER','ABNB','SPOT','COIN','PLTR','SNOW','NET',
+  'DDOG','RBLX','HOOD','SOFI','PATH','IONQ','SMCI','ARM','PANW','CRWD','FTNT',
+  // Finanzas
+  'JPM','BAC','WFC','GS','MS','C','V','MA','AXP','BLK','SCHW','COF',
+  'USB','TFC','PNC','BX','KKR','APO','MCO','SPGI','RJF','ALLY',
+  // Salud
+  'JNJ','PFE','MRK','ABBV','LLY','UNH','AMGN','BMY','GILD','CVS',
+  'ABT','MDT','ISRG','REGN','VRTX','ZTS','TMO','CI','HCA','DXCM','BSX','EW',
+  // Consumo Discrecional
+  'MCD','SBUX','NKE','HD','LOW','TGT','BABA','LULU','CMG','GM','F','RIVN','NIO','LCID',
+  // Consumo Básico
+  'KO','PEP','WMT','PM','MO','CL','PG','KHC','MDLZ','COST',
+  // Energía
+  'XOM','CVX','COP','SLB','PBR','OXY','EOG','MPC','PSX','VLO','BP',
+  // Industrial
+  'CAT','BA','GE','MMM','HON','RTX','LMT','DE','UPS','FDX','DAL','LUV','AAL','ETN','EMR',
+  // Materiales
+  'NEM','FCX','AA','VALE',
+  // ETFs
+  'SPY','QQQ','IWM','EEM','GLD','SLV','XLU','XLE','XLF','XLK',
+  'XLV','XLI','XLY','XLP','ARKK','VTI','VOO','GDX','IAU','TLT',
+  'SH','PSQ','IBIT','ETHA','XOP','SOXL','TQQQ','VNQ','MCHI','KWEB','BND',
+  // Argentina / LatAm
+  'YPFD','PAMP','GGAL','TECO2','LOMA','VIST','TGNO4','SUPV','TXAR','MELI','NU','SE',
+  // Otros
+  'BRKB','WDAY','NOW','SQ','ZM','DOCU','LYFT','TWLO','SNAP','SHOP',
+]);
+
 // Frases de inversores famosos
 const FRASES=[
   {frase:'El riesgo viene de no saber lo que estás haciendo.',autor:'Warren Buffett'},
@@ -3790,6 +3823,9 @@ let MC_FOTO_B64=null; // stores pending photo base64 (too large for dataset attr
 let MC_TAB='composicion';
 let MC_MOVIMIENTOS=[];
 let MC_MOV_LOADED=false;
+let MC_SIM_AMOUNT=5000;
+let MC_CCL_CACHE=null;
+let MC_CCL_LOADING=false;
 let MC_MONTH_FILTER=new Date().toISOString().slice(0,7);
 
 async function loadCarteras(){
@@ -3930,6 +3966,84 @@ function rMiCartera(){
     if(cart) rCarteraDetail(cart);
     else{MC_CURRENT_ID=null;rCarterasListing();}
   }
+}
+
+async function fetchCCLRate(){
+  if(MC_CCL_LOADING)return;
+  MC_CCL_LOADING=true;
+  try{
+    const r=await fetch('https://dolarapi.com/v1/dolares/contadoconliqui');
+    if(!r.ok)throw new Error('HTTP '+r.status);
+    const d=await r.json();
+    const rate=d.venta||d.compra;
+    if(!rate)throw new Error('sin dato');
+    const fecha=d.fechaActualizacion?new Date(d.fechaActualizacion).toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'}):'hoy';
+    MC_CCL_CACHE={rate,fecha};
+    kc();rMiCartera();
+  }catch(e){MC_CCL_CACHE={rate:null,fecha:null};}
+  finally{MC_CCL_LOADING=false;}
+}
+
+function rCEDEARSim(segs){
+  const cedearSegs=segs.filter(x=>CEDEAR_LIST.has(x.ticker));
+  const totalPct=cedearSegs.reduce((s,x)=>s+(+x.pct||0),0);
+  if(!cedearSegs.length)return`<div class="card" style="margin-top:14px;padding:24px;text-align:center;"><div style="font-size:13px;color:var(--muted);">Ninguna posición tiene CEDEAR disponible en Argentina.</div></div>`;
+  const amt=MC_SIM_AMOUNT||5000;
+  const ccl=MC_CCL_CACHE;
+  if(!ccl)fetchCCLRate();
+  const rows=cedearSegs.map(x=>{
+    const adj=totalPct>0?(+x.pct/totalPct)*100:0;
+    const usd=amt*adj/100;
+    const ars=ccl&&ccl.rate?usd*ccl.rate:null;
+    return{...x,adj,usd,ars};
+  }).sort((a,b)=>b.adj-a.adj);
+  const cclTxt=ccl
+    ?(ccl.rate?`CCL: <b style="color:#5b9cf6;font-family:var(--mono);">$${ccl.rate.toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2})}</b> · ${ccl.fecha}`:'CCL: no disponible')
+    :'CCL: cargando…';
+  const hasARS=ccl&&ccl.rate;
+  return`<div class="card" style="margin-top:14px;">
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:14px;">
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#eceef3;">🇦🇷 Simulador CEDEAR</div>
+        <div style="font-size:11px;color:var(--muted);margin-top:3px;">${cedearSegs.length} de ${segs.length} posiciones disponibles · ${totalPct.toFixed(1)}% del portfolio</div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);text-align:right;">${cclTxt}</div>
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px;flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--soft);">Monto a invertir:</span>
+      <span style="font-size:15px;color:var(--soft);">$</span>
+      <input type="number" id="cedear-sim-input" value="${amt}" min="100" step="100"
+        style="width:110px;font-family:var(--mono);font-size:15px;font-weight:700;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.12);border-radius:8px;padding:6px 10px;color:#eceef3;outline:none;"
+        oninput="MC_SIM_AMOUNT=+this.value||5000"
+        onkeydown="if(event.key==='Enter'){MC_SIM_AMOUNT=+this.value||5000;kc();rMiCartera();}">
+      <span style="font-size:11px;color:var(--soft);">USD</span>
+      <button class="ib" onclick="MC_SIM_AMOUNT=+(document.getElementById('cedear-sim-input')?.value)||5000;kc();rMiCartera()">Calcular</button>
+    </div>
+    <div style="overflow-x:auto;-webkit-overflow-scrolling:touch;">
+      <table style="width:100%;border-collapse:collapse;">
+        <thead><tr style="border-bottom:1px solid rgba(255,255,255,.08);">
+          <th style="text-align:left;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;color:var(--muted);font-weight:500;">TICKER</th>
+          <th style="text-align:left;padding:5px 8px;font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">EMPRESA</th>
+          <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">ORIG.</th>
+          <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">AJUST.</th>
+          <th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">USD</th>
+          ${hasARS?`<th style="text-align:right;padding:5px 8px;font-family:var(--mono);font-size:9px;letter-spacing:.05em;color:var(--muted);font-weight:500;">ARS aprox.</th>`:''}
+        </tr></thead>
+        <tbody>${rows.map((x,i)=>`
+          <tr style="${i<rows.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+            <td style="padding:9px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.ticker}</td>
+            <td style="padding:9px 8px;font-size:10px;color:var(--soft);max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre&&x.nombre!==x.ticker?x.nombre:'—'}</td>
+            <td style="padding:9px 8px;font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;">${(+x.pct||0).toFixed(1)}%</td>
+            <td style="padding:9px 8px;font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};text-align:right;">${x.adj.toFixed(1)}%</td>
+            <td style="padding:9px 8px;font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;text-align:right;">$${Math.round(x.usd).toLocaleString('en-US')}</td>
+            ${hasARS?`<td style="padding:9px 8px;font-family:var(--mono);font-size:11px;color:var(--soft);text-align:right;">$${Math.round(x.ars).toLocaleString('es-AR')}</td>`:''}
+          </tr>`).join('')}</tbody>
+      </table>
+    </div>
+    <div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.05);font-size:9px;color:var(--muted);line-height:1.6;">
+      Pesos ajustados re-distribuyen el monto sólo entre las posiciones con CEDEAR disponible en BYMA. Dividí el USD por el precio actual en USD del activo subyacente para estimar la cantidad de láminas (considerando el ratio CEDEAR). Tipo de cambio CCL vía dolarapi.com.
+    </div>
+  </div>`;
 }
 
 function riesgoConf(r){
@@ -4130,9 +4244,10 @@ function rCarteraDetail(cart){
   }
 
   // ── Subtabs ────────────────────────────────────────────────
-  html+=`<div style="display:flex;gap:6px;margin-bottom:14px;">
+  html+=`<div style="display:flex;gap:6px;margin-bottom:14px;flex-wrap:wrap;">
     <button class="tb${MC_TAB==='composicion'?' active':''}" onclick="MC_TAB='composicion';kc();rMiCartera()">Composición</button>
     <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';kc();rMiCartera()">Movimientos</button>
+    <button class="tb${MC_TAB==='simulador'?' active':''}" onclick="MC_TAB='simulador';kc();rMiCartera()" style="margin-left:auto;">🇦🇷 Simulador CEDEAR</button>
   </div>`;
 
   // ── Composición (visual bars) ──────────────────────────────
@@ -4147,11 +4262,13 @@ function rCarteraDetail(cart){
         const rPct=+(x.rend_pct||0);
         const barW=Math.round((+x.pct||0)/maxPct*100);
         const isLast=xi===segs.length-1;
+        const isCEDEAR=CEDEAR_LIST.has(x.ticker);
         return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;${isLast?'':'border-bottom:1px solid rgba(255,255,255,.04)'};">
           <div style="width:3px;height:40px;border-radius:2px;background:${sc_.cl};flex-shrink:0;"></div>
-          <div style="min-width:54px;">
+          <div style="min-width:60px;">
             <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;">${x.ticker}</div>
             <div style="font-size:9px;color:var(--muted);margin-top:2px;white-space:nowrap;">${sc_.ic} ${sn}</div>
+            ${isCEDEAR?`<div style="margin-top:3px;font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(45,212,160,.1);color:#2dd4a0;border:1px solid rgba(45,212,160,.2);display:inline-block;font-family:var(--mono);letter-spacing:.05em;">🇦🇷 ARG</div>`:''}
           </div>
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:baseline;justify-content:space-between;margin-bottom:5px;">
@@ -4169,6 +4286,10 @@ function rCarteraDetail(cart){
         </div>`;
       }).join('')}</div>`;
     }
+
+  // ── Simulador CEDEAR ──────────────────────────────────────
+  } else if(MC_TAB==='simulador'){
+    html+=rCEDEARSim(segs);
 
   // ── Movimientos (timeline) ─────────────────────────────────
   } else {

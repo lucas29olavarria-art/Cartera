@@ -576,6 +576,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <div style="display:flex;gap:1px;border-bottom:1px solid var(--line);margin-bottom:16px;">
       <button class="tb active" id="imp-tab-rv" onclick="impTab('rv')">Renta Variable</button>
       <button class="tb" id="imp-tab-olas" onclick="impTab('olas')">Olas (Yont)</button>
+      <button class="tb" id="imp-tab-rf" onclick="impTab('rf')">📄 Flujo RF</button>
     </div>
 
     <!-- RV PANEL — ambos brokers juntos -->
@@ -633,6 +634,20 @@ input[type=range]{flex:1;accent-color:var(--blue);}
       </div>
       <button class="ib" onclick="impAddOlaRow()" style="margin-bottom:12px;">+ Agregar Ola</button>
       <div id="imp-olas-preview" style="margin-top:8px;"></div>
+    </div>
+
+    <!-- RF FLOWS PANEL -->
+    <div id="imp-rf-panel" style="display:none;">
+      <div style="background:rgba(91,156,246,.05);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--blue);margin-bottom:10px;">
+        Importá el Excel "Flujo de Caja Bonos" de Inviu. Reemplaza los flujos existentes y los usa para el calendario de cobros en lugar de la estimación automática.
+      </div>
+      <div id="imp-rf-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:26px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-rf-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impRFDrop(event)">
+        <div style="font-size:28px;margin-bottom:6px;">📊</div>
+        <div style="font-size:12px;color:var(--soft);">Arrastrá el Excel o hacé click</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:4px;">Columnas: Instrumento · Tipo de pago · Moneda · Fecha · Monto</div>
+      </div>
+      <input type="file" id="imp-rf-file" accept=".xlsx" style="display:none;" onchange="impRFFlowsFile(this.files[0])">
+      <div id="imp-rf-preview" style="margin-top:10px;"></div>
     </div>
 
     <div class="macts" style="margin-top:16px;">
@@ -1290,11 +1305,12 @@ async function loadAllInvestors(){
 }
 
 async function loadInvestor(id){
-  const [rvR,rfR,olasR,invR]=await Promise.all([
+  const [rvR,rfR,olasR,invR,rfFlowsR]=await Promise.all([
     sb.from('positions_rv').select('*').eq('investor_id',id).order('valor',{ascending:false}),
     sb.from('positions_rf').select('*').eq('investor_id',id).order('valor',{ascending:false}),
     sb.from('olas_flows').select('*').eq('investor_id',id).order('fecha'),
     sb.from('investors').select('*').eq('id',id).single(),
+    sb.from('rf_flows').select('*').eq('investor_id',id).order('fecha'),
   ]);
   const inv=invR.data||{};
   // Filter RV to latest import batch (by imported_at). Null rows treated as a single legacy batch.
@@ -1317,6 +1333,7 @@ async function loadInvestor(id){
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
   inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null,capitalArs:fx.capital_ars||null}));
+  inv.rfFlows=(rfFlowsR.data||[]);
   autoConfirmarVencidos(inv);
   autoEliminarVencidosRF(inv);
   inv.gastos=[];
@@ -2559,19 +2576,22 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
 
   // ── PRÓXIMO COBRO ─────────────────────────────────────────────
   if(nextAny||nextOlasFirst){
+    const isAmort=nextAny&&nextAny.tipo_pago==='Amortización';
+    const accentC=isAmort?'#5b9cf6':'#f5a623';
+    const accentA=isAmort?'rgba(91,156,246,':' rgba(245,166,35,';
     const cobroVal=nextAny?'u$s '+fmt(nextAny.monto):'$'+fmtars(olasMonto(nextOlasFirst));
     const cobroDate=nextAny?nextAny.fecha:olasDate(nextOlasFirst);
-    const cobroTipo=nextAny?nextAny.tipo:'Olas';
+    const cobroLabel=isAmort?`🔵 Amortización · ${nextAny.tipo}`:(nextAny?`Cupón · ${nextAny.tipo}`:'Olas');
     const daysTo=Math.ceil((new Date(cobroDate+'T12:00:00')-new Date())/(864e5));
     const daysLabel=daysTo<=0?'Hoy':daysTo===1?'Mañana':'En '+daysTo+' días';
     html+=`
-    <div style="background:rgba(245,166,35,.04);border:1px solid rgba(245,166,35,.14);border-radius:18px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
+    <div style="background:${accentA}.04);border:1px solid ${accentA}.14);border-radius:18px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
       <div>
-        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:rgba(245,166,35,.5);margin-bottom:7px;">Próximo cobro &middot; ${cobroTipo}</div>
-        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:#f5a623;">${cobroVal}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.32);margin-top:4px;">${cobroDate}</div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:${accentC};opacity:.6;margin-bottom:7px;">${cobroLabel}</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${accentC};">${cobroVal}</div>
+        <div style="font-size:11px;color:rgba(255,255,255,.32);margin-top:4px;">${cobroDate}${isAmort?' · <span style="color:#5b9cf6;font-size:10px;">Capital que vuelve</span>':''}</div>
       </div>
-      <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:#f5a623;background:rgba(245,166,35,.1);border-radius:20px;padding:7px 16px;white-space:nowrap;flex-shrink:0;">${daysLabel}</div>
+      <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${accentC};background:${accentA}.1);border-radius:20px;padding:7px 16px;white-space:nowrap;flex-shrink:0;">${daysLabel}</div>
     </div>`;
   }
 
@@ -3806,6 +3826,26 @@ async function saveNotes(invId){
 
 // ── RF FLOWS ──────────────────────────────────────────────────
 function genRFFlows(inv){
+  const today=new Date().toISOString().slice(0,10);
+
+  // ── Use real Inviu flows when available ───────────────────────
+  if(inv.rfFlows&&inv.rfFlows.length){
+    return inv.rfFlows
+      .filter(f=>!f.cobrado&&f.fecha>=today)
+      .map(f=>({
+        fecha:f.fecha,
+        desc:f.tipo==='Amortización'?`Amortización ${f.ticker}`:`Cupón ${f.ticker}`,
+        tipo:f.ticker,
+        tipo_pago:f.tipo,  // 'Renta' | 'Amortización'
+        monto:f.monto_usd,
+        moneda:f.moneda||'USD',
+        usd:f.monto_usd,
+        id:f.id,
+      }))
+      .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+  }
+
+  // ── Fallback: estimate from position data ─────────────────────
   const flows=[];
   (inv.rf||[]).forEach(p=>{
     if(!p.proxCupon&&!p.prox_cupon)return;
@@ -3814,8 +3854,6 @@ function genRFFlows(inv){
     if(!venc)return;
     const vn=p.vnTotal||p.vn_total||0;
     const freq=p.freq||2;
-    // CORRECTO: cupón por período = VN * (tasa_anual / freq)
-    // Ej: IRCPO: 4000 * (8% / 2) = 4000 * 0.04 = 160 USD por semestre ✓
     const cuponPeriodo=vn*(p.cupon/100)/freq;
     let d=new Date(proxC);
     const vencDate=new Date(venc);
@@ -3825,7 +3863,7 @@ function genRFFlows(inv){
       iter++;
       const isVenc=d>=vencDate;
       const monto=cuponPeriodo+(isVenc?vn:0);
-      flows.push({fecha:d.toISOString().slice(0,10),desc:`Cupón ${p.ticker}${isVenc?' + amort. final':''}`,tipo:p.ticker,monto,moneda:p.moneda||'USD',usd:p.moneda==='ARS'?+(monto/MEP).toFixed(0):monto});
+      flows.push({fecha:d.toISOString().slice(0,10),desc:`Cupón ${p.ticker}${isVenc?' + amort. final':''}`,tipo:p.ticker,tipo_pago:isVenc?'Amortización':'Renta',monto,moneda:p.moneda||'USD',usd:p.moneda==='ARS'?+(monto/MEP).toFixed(0):monto});
       if(isVenc)break;
       const mesesPorPeriodo=Math.round(12/freq);
       d=new Date(d);d.setMonth(d.getMonth()+mesesPorPeriodo);
@@ -5878,7 +5916,7 @@ async function cancelarOperacion(movId, invId){
   }
 }
 // ── IMPORTADOR ────────────────────────────────────────────────
-let impParsedRV=[], impParsedOlas=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
+let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={};
 
 function openImport(){
   // If investor (not admin), pre-select themselves
@@ -5891,10 +5929,11 @@ function openImport(){
   const sel=document.getElementById('imp-inv');
   sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
   sel.disabled=!CU.is_admin; // investors can't change who they import for
-  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[];
+  impParsedRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
+  document.getElementById('imp-rf-preview').innerHTML='';
   document.getElementById('imp-confirm-btn').style.display='none';
   document.getElementById('imp-preview-btn').style.display='none';
   impUpdateCombined();
@@ -5906,8 +5945,10 @@ function impTab(tab){
   impCurrentTab=tab;
   document.getElementById('imp-rv-panel').style.display=tab==='rv'?'block':'none';
   document.getElementById('imp-olas-panel').style.display=tab==='olas'?'block':'none';
+  document.getElementById('imp-rf-panel').style.display=tab==='rf'?'block':'none';
   document.getElementById('imp-tab-rv').classList.toggle('active',tab==='rv');
   document.getElementById('imp-tab-olas').classList.toggle('active',tab==='olas');
+  document.getElementById('imp-tab-rf').classList.toggle('active',tab==='rf');
   document.getElementById('imp-confirm-btn').style.display=(tab==='rv'&&(impParsedRV.length||impParsedBalanz.length))?'block':'none';
   document.getElementById('imp-preview-btn').style.display=tab==='olas'?'block':'none';
   if(tab==='olas'&&MEP>0){
@@ -5915,6 +5956,96 @@ function impTab(tab){
     const tcHint=document.getElementById('imp-olas-tc-hint');
     if(tcField&&!tcField.value)tcField.value=MEP;
     if(tcHint)tcHint.textContent=fmt(MEP);
+  }
+}
+
+// ── RF FLOWS IMPORT ───────────────────────────────────────────
+function impRFDrop(e){
+  e.preventDefault();
+  document.getElementById('imp-rf-dropzone').style.borderColor='var(--line2)';
+  const file=e.dataTransfer.files[0];
+  if(file)impRFFlowsFile(file);
+}
+
+function impRFFlowsFile(file){
+  if(!file)return;
+  document.getElementById('imp-rf-preview').innerHTML='<div style="color:var(--blue);font-size:12px;padding:8px;"><span class="spinner"></span> Leyendo...</div>';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      impParseRFFlows(rows);
+    }catch(err){
+      document.getElementById('imp-rf-preview').innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error leyendo archivo: ${err.message}</div>`;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function impParseRFFlows(rows){
+  // Skip header row; expect: Instrumento | Tipo de pago | Moneda | Fecha | Monto
+  const data=rows.slice(1).filter(r=>r[0]&&r[3]!=null&&r[4]!=null);
+  impParsedRFFlows=data.map(r=>{
+    const ticker=String(r[0]).trim().toUpperCase();
+    const tipo=String(r[1]||'Renta').trim();
+    const moneda=String(r[2]||'USD').trim();
+    // Date: "D/M/YYYY" or "DD/MM/YYYY"
+    const fechaStr=String(r[3]).trim();
+    const dm=fechaStr.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+    const fecha=dm?`${dm[3]}-${dm[2].padStart(2,'0')}-${dm[1].padStart(2,'0')}`:fechaStr;
+    // Amount: Spanish format "1.234,56" → 1234.56
+    const montoUSD=parseFloat(String(r[4]).replace(/\./g,'').replace(',','.'));
+    return{ticker,tipo,moneda,fecha,monto_usd:isFinite(montoUSD)?montoUSD:0};
+  }).filter(x=>x.fecha&&x.monto_usd>0);
+  impShowRFPreview();
+}
+
+function impShowRFPreview(){
+  const el=document.getElementById('imp-rf-preview');
+  if(!impParsedRFFlows.length){
+    el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron datos. Verificá que sea el formato Inviu correcto.</div>';
+    return;
+  }
+  // Group by ticker
+  const byTicker={};
+  impParsedRFFlows.forEach(f=>{
+    if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0,nr:0,na:0};
+    if(f.tipo==='Amortización'){byTicker[f.ticker].amort+=f.monto_usd;byTicker[f.ticker].na++;}
+    else{byTicker[f.ticker].renta+=f.monto_usd;byTicker[f.ticker].nr++;}
+  });
+  const rows=Object.entries(byTicker).map(([tk,d])=>`
+    <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+      <td style="font-family:var(--mono);font-size:12px;font-weight:700;padding:7px 8px;">${tk}</td>
+      <td style="font-size:11px;color:var(--green);padding:7px 8px;">${d.nr} cupones · u$s ${fmt(d.renta)}</td>
+      <td style="font-size:11px;color:var(--amber);padding:7px 8px;">${d.na?d.na+' amort. · u$s '+fmt(d.amort):'—'}</td>
+    </tr>`).join('');
+  el.innerHTML=`
+    <div style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.2);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
+      <div style="padding:8px 10px;font-size:10px;color:var(--blue);border-bottom:1px solid rgba(91,156,246,.15);">${impParsedRFFlows.length} flujos · ${Object.keys(byTicker).length} bono${Object.keys(byTicker).length!==1?'s':''}</div>
+      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+    </div>
+    <button class="bok" onclick="impConfirmRFFlows()" style="width:100%;font-size:13px;">📥 Importar ${impParsedRFFlows.length} flujos</button>`;
+}
+
+async function impConfirmRFFlows(){
+  const invId=document.getElementById('imp-inv').value;
+  if(!invId||!impParsedRFFlows.length)return;
+  const el=document.getElementById('imp-rf-preview');
+  el.innerHTML='<div style="color:var(--blue);font-size:12px;padding:10px;"><span class="spinner"></span> Guardando en base de datos...</div>';
+  try{
+    await sb.from('rf_flows').delete().eq('investor_id',invId);
+    const toInsert=impParsedRFFlows.map(f=>({investor_id:invId,ticker:f.ticker,tipo:f.tipo,fecha:f.fecha,monto_usd:f.monto_usd,moneda:f.moneda,cobrado:false}));
+    const {error}=await sb.from('rf_flows').insert(toInsert);
+    if(error)throw error;
+    impParsedRFFlows=[];
+    const inv=await loadInvestor(invId);
+    kc();renderInv(inv);
+    co('m-import');
+    showToast(`✓ ${toInsert.length} flujos RF importados`);
+  }catch(e){
+    el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error: ${e.message}</div>`;
   }
 }
 

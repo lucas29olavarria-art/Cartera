@@ -4331,9 +4331,7 @@ const SECTOR_ETF_MAP={
   'Salud':          'XLV',   // Health Care Select Sector: Eli Lilly, UnitedHealth, J&J, Merck
   'Comunicaciones': 'XLC',   // Communication Services: Meta, Google, Netflix, Disney
   'Cripto':         'IBIT',  // iShares Bitcoin ETF
-  'ETF':            'SPY',   // para posiciones ya en ETF
   'Renta Fija':     'TLT',   // iShares 20+ Year Treasury Bond
-  'Otro':           'SPY',
 };
 
 // Descripción y principales holdings de cada ETF sugerido
@@ -4393,10 +4391,11 @@ function rCarteraArgentina(cart,segs){
     withEquiv.forEach(x=>{
       // Priority 1: company equivalent
       const compEquiv=(CEDEAR_EQUIVALENTS[x.ticker]||[]).filter(t=>CEDEAR_LIST.has(t))[0];
-      // Priority 2: sector ETF
-      const sn=SECTOR_NORM[x.sector||'']||'Otro';
-      const etfTk=SECTOR_ETF_MAP[sn]||'SPY';
+      // Priority 2: sector ETF (null if sector unknown/Otro — skip rather than suggest SPY)
+      const sn=SECTOR_NORM[x.sector||'']||'';
+      const etfTk=SECTOR_ETF_MAP[sn]||null;
       const tk=compEquiv||etfTk;
+      if(!tk) return; // no equiv and no sector-specific ETF → skip, show only in sin-CEDEAR list
       const rowType=compEquiv?'equiv':'etf';
       if(!deduped[tk]){
         // New row: pick a color not used yet

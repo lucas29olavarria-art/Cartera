@@ -2533,13 +2533,19 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     const rfHasCost=rfCap>0;
     const rfRend=rfHasCost?rfVal-rfCap:null;
 
-    // ── Olas
+    // ── Olas — dedup por proyecto (capital_usd se repite en cada flow del mismo Ola)
     const olasVal=inv.olasVal||0;
-    const olasCapRaw=(inv.olasFlows||[]).reduce((s,f)=>{
-      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
-      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
-      return s;
-    },0);
+    const olasCapRaw=(()=>{
+      const seen=new Set();
+      return (inv.olasFlows||[]).reduce((s,f)=>{
+        const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
+        if(seen.has(proj))return s;
+        seen.add(proj);
+        if(f.capitalUsd)return s+safeNum(f.capitalUsd);
+        if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
+        return s;
+      },0);
+    })();
     const olasCap=olasCapRaw>0?olasCapRaw:olasVal;
     const olasHasCost=olasCapRaw>0;
     const olasRend=olasHasCost?olasVal-olasCap:null;

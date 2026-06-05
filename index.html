@@ -763,26 +763,32 @@ const TICKER_MAP={
 const SECTOR_NORM={
   'Tecnología':'Tech','Semiconductores':'Tech',
   'Fintech':'Finanzas','Bancario':'Finanzas','Fondo/Cash':'Finanzas',
-  'Energía':'Energía','Petróleo':'Energía','Utilities':'Energía',
+  'Energía':'Energía','Petróleo':'Energía',
+  'Utilities':'Utilities',
   'Consumo':'Consumo',
-  'Industrial':'Industrial','Materiales':'Industrial',
+  'Industrial':'Industrial',
+  'Materiales':'Materiales',
   'Salud':'Salud',
+  'Comunicaciones':'Comunicaciones',
   'Cripto/Bitcoin':'Cripto',
   'ETF USA':'ETF','Commodities':'ETF',
   'Renta Fija':'Renta Fija',
   'Otro':'Otro',
 };
 const SECTOR_CFG={
-  'Tech':      {ic:'💻',cl:'#5b9cf6',bg:'rgba(91,156,246,.13)'},
-  'Finanzas':  {ic:'🏦',cl:'#2dd4a0',bg:'rgba(45,212,160,.13)'},
-  'Energía':   {ic:'⚡',cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
-  'Consumo':   {ic:'🛒',cl:'#1ecbe1',bg:'rgba(30,203,225,.13)'},
-  'Industrial':{ic:'🏗️',cl:'#7d8799',bg:'rgba(125,135,153,.13)'},
-  'Salud':     {ic:'🏥',cl:'#f06c6c',bg:'rgba(240,108,108,.13)'},
-  'Cripto':    {ic:'₿', cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
-  'ETF':       {ic:'📊',cl:'#9b7ff4',bg:'rgba(155,127,244,.13)'},
-  'Renta Fija':{ic:'📄',cl:'#a0a8b8',bg:'rgba(160,168,184,.13)'},
-  'Otro':      {ic:'🌐',cl:'#424b5c',bg:'rgba(66,75,92,.2)'},
+  'Tech':           {ic:'💻',cl:'#5b9cf6',bg:'rgba(91,156,246,.13)'},
+  'Finanzas':       {ic:'🏦',cl:'#2dd4a0',bg:'rgba(45,212,160,.13)'},
+  'Energía':        {ic:'🛢️',cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
+  'Utilities':      {ic:'🔌',cl:'#4ade80',bg:'rgba(74,222,128,.13)'},
+  'Consumo':        {ic:'🛒',cl:'#1ecbe1',bg:'rgba(30,203,225,.13)'},
+  'Industrial':     {ic:'🏗️',cl:'#7d8799',bg:'rgba(125,135,153,.13)'},
+  'Materiales':     {ic:'🧱',cl:'#c9a96e',bg:'rgba(201,169,110,.13)'},
+  'Salud':          {ic:'🏥',cl:'#f06c6c',bg:'rgba(240,108,108,.13)'},
+  'Comunicaciones': {ic:'📡',cl:'#9b7ff4',bg:'rgba(155,127,244,.13)'},
+  'Cripto':         {ic:'₿', cl:'#f5a623',bg:'rgba(245,166,35,.13)'},
+  'ETF':            {ic:'📊',cl:'#9b7ff4',bg:'rgba(155,127,244,.13)'},
+  'Renta Fija':     {ic:'📄',cl:'#a0a8b8',bg:'rgba(160,168,184,.13)'},
+  'Otro':           {ic:'🌐',cl:'#424b5c',bg:'rgba(66,75,92,.2)'},
 };
 const COUNTRY_FLAGS={
   'USA':'🇺🇸','Argentina':'🇦🇷','Brasil':'🇧🇷',
@@ -824,7 +830,7 @@ const CEDEAR_LIST=new Set([
   'NEM','FCX','AA','VALE',
   // ETFs
   'SPY','QQQ','IWM','EEM','GLD','SLV','XLU','XLE','XLF','XLK',
-  'XLV','XLI','XLY','XLP','ARKK','VTI','VOO','GDX','IAU','TLT',
+  'XLV','XLI','XLY','XLP','XLB','XLC','ARKK','VTI','VOO','GDX','IAU','TLT',
   'SH','PSQ','IBIT','ETHA','XOP','SOXL','TQQQ','VNQ','MCHI','KWEB','BND',
   // Argentina / LatAm
   'YPFD','PAMP','GGAL','TECO2','LOMA','VIST','TGNO4','SUPV','TXAR','MELI','NU','SE',
@@ -4315,16 +4321,41 @@ const CEDEAR_EQUIVALENTS={
 
 // Sector → mejor ETF CEDEAR disponible en BYMA (keys = SECTOR_NORM output values)
 const SECTOR_ETF_MAP={
-  'Tech':      'QQQ',   // Nasdaq-100, cubre tech + semis
-  'Finanzas':  'XLF',   // Financial Select Sector
-  'Energía':   'XLE',   // Energy Select Sector
-  'Consumo':   'XLP',   // Consumer Staples Select Sector
-  'Industrial':'XLI',   // Industrial Select Sector
-  'Salud':     'XLV',   // Health Care Select Sector
-  'Cripto':    'IBIT',  // iShares Bitcoin ETF
-  'ETF':       'SPY',   // para posiciones ya en ETF
-  'Renta Fija':'TLT',   // iShares 20+ Year Treasury Bond
-  'Otro':      'SPY',
+  'Tech':           'QQQ',   // Nasdaq-100: Microsoft, Nvidia, Apple, Amazon, Meta, Google
+  'Finanzas':       'XLF',   // Financial Select Sector: JPMorgan, Goldman, BofA, Visa
+  'Energía':        'XLE',   // Energy Select Sector: Exxon, Chevron, ConocoPhillips, EOG
+  'Utilities':      'XLU',   // Utilities Select Sector: NextEra, Duke Energy, Southern
+  'Consumo':        'XLP',   // Consumer Staples: Costco, Coca-Cola, Pepsi, Walmart, P&G
+  'Industrial':     'XLI',   // Industrials Select Sector: GE Aerospace, Caterpillar, Honeywell
+  'Materiales':     'XLB',   // Materials Select Sector: Linde, Sherwin-Williams, Freeport
+  'Salud':          'XLV',   // Health Care Select Sector: Eli Lilly, UnitedHealth, J&J, Merck
+  'Comunicaciones': 'XLC',   // Communication Services: Meta, Google, Netflix, Disney
+  'Cripto':         'IBIT',  // iShares Bitcoin ETF
+  'ETF':            'SPY',   // para posiciones ya en ETF
+  'Renta Fija':     'TLT',   // iShares 20+ Year Treasury Bond
+  'Otro':           'SPY',
+};
+
+// Descripción y principales holdings de cada ETF sugerido
+const ETF_INFO={
+  'QQQ':  {name:'Nasdaq-100',              desc:'Microsoft · Nvidia · Apple · Amazon · Meta · Google'},
+  'XLK':  {name:'Tech Select Sector',      desc:'Microsoft · Nvidia · Apple · Broadcom · Salesforce'},
+  'XLF':  {name:'Financials Sector',       desc:'JPMorgan · Goldman Sachs · Visa · Bank of America'},
+  'XLE':  {name:'Energy Sector',           desc:'Exxon · Chevron · ConocoPhillips · EOG · SLB'},
+  'XLU':  {name:'Utilities Sector',        desc:'NextEra Energy · Duke Energy · Southern Company'},
+  'XLP':  {name:'Consumer Staples',        desc:'Costco · Coca-Cola · Pepsi · Walmart · P&G'},
+  'XLY':  {name:'Consumer Discretionary',  desc:'Amazon · Tesla · McDonald\'s · Starbucks · Nike'},
+  'XLI':  {name:'Industrials Sector',      desc:'GE Aerospace · Caterpillar · Honeywell · Boeing'},
+  'XLB':  {name:'Materials Sector',        desc:'Linde · Sherwin-Williams · Freeport-McMoRan · Air Products'},
+  'XLV':  {name:'Health Care Sector',      desc:'Eli Lilly · UnitedHealth · J&J · Merck · Abbott'},
+  'XLC':  {name:'Communication Services',  desc:'Meta · Google · Netflix · T-Mobile · Disney'},
+  'VNQ':  {name:'Real Estate (REITs)',      desc:'Prologis · Equinix · Public Storage · Realty Income'},
+  'IBIT': {name:'iShares Bitcoin ETF',      desc:'Exposición directa a Bitcoin (spot)'},
+  'TLT':  {name:'20+ Year Treasury',       desc:'Bonos del Tesoro EE.UU. largo plazo'},
+  'GLD':  {name:'SPDR Gold Shares',        desc:'Oro físico – reserva de valor'},
+  'IAU':  {name:'iShares Gold Trust',      desc:'Oro físico – alternativa a GLD'},
+  'EEM':  {name:'MSCI Emerging Markets',   desc:'TSMC · Tencent · Samsung · Alibaba · Infosys'},
+  'SPY':  {name:'S&P 500',                 desc:'Las 500 empresas más grandes de EE.UU.'},
 };
 
 function rCarteraArgentina(cart,segs){
@@ -4500,15 +4531,17 @@ function rCarteraArgentina(cart,segs){
           const isEquiv=x.rowType==='equiv'||x.rowType==='direct+';
           const isEtf=x.rowType==='etf';
           const tkColor=isDirect&&!isEquiv?'#eceef3':isEtf?'#5b9cf6':'#f5a623';
+          const etfLabel=ETF_INFO[x.cedearTk]?ETF_INFO[x.cedearTk].name:'ETF sector';
           const badge=isEtf
-            ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(91,156,246,.15);color:#5b9cf6;border:1px solid rgba(91,156,246,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">ETF sector</span>`
+            ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(91,156,246,.15);color:#5b9cf6;border:1px solid rgba(91,156,246,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">${etfLabel}</span>`
             :isEquiv&&!isDirect
             ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">≈ equiv.</span>`
             :x.rowType==='direct+'
             ?`<span style="font-size:7px;padding:1px 5px;border-radius:3px;background:rgba(245,166,35,.12);color:#f5a623;border:1px solid rgba(245,166,35,.25);font-family:var(--mono);letter-spacing:.04em;vertical-align:middle;margin-left:4px;">+equiv.</span>`
             :'';
+          const etfMeta=ETF_INFO[x.cedearTk];
           const subtext=isEtf
-            ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;">por ${x.equivFor||'sin CEDEAR'}</div>`
+            ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;line-height:1.4;">${etfMeta?etfMeta.desc:''}<br>cubre: ${x.equivFor||'sin CEDEAR'}</div>`
             :isEquiv&&!isDirect
             ?`<div style="font-size:8px;color:var(--muted);margin-top:1px;">por ${x.equivFor||''}</div>`
             :x.rowType==='direct+'

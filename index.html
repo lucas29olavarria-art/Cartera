@@ -2259,7 +2259,7 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
         <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:var(--muted);">Distribución por activo</div>
         <button class="ib" style="font-size:10px;padding:3px 10px;" onclick="downloadAllocChart('${inv.id}')">⬇ PNG</button>
       </div>
-      <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart" style="display:block;width:100%;height:100%;"></canvas></div>
+      <div style="position:relative;height:240px;margin-bottom:14px;"><canvas id="ov-activo-chart" style="display:block;"></canvas></div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
         ${allocItems(inv).map(x=>`
           <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
@@ -2539,7 +2539,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
           <button class="ib" style="font-size:11px;padding:4px 12px;" onclick="downloadAllocChart('${safeInvId}')">⬇ PNG</button>
         </div>
         <div style="position:relative;height:280px;margin-bottom:16px;">
-          <canvas id="ov-activo-chart" style="display:block;width:100%;height:100%;"></canvas>
+          <canvas id="ov-activo-chart" style="display:block;"></canvas>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
           ${sorted.map(x=>`
@@ -4929,8 +4929,8 @@ function rCarteraDetail(cart){
     const legendSegs=segs.slice(0,8);
     const extra=segs.length-8;
     html+=`<div class="card" style="margin-bottom:14px;"><div class="drow">
-      <div class="dslot" style="width:170px;height:170px;position:relative;flex-shrink:0;">
-        <canvas id="mc-donut"></canvas>
+      <div style="width:170px;height:170px;position:relative;flex-shrink:0;margin:0 auto;">
+        <canvas id="mc-donut" style="display:block;"></canvas>
         <div class="dmid" style="display:flex;align-items:center;justify-content:center;">
           <div style="width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(91,156,246,.2);display:flex;align-items:center;justify-content:center;overflow:hidden;">${photoInner}</div>
         </div>

@@ -828,8 +828,13 @@ const CEDEAR_LIST=new Set([
   'SH','PSQ','IBIT','ETHA','XOP','SOXL','TQQQ','VNQ','MCHI','KWEB','BND',
   // Argentina / LatAm
   'YPFD','PAMP','GGAL','TECO2','LOMA','VIST','TGNO4','SUPV','TXAR','MELI','NU','SE',
-  // Otros
-  'BRKB','WDAY','NOW','SQ','ZM','DOCU','LYFT','TWLO','SNAP','SHOP',
+  'PBR','VALE','ITUB','BBD','ERJ','GLOB',
+  // Asia / Europa ADRs comunes
+  'BABA','BIDU','JD','TSM','ASML','SONY','TM','DEO','UL','SHEL','BP',
+  'SHOP','SE','GRAB',
+  // Otros USA
+  'BRKB','WDAY','NOW','SQ','ZM','DOCU','LYFT','TWLO','SNAP',
+  'SPGI','MCO',
 ]);
 
 // Mapa de nombres SEC → ticker para resolver posiciones 13F sin API
@@ -935,18 +940,63 @@ const KNOWN_COMPANY_TICKERS={
   'UNITED PARCEL SERVICE':'UPS','UPS':'UPS',
   'FEDEX':'FDX','FEDEX CORP':'FDX',
   'DELTA AIR LINES':'DAL','DELTA AIRLINES':'DAL',
+  // Argentina / LatAm — nombres SEC exactos
+  'YPF':'YPFD','YPF SA':'YPFD','YPF SOCIEDAD ANONIMA':'YPFD',
+  'PETROLEO BRASILEIRO':'PBR','PETROLEO BRASILEIRO SA PETROBRAS':'PBR',
+  'PETROBRAS':'PBR','PETROBRAS BRASIL':'PBR',
+  'PAMPA ENERGIA':'PAMP','PAMPA ENERGIA SA':'PAMP',
+  'GRUPO FINANCIERO GALICIA':'GGAL','GRUPO GALICIA':'GGAL',
+  'BANCO GALICIA':'GGAL',
+  'TELECOM ARGENTINA':'TECO2','TELECOM ARGENTINA SA':'TECO2',
+  'LOMA NEGRA':'LOMA','LOMA NEGRA CIA INDUSTRIAL ARGENTINA':'LOMA',
+  'VISTA ENERGY':'VIST','VISTA OIL GAS':'VIST','VISTA OIL & GAS':'VIST',
+  'VISTA OIL':'VIST',
+  'TRANSPORTADORA GAS NORTE':'TGNO4','TGN':'TGNO4',
+  'MERCADOLIBRE':'MELI','MERCADO LIBRE':'MELI',
+  'NU HOLDINGS':'NU','NU':'NU',
+  'GLOBANT':'GLOB','GLOBANT SA':'GLOB',
+  // Taiwan Semiconductor — todas las variantes de nombre en SEC
+  'TAIWAN SEMICONDUCTOR MFG CO':'TSM','TAIWAN SEMICONDUCTOR MFG':'TSM',
+  'TAIWAN SEMICONDUCTOR MANUFACTURING':'TSM',
+  'TAIWAN SEMICONDUCTOR':'TSM','TSMC':'TSM',
+  // Otros ADR/comunes que fallan con strip simple
+  'ASML HOLDING':'ASML','ASML NV':'ASML',
+  'SHELL':'SHEL','ROYAL DUTCH SHELL':'SHEL',
+  'UNILEVER':'UL','UNILEVER PLC':'UL',
+  'BP':'BP','BP PLC':'BP',
+  'DIAGEO':'DEO','DIAGEO PLC':'DEO',
+  'SONY':'SONY','SONY GROUP':'SONY',
+  'TOYOTA':'TM','TOYOTA MOTOR':'TM',
+  'SAMSUNG':'SSNLF',
+  'ALIBABA GROUP':'BABA','ALIBABA':'BABA',
+  'JD COM':'JD','JDCOM':'JD',
+  'BAIDU':'BIDU','BAIDU INC':'BIDU',
+  'GRAB HOLDINGS':'GRAB','GRAB':'GRAB',
+  'SEA':'SE','SEA LTD':'SE',
+  'NU HOLDINGS':'NU',
+  'EMBRAER':'ERJ','EMBRAER SA':'ERJ',
+  'VALE':'VALE','VALE SA':'VALE',
+  'ITAU UNIBANCO':'ITUB','ITAUUNIBANCO':'ITUB',
+  'BANCO BRADESCO':'BBD','BRADESCO':'BBD',
 };
 
 // Resuelve el ticker CEDEAR considerando el ticker almacenado y el nombre de empresa
+// Strip company suffixes iteratively (handles "CO LTD", "SA ADS", etc.)
+function stripSuffixes(s){
+  const re=/\s+(INC|CORP|CO|LTD|LLC|PLC|NV|SA|AG|AB|GBH|PTE|GROUP|HOLDINGS?|CLASS [AB]|CL [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ORD SHS|ADR|ADS|SPON ADR|SPON ADS|DEL|SOCIEDAD ANONIMA|ANONIMA|THE)(\s.*)?$/i;
+  let prev='';
+  while(s!==prev){prev=s;s=s.replace(re,'').trim();}
+  return s;
+}
+
 function resolveCEDEARTicker(ticker,nombre){
   if(CEDEAR_LIST.has(ticker))return ticker;
-  const norm=s=>s.toUpperCase().replace(/[,\.]/g,'').trim();
-  const keys=[
-    norm(nombre||''),
-    norm(nombre||'').replace(/\s+(INC|CORP|CO|LTD|LLC|PLC|GROUP|HOLDINGS?|CLASS [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ADR)(\s.*)?$/,'').trim(),
-    norm(ticker||''),
-  ];
+  const norm=s=>s.toUpperCase().replace(/[,\.&]/g,'').trim();
+  const nk=norm(nombre||'');
+  const tk=norm(ticker||'');
+  const keys=[nk, stripSuffixes(nk), tk, stripSuffixes(tk)];
   for(const k of keys){
+    if(!k)continue;
     if(KNOWN_COMPANY_TICKERS[k]&&CEDEAR_LIST.has(KNOWN_COMPANY_TICKERS[k]))return KNOWN_COMPANY_TICKERS[k];
     if(CEDEAR_LIST.has(k))return k;
   }
@@ -3973,9 +4023,9 @@ async function ensureSecNameMap(){
 }
 
 function secNameToTicker(name){
-  const key=name.toUpperCase().replace(/[,.]/g,'').trim();
-  const stripped=key.replace(/\s+(INC|CORP|CO|LTD|LLC|PLC|GROUP|HOLDINGS?|CLASS [AB]|COM SHS|COMMON STOCK|ORDINARY SHARES|ADR)(\s.*)?$/,'').trim();
-  // 1. Known hardcoded map first (no API needed)
+  const key=name.toUpperCase().replace(/[,.&]/g,'').trim();
+  const stripped=stripSuffixes(key);
+  // 1. Known hardcoded map (iteratively stripped)
   if(KNOWN_COMPANY_TICKERS[key])return KNOWN_COMPANY_TICKERS[key];
   if(KNOWN_COMPANY_TICKERS[stripped])return KNOWN_COMPANY_TICKERS[stripped];
   // 2. SEC API map (if loaded successfully)
@@ -3986,7 +4036,7 @@ function secNameToTicker(name){
     const match=Object.entries(SEC_NAME_MAP).find(([k])=>k===first||k.startsWith(first+' '));
     if(match)return match[1];
   }
-  // 3. Fallback: first word (better than garbage concatenation)
+  // 3. Fallback: stripped first word
   return stripped.split(' ')[0]||key.split(' ')[0];
 }
 

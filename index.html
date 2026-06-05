@@ -3934,38 +3934,48 @@ function rMiCartera(){
 function rCarterasListing(){
   const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
   const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
-  let html='<div style="margin-bottom:20px;">';
-  html+='<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">';
+  const TIPO_BG={personal:'rgba(91,156,246,.04)',famoso:'rgba(245,166,35,.04)',research:'rgba(45,212,160,.04)'};
+  let html='<div style="margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">';
   html+='<div><div style="font-size:20px;font-weight:700;color:#eceef3;">Carteras Recomendadas</div>';
-  html+='<div style="font-size:12px;color:var(--muted);margin-top:3px;">Seleccioná una cartera para ver su composición y movimientos</div></div>';
-  if(CU&&CU.is_admin)html+='<button class="ib" onclick="openNuevaCartera()">+ Nueva cartera</button>';
-  html+='</div></div>';
+  html+='<div style="font-size:12px;color:var(--muted);margin-top:3px;">Seleccioná una cartera para ver su composición</div></div>';
+  if(CU&&CU.is_admin)html+='<button class="ib" onclick="openNuevaCartera()">+ Nueva</button>';
+  html+='</div>';
 
   if(!CARTERAS_CACHE.length){
     html+='<div class="empty" style="padding:60px;">Todavía no hay carteras cargadas.</div>';
-    if(CU&&CU.is_admin)html+='<div style="text-align:center;margin-top:16px;"><button class="ib" onclick="openNuevaCartera()">+ Crear primera cartera</button></div>';
   } else {
-    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;">';
+    html+='<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;">';
     CARTERAS_CACHE.forEach(c=>{
       const pos=c.posiciones||[];
       const tipLb=TIPO_LABEL[c.tipo]||c.tipo||'';
       const tipC=TIPO_C[c.tipo]||'#5b9cf6';
-      const top3=pos.slice(0,3).map(p=>`<span style="font-family:var(--mono);font-size:10px;background:rgba(255,255,255,.06);padding:2px 7px;border-radius:4px;">${p.ticker}</span>`).join('');
+      const cardBg=TIPO_BG[c.tipo]||'rgba(91,156,246,.04)';
       const photoInner=c.foto_b64
         ?`<img src="${c.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
-        :`<span style="font-family:var(--mono);font-size:16px;font-weight:700;color:#fff;">${(c.nombre||'?')[0].toUpperCase()}</span>`;
-      html+=`<div class="card" style="cursor:pointer;transition:border-color .2s;" onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];rMiCartera();" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor=''">
-        <div style="display:flex;align-items:center;gap:14px;margin-bottom:14px;">
-          <div style="width:52px;height:52px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">${photoInner}</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-size:14px;font-weight:700;color:#eceef3;margin-bottom:2px;">${c.nombre}</div>
-            <div style="font-size:11px;color:var(--muted);">${c.subtitulo||''}</div>
+        :`<span style="font-family:var(--mono);font-size:20px;font-weight:700;color:#fff;">${(c.nombre||'?')[0].toUpperCase()}</span>`;
+      const chips=pos.slice(0,3).map(p=>{
+        const sn=SECTOR_NORM[p.sector||'']||'Otro';
+        const cl=SECTOR_CFG[sn]?.cl||'#5b9cf6';
+        return `<span style="font-family:var(--mono);font-size:10px;background:${cl}22;color:${cl};border:1px solid ${cl}33;padding:2px 8px;border-radius:5px;">${p.ticker}</span>`;
+      }).join('');
+      const posLabel=c.investor_id?(INV_CACHE[c.investor_id]?.rv?.length||'—')+' pos. en vivo':pos.length+' posiciones';
+      html+=`<div class="card" style="cursor:pointer;transition:border-color .2s;min-height:155px;background:linear-gradient(140deg,${cardBg} 0%,transparent 55%);position:relative;"
+        onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];rMiCartera();"
+        onmouseover="this.style.borderColor='rgba(91,156,246,.45)'" onmouseout="this.style.borderColor=''">
+        <div style="position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:${tipC};background:${tipC}1a;padding:3px 9px;border-radius:5px;border:1px solid ${tipC}30;">${tipLb}</div>
+        <div style="display:flex;align-items:center;gap:14px;margin-bottom:13px;">
+          <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 4px 18px rgba(0,0,0,.45);">${photoInner}</div>
+          <div style="flex:1;min-width:0;padding-right:70px;">
+            <div style="font-size:15px;font-weight:700;color:#eceef3;margin-bottom:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${c.nombre}</div>
+            <div style="font-size:11px;color:var(--muted);margin-bottom:9px;">${c.subtitulo||''}</div>
+            <div style="display:flex;gap:5px;flex-wrap:wrap;">${chips||'<span style="font-size:10px;color:var(--muted);font-style:italic;">sin datos aún</span>'}</div>
           </div>
-          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${tipC};background:${tipC}18;padding:3px 8px;border-radius:5px;flex-shrink:0;">${tipLb}</div>
         </div>
-        ${c.descripcion?`<div style="font-size:12px;color:var(--soft);margin-bottom:12px;line-height:1.5;">${c.descripcion}</div>`:''}
-        <div style="display:flex;gap:5px;flex-wrap:wrap;margin-bottom:12px;">${top3}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${c.investor_id?(INV_CACHE[c.investor_id]?.rv?.length||'—')+' posiciones (en vivo)':pos.length+' posiciones'} · Ver cartera →</div>
+        ${c.descripcion?`<div style="font-size:11px;color:var(--soft);margin-bottom:10px;line-height:1.5;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">${c.descripcion}</div>`:''}
+        <div style="display:flex;align-items:center;justify-content:space-between;font-size:10px;color:var(--muted);">
+          <span style="font-family:var(--mono);">${posLabel}</span>
+          <span style="color:rgba(91,156,246,.55);">Ver →</span>
+        </div>
         ${CU&&CU.is_admin?`<div style="margin-top:10px;padding-top:10px;border-top:1px solid rgba(255,255,255,.06);display:flex;gap:8px;" onclick="event.stopPropagation()">
           <button class="ib" style="font-size:10px;padding:2px 8px;" onclick="openEditCartera('${c.id}')">✏ Editar</button>
           <button class="ib" style="font-size:10px;padding:2px 8px;color:var(--red);border-color:rgba(240,108,108,.3);" onclick="deleteCartera('${c.id}')">✕ Borrar</button>
@@ -3978,7 +3988,6 @@ function rCarterasListing(){
 }
 
 function rCarteraDetail(cart){
-  // If linked to an investor account, use live positions; load async if not cached yet
   let segs=[];
   if(cart.investor_id){
     const inv=INV_CACHE[cart.investor_id];
@@ -4002,10 +4011,10 @@ function rCarteraDetail(cart){
   }
   const donutVals=segs.map(x=>+(+x.pct).toFixed(2));
   const donutCols=segs.map(x=>x.c);
-  const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
+
   const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
   const tipC=TIPO_C[cart.tipo]||'#5b9cf6';
-  const tipLb=TIPO_LABEL[cart.tipo]||cart.tipo||'';
+
   const photoInner=cart.foto_b64
     ?`<img src="${cart.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
     :`<span style="font-family:var(--mono);font-size:22px;font-weight:700;color:#fff;">${(cart.nombre||'?')[0].toUpperCase()}</span>`;
@@ -4021,112 +4030,151 @@ function rCarteraDetail(cart){
   }
 
   let html='';
-  // Back + SEC sync button
-  const secBtn=cart.cik?`<button class="ib" style="font-size:10px;" onclick="syncCarteraFromSec('${cart.id}')">↻ SEC</button>`:'';
-  const lastSync=cart.last_synced?`<span style="font-family:var(--mono);font-size:9px;color:var(--muted);">13F: ${new Date(cart.last_synced).toLocaleDateString('es-AR')}</span>`:'';
+
+  // ── Back button + SEC sync icon ────────────────────────────
+  const lastSyncTip=cart.last_synced?`Actualizar desde SEC EDGAR · último: ${new Date(cart.last_synced).toLocaleDateString('es-AR')}`:'Sincronizar con SEC EDGAR';
+  const secIcon=cart.cik?`<button title="${lastSyncTip}" onclick="syncCarteraFromSec('${cart.id}')" style="margin-left:auto;background:transparent;border:1px solid rgba(255,255,255,.1);border-radius:8px;padding:5px 9px;cursor:pointer;color:var(--muted);font-size:13px;transition:border-color .2s;" onmouseover="this.style.borderColor='rgba(91,156,246,.4)'" onmouseout="this.style.borderColor='rgba(255,255,255,.1)'">↻</button>`:'';
   html+=`<div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;">
     <button class="ib" onclick="MC_CURRENT_ID=null;rMiCartera()">← Volver</button>
-    ${secBtn}${lastSync}
+    ${secIcon}
   </div>`;
 
-  // Header card
-  html+=`<div style="background:linear-gradient(160deg,#0d1422,#09111c);border:1px solid rgba(91,156,246,.1);border-radius:20px;padding:24px;margin-bottom:14px;display:flex;align-items:center;gap:18px;">
-    <div style="width:72px;height:72px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(91,156,246,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;">${photoInner}</div>
+  // ── Header ─────────────────────────────────────────────────
+  html+=`<div style="background:linear-gradient(160deg,#0d1422,#09111c);border:1px solid rgba(91,156,246,.1);border-radius:20px;padding:22px 24px;margin-bottom:14px;display:flex;align-items:center;gap:18px;">
+    <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(91,156,246,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 4px 20px rgba(0,0,0,.5);">${photoInner}</div>
     <div style="flex:1;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:${tipC};margin-bottom:5px;">${tipLb}</div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:${tipC};margin-bottom:5px;">${{personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'}[cart.tipo]||cart.tipo||''}</div>
       <div style="font-size:20px;font-weight:700;color:#eceef3;margin-bottom:3px;">${cart.nombre}</div>
       ${cart.subtitulo?`<div style="font-size:12px;color:var(--muted);">${cart.subtitulo}</div>`:''}
       ${cart.descripcion?`<div style="font-size:12px;color:var(--soft);margin-top:6px;line-height:1.5;">${cart.descripcion}</div>`:''}
     </div>
   </div>`;
 
-  // Disclaimer
-  html+=`<div style="background:rgba(245,166,35,.05);border:1px solid rgba(245,166,35,.18);border-radius:10px;padding:10px 14px;font-size:11px;color:rgba(245,166,35,.8);margin-bottom:14px;">⚠ Datos del último 13F (SEC). Esta cartera se muestra con fines informativos y no constituye recomendación de inversión personalizada.</div>`;
-
-  // Donut + legend
+  // ── Donut + legend ─────────────────────────────────────────
   if(segs.length>0){
+    const legendSegs=segs.slice(0,8);
+    const extra=segs.length-8;
     html+=`<div class="card" style="margin-bottom:14px;"><div class="drow">
-      <div class="dslot" style="position:relative;">
+      <div class="dslot" style="width:170px;height:170px;position:relative;flex-shrink:0;">
         <canvas id="mc-donut"></canvas>
         <div class="dmid" style="display:flex;align-items:center;justify-content:center;">
-          <div style="width:62px;height:62px;border-radius:50%;background:linear-gradient(135deg,#1a2236,#0d1422);border:2px solid rgba(91,156,246,.2);display:flex;align-items:center;justify-content:center;overflow:hidden;">${photoInner}</div>
+          <div style="width:78px;height:78px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(91,156,246,.2);display:flex;align-items:center;justify-content:center;overflow:hidden;">${photoInner}</div>
         </div>
       </div>
       <div class="leg">
-        ${segs.map(x=>{
+        ${legendSegs.map(x=>{
           const rPct=+(x.rend_pct||0);
+          const showRend=rPct!==0;
           const rc=rPct>=0?'var(--green)':'var(--red)';
-          return `<div class="lr" style="padding:7px 0;align-items:flex-start;">
-            <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;margin-right:10px;margin-top:3px;"></div>
-            <div style="flex:1;min-width:0;"><div style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.ticker}</div></div>
-            <div style="text-align:right;flex-shrink:0;">
+          const empresa=x.nombre&&x.nombre!==x.ticker?`<div style="font-size:9px;color:var(--muted);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:110px;">${x.nombre}</div>`:'';
+          return `<div class="lr" style="padding:6px 0;align-items:flex-start;">
+            <div style="width:8px;height:8px;border-radius:2px;background:${x.c};flex-shrink:0;margin-right:10px;margin-top:4px;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.ticker}</div>
+              ${empresa}
+            </div>
+            <div style="text-align:right;flex-shrink:0;margin-left:8px;">
               <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${x.c};">${(+x.pct||0).toFixed(1)}%</div>
-              <div style="font-family:var(--mono);font-size:10px;color:${rc};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</div>
+              ${showRend?`<div style="font-family:var(--mono);font-size:10px;color:${rc};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</div>`:''}
             </div>
           </div>`;
         }).join('')}
+        ${extra>0?`<div style="font-size:11px;color:var(--muted);padding:6px 0;">y ${extra} más…</div>`:''}
       </div>
     </div></div>`;
   }
 
-  // Subtabs
+  // ── Subtabs ────────────────────────────────────────────────
   html+=`<div style="display:flex;gap:6px;margin-bottom:14px;">
     <button class="tb${MC_TAB==='composicion'?' active':''}" onclick="MC_TAB='composicion';kc();rMiCartera()">Composición</button>
     <button class="tb${MC_TAB==='movimientos'?' active':''}" onclick="MC_TAB='movimientos';kc();rMiCartera()">Movimientos</button>
   </div>`;
 
+  // ── Composición ────────────────────────────────────────────
   if(MC_TAB==='composicion'){
     if(!segs.length){
       html+=`<div class="empty">Sin posiciones cargadas.</div>`;
     } else {
+      const hasNotas=segs.some(x=>x.notas&&x.notas.trim());
+      const maxPct=Math.max(...segs.map(x=>+x.pct||0))||1;
       html+=`<div class="card"><div class="tw"><table>
-        <thead><tr><th>Ticker</th><th>Sector</th><th style="text-align:right">% Asignación</th><th style="text-align:right">Rend.</th><th>Notas</th></tr></thead>
+        <thead><tr>
+          <th>Ticker</th><th>Sector</th>
+          <th style="text-align:right;min-width:100px;">Asignación</th>
+          <th style="text-align:right">Rend.</th>
+          ${hasNotas?'<th>Notas</th>':''}
+        </tr></thead>
         <tbody>${segs.map(x=>{
           const sn=SECTOR_NORM[x.sector||'']||'Otro';
           const sc_=SECTOR_CFG[sn]||SECTOR_CFG['Otro'];
           const rPct=+(x.rend_pct||0);
+          const barW=Math.round((+x.pct||0)/maxPct*100);
           return `<tr>
-            <td><span style="font-family:var(--mono);font-size:12px;font-weight:700;">${x.ticker}</span></td>
+            <td>
+              <div style="display:flex;align-items:center;gap:8px;">
+                <div style="width:3px;height:32px;border-radius:2px;background:${sc_.cl};flex-shrink:0;"></div>
+                <div>
+                  <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${x.ticker}</div>
+                  ${x.nombre&&x.nombre!==x.ticker?`<div style="font-size:10px;color:var(--muted);max-width:100px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${x.nombre}</div>`:''}
+                </div>
+              </div>
+            </td>
             <td><span style="font-size:11px;color:var(--soft);">${sc_.ic} ${sn}</span></td>
-            <td style="text-align:right;font-family:var(--mono);font-size:12px;">${(+x.pct||0).toFixed(1)}%</td>
+            <td style="text-align:right;">
+              <div style="font-family:var(--mono);font-size:12px;color:#eceef3;">${(+x.pct||0).toFixed(1)}%</div>
+              <div style="width:64px;height:3px;background:rgba(255,255,255,.07);border-radius:2px;margin-left:auto;margin-top:4px;">
+                <div style="width:${barW}%;height:100%;background:${x.c};border-radius:2px;"></div>
+              </div>
+            </td>
             <td style="text-align:right;font-family:var(--mono);font-size:12px;color:${rPct>=0?'var(--green)':'var(--red)'};">${rPct>=0?'+':''}${rPct.toFixed(1)}%</td>
-            <td style="font-size:11px;color:var(--muted);">${x.notas||''}</td>
+            ${hasNotas?`<td style="font-size:11px;color:var(--muted);">${x.notas||''}</td>`:''}
           </tr>`;
         }).join('')}</tbody>
       </table></div></div>`;
     }
+
+  // ── Movimientos (timeline) ─────────────────────────────────
   } else {
     if(!MC_MOV_LOADED){
-      html+=`<div class="empty" style="padding:30px;">Cargando movimientos…</div>`;
+      html+=`<div class="empty" style="padding:30px;">Cargando…</div>`;
       loadMcMovimientos(cart.id).then(()=>{kc();rMiCartera();});
     } else {
       const months=[...new Set(MC_MOVIMIENTOS.map(m=>m.fecha.slice(0,7)))].sort().reverse();
       if(!months.includes(MC_MONTH_FILTER)&&months.length)MC_MONTH_FILTER=months[0];
       const mNames=['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
       if(months.length){
-        html+=`<div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
-          ${months.map(mk=>{const[y,m]=mk.split('-');return`<button class="ib${MC_MONTH_FILTER===mk?' pri':''}" style="font-size:10px;padding:3px 10px;" onclick="MC_MONTH_FILTER='${mk}';kc();rMiCartera()">${mNames[+m-1]} ${y}</button>`;}).join('')}
+        html+=`<div style="display:flex;gap:6px;margin-bottom:14px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch;scrollbar-width:none;">
+          ${months.map(mk=>{
+            const[y,m]=mk.split('-');
+            const active=MC_MONTH_FILTER===mk;
+            return `<button onclick="MC_MONTH_FILTER='${mk}';kc();rMiCartera()" style="flex-shrink:0;font-size:11px;padding:5px 14px;border-radius:20px;border:1px solid ${active?'rgba(91,156,246,.5)':'rgba(255,255,255,.1)'};background:${active?'rgba(91,156,246,.12)':'transparent'};color:${active?'#5b9cf6':'var(--soft)'};cursor:pointer;white-space:nowrap;transition:all .15s;">${mNames[+m-1]} ${y}</button>`;
+          }).join('')}
         </div>`;
       }
       const filtered=MC_MOVIMIENTOS.filter(m=>m.fecha.slice(0,7)===MC_MONTH_FILTER);
       if(!filtered.length){
         html+=`<div class="empty">Sin movimientos en este mes.</div>`;
       } else {
-        html+=`<div class="card">`;
-        filtered.forEach(m=>{
-          const isPos=m.accion==='compra'||m.accion==='entrada';
-          const c=isPos?'var(--green)':'var(--red)';
-          const label=m.accion==='compra'?'Compré':m.accion==='venta'?'Vendí':'Entré';
-          const fecha=new Date(m.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});
-          html+=`<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,.05);">
-            <div style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:34px;flex-shrink:0;">${fecha}</div>
-            <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;min-width:56px;flex-shrink:0;">${m.ticker}</div>
-            <div style="font-size:12px;font-weight:600;color:${c};">${label}</div>
-            ${m.cantidad!=null?`<div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${m.cantidad} uds</div>`:''}
-            ${m.notas?`<div style="font-size:11px;color:var(--muted);margin-left:auto;text-align:right;max-width:160px;">${m.notas}</div>`:''}
-          </div>`;
-        });
-        html+=`</div>`;
+        html+=`<div class="card"><div style="position:relative;padding-left:28px;">
+          <div style="position:absolute;left:11px;top:8px;bottom:8px;width:2px;background:rgba(255,255,255,.06);border-radius:2px;"></div>
+          ${filtered.map((m,mi)=>{
+            const isCompra=m.accion==='compra';
+            const isEntrada=m.accion==='entrada';
+            const dotC=isCompra?'#2dd4a0':isEntrada?'#5b9cf6':'#f06c6c';
+            const label=isCompra?'Compré':isEntrada?'Entré':'Vendí';
+            const fecha=new Date(m.fecha+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'short'});
+            return `<div style="position:relative;padding:10px 0 10px 0;${mi<filtered.length-1?'border-bottom:1px solid rgba(255,255,255,.04)':''}">
+              <div style="position:absolute;left:-21px;width:10px;height:10px;border-radius:50%;background:${dotC};top:14px;box-shadow:0 0 0 3px ${dotC}22;"></div>
+              <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;">
+                <span style="font-family:var(--mono);font-size:10px;color:var(--muted);flex-shrink:0;">${fecha}</span>
+                <span style="font-size:13px;font-weight:700;color:${dotC};">${label}</span>
+                <span style="font-family:var(--mono);font-size:13px;font-weight:700;color:#eceef3;">${m.ticker}</span>
+                ${m.cantidad!=null?`<span style="font-family:var(--mono);font-size:11px;color:var(--soft);">${m.cantidad} uds</span>`:''}
+              </div>
+              ${m.notas?`<div style="font-size:11px;color:var(--muted);margin-top:4px;line-height:1.4;">${m.notas}</div>`:''}
+            </div>`;
+          }).join('')}
+        </div></div>`;
       }
       if(CU&&CU.is_admin){
         html+=`<div style="margin-top:14px;text-align:center;">
@@ -4134,6 +4182,12 @@ function rCarteraDetail(cart){
         </div>`;
       }
     }
+  }
+
+  // ── Disclaimer SEC (footer discreto) ──────────────────────
+  if(cart.cik){
+    const lastSync=cart.last_synced?` · 13F del ${new Date(cart.last_synced).toLocaleDateString('es-AR')}`:'';
+    html+=`<div style="margin-top:16px;font-size:10px;color:rgba(255,255,255,.22);text-align:center;line-height:1.5;">Datos del último 13F (SEC EDGAR)${lastSync} · Con fines informativos, no es recomendación de inversión.</div>`;
   }
 
   sc(html);

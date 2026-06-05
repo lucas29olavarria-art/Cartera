@@ -3932,6 +3932,16 @@ function rMiCartera(){
   }
 }
 
+function riesgoConf(r){
+  const m={
+    'Bajo':      {c:'#2dd4a0',bg:'rgba(45,212,160,.12)',label:'Riesgo Bajo'},
+    'Moderado':  {c:'#5b9cf6',bg:'rgba(91,156,246,.12)',label:'Riesgo Moderado'},
+    'Alto':      {c:'#f5a623',bg:'rgba(245,166,35,.12)', label:'Riesgo Alto'},
+    'Muy Alto':  {c:'#f06c6c',bg:'rgba(240,108,108,.12)',label:'Riesgo Muy Alto'},
+  };
+  return m[r]||m['Moderado'];
+}
+
 function rCarterasListing(){
   const TIPO_LABEL={personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'};
   const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
@@ -3960,10 +3970,14 @@ function rCarterasListing(){
         return `<span style="font-family:var(--mono);font-size:10px;background:${cl}22;color:${cl};border:1px solid ${cl}33;padding:2px 8px;border-radius:5px;">${p.ticker}</span>`;
       }).join('');
       const posLabel=c.investor_id?(INV_CACHE[c.investor_id]?.rv?.length||'—')+' pos. en vivo':pos.length+' posiciones';
+      const rc=riesgoConf(c.riesgo);
       html+=`<div class="card" style="cursor:pointer;transition:border-color .2s;min-height:155px;background:linear-gradient(140deg,${cardBg} 0%,transparent 55%);position:relative;"
         onclick="MC_CURRENT_ID='${c.id}';MC_TAB='composicion';MC_MOV_LOADED=false;MC_MOVIMIENTOS=[];rMiCartera();"
         onmouseover="this.style.borderColor='rgba(91,156,246,.45)'" onmouseout="this.style.borderColor=''">
-        <div style="position:absolute;top:14px;right:14px;font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:${tipC};background:${tipC}1a;padding:3px 9px;border-radius:5px;border:1px solid ${tipC}30;">${tipLb}</div>
+        <div style="position:absolute;top:14px;right:14px;display:flex;flex-direction:column;align-items:flex-end;gap:5px;">
+          <div style="font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:${tipC};background:${tipC}1a;padding:3px 9px;border-radius:5px;border:1px solid ${tipC}30;">${tipLb}</div>
+          ${c.riesgo?`<div style="font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:${rc.c};background:${rc.bg};padding:3px 9px;border-radius:5px;border:1px solid ${rc.c}30;">⚡ ${c.riesgo}</div>`:''}
+        </div>
         <div style="display:flex;align-items:center;gap:14px;margin-bottom:13px;">
           <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(255,255,255,.1);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 4px 18px rgba(0,0,0,.45);">${photoInner}</div>
           <div style="flex:1;min-width:0;padding-right:70px;">
@@ -4015,6 +4029,7 @@ function rCarteraDetail(cart){
 
   const TIPO_C={personal:'#5b9cf6',famoso:'#f5a623',research:'#2dd4a0'};
   const tipC=TIPO_C[cart.tipo]||'#5b9cf6';
+  const rc2=riesgoConf(cart.riesgo);
 
   const photoInner=cart.foto_b64
     ?`<img src="${cart.foto_b64}" style="width:100%;height:100%;object-fit:cover;object-position:top;" />`
@@ -4047,7 +4062,10 @@ function rCarteraDetail(cart){
   html+=`<div style="background:linear-gradient(160deg,#0d1422,#09111c);border:1px solid rgba(91,156,246,.1);border-radius:20px;padding:22px 24px;margin-bottom:14px;display:flex;align-items:center;gap:18px;">
     <div style="width:80px;height:80px;border-radius:50%;background:linear-gradient(135deg,#1e2a3e,#0d1422);border:2px solid rgba(91,156,246,.25);display:flex;align-items:center;justify-content:center;overflow:hidden;flex-shrink:0;box-shadow:0 4px 20px rgba(0,0,0,.5);">${photoInner}</div>
     <div style="flex:1;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:${tipC};margin-bottom:5px;">${{personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'}[cart.tipo]||cart.tipo||''}</div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:5px;flex-wrap:wrap;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.15em;text-transform:uppercase;color:${tipC};">${{personal:'Cartera Personal',famoso:'Inversor Famoso',research:'Research'}[cart.tipo]||cart.tipo||''}</div>
+        ${cart.riesgo?`<div style="font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:${rc2.c};background:${rc2.bg};padding:2px 8px;border-radius:5px;border:1px solid ${rc2.c}30;">⚡ ${cart.riesgo}</div>`:''}
+      </div>
       <div style="font-size:20px;font-weight:700;color:#eceef3;margin-bottom:3px;">${cart.nombre}</div>
       ${cart.subtitulo?`<div style="font-size:12px;color:var(--muted);">${cart.subtitulo}</div>`:''}
       ${cart.descripcion?`<div style="font-size:12px;color:var(--soft);margin-top:6px;line-height:1.5;">${cart.descripcion}</div>`:''}

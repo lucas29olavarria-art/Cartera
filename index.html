@@ -3827,6 +3827,13 @@ function secNameToTicker(name){
   return match?match[1]:name.split(' ').slice(0,2).join('');
 }
 
+async function secProxyFetch(url){
+  // data.sec.gov/Archives blocks CORS — use allorigins proxy
+  const r=await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
+  if(!r.ok)throw new Error('Proxy HTTP '+r.status+' para '+url.split('/').pop());
+  return r;
+}
+
 async function syncCarteraFromSec(cartId){
   const cart=CARTERAS_CACHE.find(c=>c.id===cartId);
   if(!cart?.cik){showToast('Esta cartera no tiene CIK de SEC');return;}
@@ -3835,8 +3842,8 @@ async function syncCarteraFromSec(cartId){
     const paddedCik=String(+cart.cik).padStart(10,'0');
     const cikNum=String(+cart.cik);
 
-    // Step 1 — get submissions to find latest 13F-HR
-    const r1=await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`,{headers:SEC_UA});
+    // Step 1 — get submissions (data.sec.gov/submissions has CORS enabled)
+    const r1=await fetch(`https://data.sec.gov/submissions/CIK${paddedCik}.json`);
     if(!r1.ok)throw new Error('SEC submissions: '+r1.status);
     const subs=await r1.json();
 
@@ -3844,14 +3851,14 @@ async function syncCarteraFromSec(cartId){
     const i13=recent.form.findIndex(f=>f==='13F-HR');
     if(i13<0)throw new Error('No 13F-HR encontrado');
 
-    const acc=recent.accessionNumber[i13]; // "0001067983-24-000007"
+    const acc=recent.accessionNumber[i13];
     const accND=acc.replace(/-/g,'');
     const filingDate=recent.filingDate[i13];
 
-    // Step 2 — get filing index to find the holdings XML file
+    // Step 2 — filing index via proxy (Archives blocks CORS)
     let xmlFile=null;
     try{
-      const r2=await fetch(`https://data.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`);
+      const r2=await secProxyFetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${acc}-index.json`);
       if(r2.ok){
         const idx=await r2.json();
         const files=idx.directory?.item||[];
@@ -3861,9 +3868,9 @@ async function syncCarteraFromSec(cartId){
     }catch(e){}
     const xmlName=xmlFile?.name||'informationtable.xml';
 
-    // Step 3 — fetch and parse the holdings XML
-    const r3=await fetch(`https://data.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`);
-    if(!r3.ok)throw new Error('Holdings XML no accesible (posible CORS)');
+    // Step 3 — holdings XML via proxy
+    const r3=await secProxyFetch(`https://www.sec.gov/Archives/edgar/data/${cikNum}/${accND}/${xmlName}`);
+    if(!r3.ok)throw new Error('Holdings XML error: '+r3.status);
     const xmlTxt=await r3.text();
 
     const parser=new DOMParser();

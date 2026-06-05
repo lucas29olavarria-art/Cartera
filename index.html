@@ -2137,8 +2137,25 @@ function printReport(invId){
 function renderInv(inv){
   if(!inv)return;
   const isA=CU.is_admin;
-  const liq=totalLiq(inv),rend=totalRend(inv),tot=grand(inv);
-  const rendPct=liq>0?(rend/Math.abs(liq-rend)*100).toFixed(1):'0.0';
+  const liq=totalLiq(inv),tot=grand(inv);
+  // Olas P&L: (cobrado + outstanding) - invested capital
+  const olasCobradoProfile=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+  const olasCapProfile=(()=>{
+    const seen=new Set();
+    return (inv.olasFlows||[]).reduce((s,f)=>{
+      const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
+      if(seen.has(proj))return s;
+      seen.add(proj);
+      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
+      return s;
+    },0);
+  })();
+  const olasRendProfile=olasCapProfile>0?(inv.olasVal||0)+olasCobradoProfile-olasCapProfile:0;
+  const rvRfRend=totalRend(inv);
+  const rend=rvRfRend+olasRendProfile;
+  const totalCapProfile=(liq-rvRfRend)+(olasCapProfile>0?olasCapProfile:(inv.olasVal||0));
+  const rendPct=totalCapProfile>0?((rend/totalCapProfile)*100).toFixed(1):'0.0';
   const best=[...inv.rv||[],...inv.rf||[]].filter(p=>p.rend>0).sort((a,b)=>b.rend-a.rend)[0];
 
   const hdr=`<div class="ihdr">
@@ -2564,13 +2581,20 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
         return s;
       },0);
     })();
+    // Total ya cobrado en USD (flujos recibidos): capital retornado + intereses cobrados
+    const olasCobradoUSD=(inv.olasFlows||[])
+      .filter(f=>f.cobrado)
+      .reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
     const olasCap=olasCapRaw>0?olasCapRaw:olasVal;
     const olasHasCost=olasCapRaw>0;
-    const olasRend=olasHasCost?olasVal-olasCap:null;
+    // Valor efectivo = lo ya cobrado + lo aún pendiente/activo
+    const olasEfectivo=olasVal+olasCobradoUSD;
+    const olasRend=olasHasCost?olasEfectivo-olasCap:null;
 
     // ── Totals
     const totalCap=rvCap+rfCap+olasCap;
-    const totalVal=rvVal+rfVal+olasVal;
+    // Para totales usamos el valor efectivo de Olas (cobrado+activo) para no distorsionar el total
+    const totalVal=rvVal+rfVal+olasEfectivo;
     const hasCostTotal=rvHasCost||rfHasCost||olasHasCost;
     const totalRendCalc=hasCostTotal?totalVal-totalCap:null;
     const capBar=totalCap>0?Math.min(120,totalVal/totalCap*100):100;
@@ -2604,7 +2628,27 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       <div style="font-family:var(--mono);font-size:8px;color:var(--muted);text-align:right;margin-bottom:14px;">${totalRendCalc!==null?(totalRendCalc>=0?'▲':'▼')+' '+(Math.abs(totalRendCalc)/totalCap*100).toFixed(1)+'% sobre capital':''}</div>`:''}
       ${mkCatRow('💹','Acciones',rvVal,rvCap,rvHasCost,rvRend)}
       ${mkCatRow('📄','Bonos',rfVal,rfCap,rfHasCost,rfRend)}
-      ${mkCatRow('🌊','Olas (Yont)',olasVal,olasCap,olasHasCost,olasRend)}
+      ${(()=>{
+        if(olasVal<=0&&olasCobradoUSD<=0)return'';
+        const rc=olasRend===null?'var(--muted)':olasRend>=0?'#2dd4a0':'#f06c6c';
+        const sign=olasRend===null?'':olasRend>=0?'+':'−';
+        const pct=olasCap>0?(Math.abs(olasRend||0)/olasCap*100).toFixed(1)+'%':'';
+        const rendStr=olasRend===null?'—':`${sign}u$s ${fmt(Math.abs(olasRend||0))}${pct?` <span style="font-size:9px;opacity:.7;">(${sign}${pct})</span>`:''}`;
+        return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);">
+          <div style="display:flex;align-items:center;gap:7px;min-width:100px;">
+            <span style="font-size:14px;line-height:1;">🌊</span>
+            <span style="font-size:11px;color:var(--soft);">Olas (Yont)</span>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:#eceef3;">u$s ${fmt(olasEfectivo)}</div>
+            ${olasCobradoUSD>0?`<div style="font-size:9px;color:var(--muted);">Activo: u$s ${fmt(olasVal)} · Cobrado: u$s ${fmt(olasCobradoUSD)}</div>`:''}
+            ${olasHasCost&&olasCap>0?`<div style="font-size:9px;color:var(--muted);">Invertido: u$s ${fmt(olasCap)}</div>`:''}
+          </div>
+          <div style="text-align:right;min-width:90px;">
+            <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${rc};">${rendStr}</div>
+          </div>
+        </div>`;
+      })()}
       <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-top:10px;">
         <div>
           <div style="font-size:12px;font-weight:700;color:#eceef3;">Total</div>
@@ -3572,9 +3616,26 @@ function rAnalisis(inv,liq){
   // Olas only in "Todos" filter
   const olasVal=analisisFiltro==='todos'?(inv.olasVal||0):0;
   const olasCobradoUSD=analisisFiltro==='todos'?(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0):0;
+  // Olas capital invested (dedup, same logic as "Tu dinero trabajando")
+  const olasCapKPI=analisisFiltro==='todos'?(()=>{
+    const seen=new Set();
+    return (inv.olasFlows||[]).reduce((s,f)=>{
+      const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
+      if(seen.has(proj))return s;
+      seen.add(proj);
+      if(f.capitalUsd)return s+safeNum(f.capitalUsd);
+      if(f.capitalArs&&f.tcInicio)return s+safeNum(+f.capitalArs/+f.tcInicio);
+      return s;
+    },0);
+  })():0;
+  const olasCapDisplay=olasCapKPI>0?olasCapKPI:olasVal;
+  const olasGanancia=olasCapKPI>0?(olasVal+olasCobradoUSD)-olasCapKPI:0;
+  // Patrimonio = current liquid/outstanding value (does NOT include already-spent cobrado)
   const patrimonioTotal=totalValor+olasVal;
-  const invertidoTotal=totalVinicial+olasVal;
-  const gananciaTotal=totalRend2+olasCobradoUSD;
+  // Invertido = total capital deployed (olas uses real invested capital)
+  const invertidoTotal=totalVinicial+olasCapDisplay;
+  // Ganancia = RV/RF P&L + Olas net return (cobrado+outstanding-capital)
+  const gananciaTotal=totalRend2+olasGanancia;
   const totalRendPct=invertidoTotal>0?((gananciaTotal/invertidoTotal)*100).toFixed(1):'—';
 
   const sorted=[...filtered].map(p=>({...p,rendPct:p.vinicial>0?p.rend/p.vinicial*100:0})).sort((a,b)=>{
@@ -3643,12 +3704,12 @@ function rAnalisis(inv,liq){
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(invertidoTotal)}</div>
-      ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
+      ${olasCapDisplay>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasCapDisplay)} Olas</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">${analisisFiltro==='todos'?'Patrimonio total':'Valor hoy'}</div>
       <div style="font-family:var(--mono);font-size:15px;font-weight:600;margin-top:2px;">u$s ${fmt(patrimonioTotal)}</div>
-      ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas</div>`:''}
+      ${olasVal>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:2px;">incl. u$s ${fmt(olasVal)} Olas activo</div>`:''}
     </div>
     <div style="background:var(--bg2);border:1px solid rgba(${gananciaTotal>=0?'45,212,160':'240,108,108'},.2);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">${analisisFiltro==='todos'?'Ganancia total':analisisFiltro==='rv'?'Ganancia RV':'Ganancia RF'}</div>

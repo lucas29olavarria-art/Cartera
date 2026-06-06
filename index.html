@@ -4010,18 +4010,22 @@ function parseFecha(s){
 // ── CHART UTILS ───────────────────────────────────────────────
 // Distinct palette — ordered so first colors are maximally contrasting
 const ALLOC_COLORS=['#4e79a7','#f28e2b','#e15759','#59a14f','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0','#ff6b6b'];
+let _allocFilterTipo='all';
 
-// Returns items sorted by value desc, colors assigned by rank (biggest = most distinct)
-function allocItems(inv){
+function allocItemsFiltered(inv,tipo){
   const raw=[];
-  (inv.rv||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
-  (inv.rf||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
-  if((inv.olasVal||0)>0)raw.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal});
+  if(tipo==='all'||tipo==='rv')(inv.rv||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
+  if(tipo==='all'||tipo==='rf')(inv.rf||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
+  if((tipo==='all'||tipo==='olas')&&(inv.olasVal||0)>0)raw.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal});
   raw.sort((a,b)=>b.v-a.v);
   return raw.map((x,i)=>({...x,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
 }
 
+// Returns items sorted by value desc, colors assigned by rank (biggest = most distinct)
+function allocItems(inv){return allocItemsFiltered(inv,'all');}
+
 function filterAllocChart(tipo,invId){
+  _allocFilterTipo=tipo;
   const inv=INV_CACHE[invId]||(CU&&!CU.is_admin?CU_DATA:null);
   if(!inv)return;
   document.querySelectorAll('[data-alloc-filter]').forEach(b=>{
@@ -5650,9 +5654,11 @@ function downloadReportePDF(){
 function downloadAllocChart(invId){
   const inv=INV_CACHE[invId]||(CU&&!CU.is_admin?CU_DATA:null);
   if(!inv){showToast('Sin datos');return;}
-  const items=allocItems(inv); // sorted by value, colors by rank
+  const tipo=_allocFilterTipo||'all';
+  const items=allocItemsFiltered(inv,tipo);
   const tot=items.reduce((s,x)=>s+x.v,0);
   if(!tot)return;
+  const filterLabel={rv:' · Acciones',rf:' · Bonos',olas:' · Olas',all:''}[tipo]||'';
 
   const W=1000,H=820;
   const off=document.createElement('canvas');
@@ -5666,7 +5672,7 @@ function downloadAllocChart(invId){
   ctx.fillStyle='#111827';
   ctx.font='bold 20px Georgia,serif';
   ctx.textAlign='center';
-  ctx.fillText((inv.name?' '+inv.name+' – ':'')+'Distribución porcentual y monto por activo',W/2,38);
+  ctx.fillText((inv.name?' '+inv.name+' – ':'')+'Distribución porcentual y monto por activo'+filterLabel,W/2,38);
   ctx.strokeStyle='#e5e7eb';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(60,52);ctx.lineTo(W-60,52);ctx.stroke();
 

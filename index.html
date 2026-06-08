@@ -39,9 +39,16 @@ html{font-size:14px;-webkit-font-smoothing:antialiased;touch-action:manipulation
 body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;touch-action:manipulation;}
 .screen{display:none;min-height:100vh;flex-direction:column;}
 .screen.active{display:flex;}
-#s-login{align-items:center;justify-content:center;
+#s-login,#s-welcome{align-items:center;justify-content:center;
   background:radial-gradient(ellipse 70% 50% at 50% -5%,rgba(91,156,246,0.09),transparent 65%),
              radial-gradient(ellipse 40% 30% at 85% 85%,rgba(45,212,160,0.06),transparent 60%);}
+.ww{width:340px;text-align:center;animation:up .55s ease;}
+.ww-logo{margin-bottom:32px;display:flex;align-items:center;justify-content:center;gap:11px;}
+.ww-name{font-family:var(--serif);font-size:36px;font-weight:300;font-style:italic;margin-bottom:8px;}
+.ww-sub{font-size:13px;color:var(--soft);margin-bottom:40px;line-height:1.7;}
+.ww-btn{background:var(--blue);border:none;border-radius:var(--r2);color:#fff;font-family:var(--font);font-size:14px;font-weight:600;padding:15px 44px;cursor:pointer;transition:all .18s;letter-spacing:.02em;}
+.ww-btn:hover{background:#4a8de0;transform:translateY(-1px);}
+.ww-btn:active{transform:scale(.97);}
 .lw{width:320px;text-align:center;animation:up .45s ease;}
 @keyframes up{from{opacity:0;transform:translateY(18px);}to{opacity:1;transform:translateY(0);}}
 .ley{font-family:var(--mono);font-size:10px;letter-spacing:.2em;color:var(--muted);text-transform:uppercase;margin-bottom:28px;}
@@ -350,6 +357,27 @@ input[type=range]{flex:1;accent-color:var(--blue);}
       <button class="npb z" onclick="np('0')">0</button><button class="npb del" onclick="nd()">⌫</button>
     </div>
     <div class="lerr" id="lerr"></div>
+  </div>
+</div>
+
+<!-- WELCOME (token clients) -->
+<div id="s-welcome" class="screen">
+  <div class="ww">
+    <div class="ww-logo">
+      <svg height="36" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <circle cx="25" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
+        <line x1="16" y1="6" x2="16" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+        <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
+      </svg>
+      <div style="line-height:1;">
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
+        <div style="width:28px;height:1px;background:#5b9cf6;margin:5px 0;"></div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.06em;color:#5b9cf6;">Asesor Financiero · Mat. CNV 2062</div>
+      </div>
+    </div>
+    <div class="ww-name" id="ww-greeting">Hola</div>
+    <div class="ww-sub" id="ww-sub">Tu cartera personalizada te está esperando.</div>
+    <button class="ww-btn" onclick="showApp()">Ver mi cartera →</button>
   </div>
 </div>
 
@@ -1711,7 +1739,8 @@ function rInversores(){
       const mover=inv.rv?.filter(p=>p.priceChange).sort((a,b)=>Math.abs(b.priceChange)-Math.abs(a.priceChange))[0];
       return `<div class="icard" onclick="viewInv('${inv.id}')">
         <div class="ich"><div class="iav" style="background:${inv.color}">${inv.name[0].toUpperCase()}</div>
-        <div><div class="iname">${inv.name}</div><div class="ipin">PIN: ${inv.pin||'—'}</div></div></div>
+        <div style="flex:1;min-width:0;"><div class="iname">${inv.name}</div><div class="ipin">PIN: ${inv.pin||'—'}</div></div>
+        <button class="ib" style="font-size:10px;padding:5px 9px;flex-shrink:0;" onclick="genInvToken('${inv.id}',event)">${inv.access_token?'🔗 Copiar link':'🔗 Generar link'}</button></div>
         <div class="istats">
           <div class="istat"><div class="isl">Total</div><div class="isv">u$s ${fmt(tot)}</div></div>
           <div class="istat"><div class="isl">Rend.</div><div class="isv ${rend>=0?'g':'r'}">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div></div>
@@ -1722,6 +1751,25 @@ function rInversores(){
     }).join('')}
     <div class="addcard" onclick="openNewInv()"><div style="font-size:22px;font-weight:300;">+</div><span style="font-size:11px;font-weight:600;">Nuevo inversor</span></div>
   </div>`);
+}
+
+async function genInvToken(invId,ev){
+  ev.stopPropagation();
+  const btn=ev.currentTarget;
+  btn.disabled=true; btn.textContent='…';
+  let token=(INV_CACHE[invId]?.access_token)||null;
+  if(!token){
+    const arr=new Uint8Array(16);
+    crypto.getRandomValues(arr);
+    token=Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const {error}=await sb.from('investors').update({access_token:token}).eq('id',invId);
+    if(error){showToast('Error al guardar token');btn.disabled=false;btn.textContent='🔗 Generar link';return;}
+    if(INV_CACHE[invId])INV_CACHE[invId].access_token=token;
+  }
+  const link=`${location.origin}${location.pathname}?client=${token}`;
+  try{await navigator.clipboard.writeText(link);showToast('✓ Link copiado al portapapeles');}
+  catch(e){prompt('Link de acceso:',link);}
+  btn.disabled=false; btn.textContent='🔗 Copiar link';
 }
 
 async function viewInv(id){
@@ -7650,6 +7698,19 @@ async function delGasto(invId,gastoId){
 
 // ── AUTO-LOGIN ────────────────────────────────────────────────
 (async()=>{
+  // Token-based access: ?client=TOKEN in URL
+  const urlToken=new URLSearchParams(location.search).get('client');
+  if(urlToken){
+    const {data,error}=await sb.from('investors').select('*').eq('access_token',urlToken).single();
+    if(data&&!error){
+      CU=data;
+      sessionStorage.setItem('cu',JSON.stringify(data));
+      document.getElementById('ww-greeting').textContent=`Hola, ${data.name.split(' ')[0]}`;
+      sw('s-welcome');
+      return;
+    }
+    // Token invalid → fall through to PIN screen
+  }
   const saved=sessionStorage.getItem('cu');
   if(saved){
     CU=JSON.parse(saved);

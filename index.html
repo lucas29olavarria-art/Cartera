@@ -3768,9 +3768,6 @@ function rAnalisis(inv,liq){
       ${olasCobradoUSD>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">incl. u$s ${fmt(olasCobradoUSD)} cobrado Olas</div>`:''}
     </div>
   </div>
-  <div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">
-    ${[['all','Todos'],...((inv.rv||[]).some(p=>p.valor>0)?[['rv','Acciones']]:[]),...((inv.rf||[]).some(p=>p.valor>0)?[['rf','Bonos']]:[]),...((inv.olasVal||0)>0?[['olas','Olas']]:[])].map(([k,lb])=>`<button data-an-cat-filter="${k}" onclick="filterAnalisisCat('${k}','${inv.id}')" style="font-family:var(--mono);font-size:10px;padding:4px 11px;border-radius:20px;border:1px solid ${k==='all'?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)'};background:${k==='all'?'rgba(255,255,255,.1)':'transparent'};color:${k==='all'?'#eceef3':'var(--muted)'};cursor:pointer;transition:all .15s;">${lb}</button>`).join('')}
-  </div>
   <div class="an-charts">
     ${dCard('Asignaci\xf3n','an-alloc')}
     ${dCard('Sector','an-sec')}
@@ -3859,7 +3856,9 @@ function buildInvCharts(tab,inv,liq){
     if(mk.length)mkBar('g-bar',mk,mk.map(k=>bm[k]),CHC,'$','');
   }
   else if(tab==='analisis'){
-    const rv0a=totalRV(inv),rf0a=totalRF(inv),ol0a=inv.olasVal||0;
+    const fInv=analisisFiltro==='rv'?{...inv,rf:[],olasVal:0}:analisisFiltro==='rf'?{...inv,rv:[],olasVal:0}:inv;
+    const all=[...fInv.rv||[],...fInv.rf||[]];
+    const rv0a=totalRV(fInv),rf0a=totalRF(fInv),ol0a=fInv.olasVal||0;
     // Alloc
     const allocSegs=[];
     if(rv0a>0)allocSegs.push({lb:'Renta Variable',v:rv0a,c:'#5b9cf6'});
@@ -3867,7 +3866,7 @@ function buildInvCharts(tab,inv,liq){
     if(ol0a>0)allocSegs.push({lb:'Olas',v:ol0a,c:'#f5a623'});
     if(allocSegs.length){
       const totA=allocSegs.reduce((t,s)=>t+s.v,0);
-      const allocSP=allocSegs.map(s=>s.lb==='Renta Variable'?(inv.rv||[]):s.lb==='Renta Fija'?(inv.rf||[]):[]);
+      const allocSP=allocSegs.map(s=>s.lb==='Renta Variable'?(fInv.rv||[]):s.lb==='Renta Fija'?(fInv.rf||[]):[]);
       const legA=document.getElementById('an-alloc-leg');
       if(legA)legA.innerHTML=allocSegs.map((s,i)=>`<div class="lr" style="cursor:pointer;" onclick="selectDonutSeg('an-alloc',${i})"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lp">${totA>0?(s.v/totA*100).toFixed(0):0}%</span></div>`).join('');
       setTimeout(()=>mkAnalisisDonut('an-alloc',allocSegs,allocSP),0);
@@ -3888,12 +3887,12 @@ function buildInvCharts(tab,inv,liq){
       setTimeout(function(){mkAnalisisDonut('an-sec',secSegs,secSP);},100);
     }
     // Moneda
-    let monUSD=0,monARS=inv.olasVal||0;
+    let monUSD=0,monARS=fInv.olasVal||0;
     all.forEach(function(p){const mon=(TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD';if(mon==='ARS')monARS+=p.valor;else monUSD+=p.valor;});
-    (inv.rf||[]).forEach(function(p){monUSD+=p.valor;});
+    (fInv.rf||[]).forEach(function(p){monUSD+=p.valor;});
     const monSegs=[],monSP=[];
-    if(monUSD>0){monSegs.push({lb:'USD',v:monUSD,c:'#5b9cf6'});monSP.push([...(inv.rv||[]).filter(function(p){return((TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD')!=='ARS';}),  ...(inv.rf||[])]);}
-    if(monARS>0){monSegs.push({lb:'ARS',v:monARS,c:'#f5a623'});monSP.push((inv.rv||[]).filter(function(p){return((TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD')==='ARS';}));}
+    if(monUSD>0){monSegs.push({lb:'USD',v:monUSD,c:'#5b9cf6'});monSP.push([...(fInv.rv||[]).filter(function(p){return((TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD')!=='ARS';}),  ...(fInv.rf||[])]);}
+    if(monARS>0){monSegs.push({lb:'ARS',v:monARS,c:'#f5a623'});monSP.push((fInv.rv||[]).filter(function(p){return((TICKER_MAP[p.ticker]&&TICKER_MAP[p.ticker].moneda)||'USD')==='ARS';}));}
     if(monSegs.length){
       const tot2=monUSD+monARS;
       const legMon=document.getElementById('an-mon-leg');

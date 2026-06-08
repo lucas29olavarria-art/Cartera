@@ -12,7 +12,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-<title>LO Capital · Portfolio Management</title>
+<title>Lucas Olavarria · Asesor Financiero</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
@@ -22,7 +22,7 @@
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='112' fill='%2307080b'/><text y='380' font-size='320' x='256' text-anchor='middle' font-family='Georgia,serif' fill='%235b9cf6'>C</text></svg>">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="LO Capital">
+<meta name="apple-mobile-web-app-title" content="Lucas Olavarria">
 <meta name="theme-color" content="#07080b">
 <style>
 :root{
@@ -332,9 +332,9 @@ input[type=range]{flex:1;accent-color:var(--blue);}
         <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
       <div style="line-height:1;">
-        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#fff;">LO CAPITAL</div>
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
         <div style="width:28px;height:1px;background:#5b9cf6;margin:5px 0;"></div>
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#5b9cf6;">PORTFOLIO MANAGEMENT</div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.06em;color:#5b9cf6;">Asesor Financiero · Mat. CNV 2062</div>
       </div>
     </div>
     <div class="ltitle">Bienvenido</div>
@@ -364,8 +364,8 @@ input[type=range]{flex:1;accent-color:var(--blue);}
           <line x1="16" y1="34" x2="29" y2="34" stroke="white" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:12px;letter-spacing:.18em;color:#fff;line-height:1;">LO CAPITAL</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;margin-top:3px;line-height:1;">PORTFOLIO MANAGEMENT</div>
+          <div style="font-family:var(--mono);font-size:12px;letter-spacing:.05em;color:#fff;line-height:1;">Lucas Olavarria</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;margin-top:3px;line-height:1;">Asesor Financiero · Mat. CNV 2062</div>
         </div>
       </div>
       <div style="width:1px;height:13px;background:rgba(255,255,255,.06);flex-shrink:0;"></div>
@@ -1303,7 +1303,7 @@ async function showApp(){
   const wo=document.createElement('div');
   wo.id='welcome-overlay';
   const firstName=CU.name.split(' ')[0];
-  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">LO CAPITAL · PORTFOLIO MANAGEMENT</div>`;
+  wo.innerHTML=`<div class="wo-name">Bienvenido, ${firstName}</div><div class="wo-sub">Lucas Olavarria · Asesor Financiero · Mat. CNV 2062</div>`;
   document.body.appendChild(wo);
   setTimeout(()=>wo.remove(), 1800);
 
@@ -2044,8 +2044,8 @@ async function genReport(){
           <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.2em;color:#fff;">LO CAPITAL</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;margin-top:3px;">PORTFOLIO MANAGEMENT · INFORME TRIMESTRAL</div>
+          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;margin-top:3px;">Asesor Financiero · Mat. CNV 2062 · Informe Trimestral</div>
         </div>
       </div>
       <div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">
@@ -2055,9 +2055,9 @@ async function genReport(){
           <line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
         </svg>
         <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.22em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>
+          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.05em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Lucas Olavarria</div>
           <div style="width:32px;height:1px;background:#5b9cf6;margin:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.12em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
+          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Asesor Financiero · Mat. CNV 2062</div>
         </div>
       </div>
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
@@ -2099,7 +2099,7 @@ async function genReport(){
         <textarea class="rpt-comment no-print" id="rpt-recom" placeholder="¿Qué vas a hacer diferente? ¿Qué posiciones revisar?" style="min-height:80px;" oninput="saveRecom('${id}')">${recom}</textarea>
         <div id="print-recom-${id}" style="display:none;font-size:12px;line-height:1.9;"></div>
       </div>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>LO CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
+      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>Lucas Olavarria · Asesor Financiero · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
     </div>
   </div>
   <div style="display:flex;gap:8px;">
@@ -2329,9 +2329,9 @@ function rClienteReporte(inv){
         <line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
       <div style="line-height:1;">
-        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>
+        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.05em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Lucas Olavarria</div>
         <div style="width:28px;height:1px;background:#5b9cf6;margin:4px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
-        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">PORTFOLIO MANAGEMENT</div>
+        <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Asesor Financiero · Mat. CNV 2062</div>
       </div>
     </div>
     <div class="no-print" style="display:flex;align-items:center;gap:10px;margin-bottom:20px;">
@@ -2406,7 +2406,7 @@ async function loadClienteReporte(inv,mk){
       </div>`).join('')}
     </div>`:''}
     <div style="margin-top:28px;padding-top:12px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;">
-      <span>LO CAPITAL · PORTFOLIO MANAGEMENT · Lucas Olavarria · Mat. CNV 2062</span>
+      <span>Lucas Olavarria · Asesor Financiero · Mat. CNV 2062</span>
       <span>${today}</span>
     </div>`;
 
@@ -5359,7 +5359,7 @@ function rReporteMensual(inv){
     '<line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>'+
     '</svg>'+
     '<div style="line-height:1;">'+
-    '<div style="font-family:var(--mono);font-size:14px;letter-spacing:.2em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">LO CAPITAL</div>'+
+    '<div style="font-family:var(--mono);font-size:14px;letter-spacing:.05em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Lucas Olavarria</div>'+
     '<div style="width:28px;height:1px;background:#5b9cf6;margin:4px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>'+
     '<div style="font-family:var(--mono);font-size:8px;letter-spacing:.1em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">REPORTE MENSUAL · '+inv.name.toUpperCase()+' · '+monthLabel.toUpperCase()+'</div>'+
     '</div></div>'+
@@ -5701,7 +5701,7 @@ function downloadAllocChart(invId){
   // Footer
   ctx.fillStyle='#9ca3af';ctx.font='10px Arial,sans-serif';
   ctx.textAlign='center';
-  ctx.fillText('LO Capital · Portfolio Management · '+new Date().toLocaleDateString('es-AR'),W/2,H-12);
+  ctx.fillText('Lucas Olavarria · Asesor Financiero · Mat. CNV 2062 · '+new Date().toLocaleDateString('es-AR'),W/2,H-12);
 
   const dataUrl=off.toDataURL('image/png');
   const filename=(inv.name||'cartera').replace(/\s+/g,'_')+'_distribucion_'+new Date().toISOString().slice(0,10)+'.png';
@@ -5751,9 +5751,9 @@ function downloadCarteraChart(cartId){
   ctx.strokeStyle='rgba(255,255,255,.03)';ctx.lineWidth=1;
   for(let y=60;y<H;y+=55){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
 
-  // LO Capital wordmark
-  ctx.fillStyle='#5b9cf6';ctx.font='bold 13px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('LO CAPITAL',40,36);
-  ctx.fillStyle='rgba(255,255,255,.28)';ctx.font='10px Arial,sans-serif';ctx.fillText('PORTFOLIO MANAGEMENT',40,52);
+  // Wordmark
+  ctx.fillStyle='#5b9cf6';ctx.font='bold 13px Arial,sans-serif';ctx.textAlign='left';ctx.fillText('Lucas Olavarria',40,36);
+  ctx.fillStyle='rgba(255,255,255,.28)';ctx.font='10px Arial,sans-serif';ctx.fillText('Asesor Financiero · Mat. CNV 2062',40,52);
   // Cartera name center
   ctx.fillStyle='#eceef3';ctx.font='bold 24px Georgia,serif';ctx.textAlign='center';
   ctx.fillText(cart.nombre,W/2,38);
@@ -5814,7 +5814,7 @@ function downloadCarteraChart(cartId){
   ctx.strokeStyle='rgba(91,156,246,.12)';ctx.lineWidth=1;
   ctx.beginPath();ctx.moveTo(40,H-32);ctx.lineTo(W-40,H-32);ctx.stroke();
   ctx.fillStyle='rgba(255,255,255,.18)';ctx.font='10px Arial,sans-serif';ctx.textAlign='center';
-  ctx.fillText('LO Capital · Portfolio Management'+(cart.cik?' · Datos: SEC EDGAR 13F':'')+' · '+new Date().toLocaleDateString('es-AR')+' · Con fines informativos',W/2,H-14);
+  ctx.fillText('Lucas Olavarria · Asesor Financiero · Mat. CNV 2062'+(cart.cik?' · Datos: SEC EDGAR 13F':'')+' · '+new Date().toLocaleDateString('es-AR')+' · Con fines informativos',W/2,H-14);
 
   const filename=(cart.nombre||'cartera').replace(/\s+/g,'_')+'_'+new Date().toISOString().slice(0,10)+'.png';
   const dataUrl=off.toDataURL('image/png');

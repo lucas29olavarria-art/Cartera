@@ -2423,23 +2423,9 @@ function getMilestone(tot){
 }
 
 function rOverview(inv,liq,rend,tot,rendPct,best){
-  const rendDia=(inv.rv||[]).reduce((s,p)=>{if(p.price_change==null||!p.qty||!p.lastPrice)return s;return s+p.qty*p.lastPrice*(p.price_change/100);},0);
-  const rendDiaPct=liq>0?(rendDia/liq*100).toFixed(2):'0.00';
   const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0,tot0=rv0+rf0+ol0;
   const advisorMsg=inv.advisor_msg||'';
   const hasObjetivo=inv.objetivo_desc&&inv.objetivo_monto>0;
-
-  // Perfil de riesgo: promedio ponderado de riesgo de posiciones RV
-  const rvPos=inv.rv||[];
-  const rvTot=rvPos.reduce((s,p)=>s+p.valor,0);
-  let riskLb='Moderado',riskC='#5b9cf6',riskSub='Equilibrio entre crecimiento y protección';
-  if(rvTot>0){
-    const wAvg=rvPos.reduce((s,p)=>s+(p.riesgo||3)*p.valor,0)/rvTot;
-    if(wAvg<=1.8){riskLb='Conservador';riskC='#2dd4a0';riskSub='Preservación del capital en primer lugar';}
-    else if(wAvg<=2.5){riskLb='Moderado';riskC='#5b9cf6';riskSub='Equilibrio entre crecimiento y protección';}
-    else if(wAvg<=3.5){riskLb='Crecimiento';riskC='#f5a623';riskSub='Mayor exposición para capturar upside';}
-    else{riskLb='Dinámico';riskC='#f06c6c';riskSub='Alta exposición buscando máximo crecimiento';}
-  }
 
   const today0=new Date().toISOString().slice(0,10);
   const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50&&fl.fecha>=today0);
@@ -2468,16 +2454,11 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:8px;">Patrimonio total</div>
       <div style="font-family:var(--mono);font-size:48px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
+    <div style="margin-bottom:16px;">
       <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
         <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Rendimiento</div>
         <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
         <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
-      </div>
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
-        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Perfil</div>
-        <div style="font-size:17px;font-weight:600;color:${riskC};">${riskLb}</div>
-        <div style="font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;line-height:1.3;">${riskSub}</div>
       </div>
     </div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">

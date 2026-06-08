@@ -3720,6 +3720,9 @@ function rAnalisis(inv,liq){
       ${olasCobradoUSD>0?`<div style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-top:3px;">incl. u$s ${fmt(olasCobradoUSD)} cobrado Olas</div>`:''}
     </div>
   </div>
+  <div style="display:flex;gap:5px;margin-bottom:10px;flex-wrap:wrap;">
+    ${[['all','Todos'],...((inv.rv||[]).some(p=>p.valor>0)?[['rv','Acciones']]:[]),...((inv.rf||[]).some(p=>p.valor>0)?[['rf','Bonos']]:[]),...((inv.olasVal||0)>0?[['olas','Olas']]:[])].map(([k,lb])=>`<button data-an-cat-filter="${k}" onclick="filterAnalisisCat('${k}','${inv.id}')" style="font-family:var(--mono);font-size:10px;padding:4px 11px;border-radius:20px;border:1px solid ${k==='all'?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)'};background:${k==='all'?'rgba(255,255,255,.1)':'transparent'};color:${k==='all'?'#eceef3':'var(--muted)'};cursor:pointer;transition:all .15s;">${lb}</button>`).join('')}
+  </div>
   <div class="an-charts">
     ${dCard('Asignaci\xf3n','an-alloc')}
     ${dCard('Sector','an-sec')}
@@ -4018,6 +4021,23 @@ function filterAllocChart(tipo,invId){
   if(items.length>0&&tot>0)mkPie('ov-activo-chart',items.map(x=>x.v),items.map(x=>x.c),items.map(x=>x.lb));
   const legEl=document.getElementById('ov-activo-leg');
   if(legEl)legEl.innerHTML=items.map(x=>`<div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);"><div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div><div style="flex:1;min-width:0;"><div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#eceef3;">${x.lb}</div><div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(x.v)} · ${tot>0?(x.v/tot*100).toFixed(1):'0'}%</div></div></div>`).join('');
+}
+
+function filterAnalisisCat(tipo,invId){
+  const inv=INV_CACHE[invId]||(CU&&!CU.is_admin?CU_DATA:null);
+  if(!inv)return;
+  document.querySelectorAll('[data-an-cat-filter]').forEach(b=>{
+    const a=b.dataset.anCatFilter===tipo;
+    b.style.background=a?'rgba(255,255,255,.1)':'transparent';
+    b.style.color=a?'#eceef3':'var(--muted)';
+    b.style.borderColor=a?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)';
+  });
+  const fInv=Object.assign({},inv,{
+    rv:tipo==='all'||tipo==='rv'?(inv.rv||[]):[],
+    rf:tipo==='all'||tipo==='rf'?(inv.rf||[]):[],
+    olasVal:tipo==='all'||tipo==='olas'?(inv.olasVal||0):0,
+  });
+  buildInvCharts('analisis',fInv,totalLiq(fInv));
 }
 
 function mkPie(id,data,colors,labels){

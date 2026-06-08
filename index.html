@@ -1776,7 +1776,7 @@ async function viewInv(id){
   AVId=id;ATb='dashboard';
   document.querySelectorAll('#tabs-a .tb').forEach((b,i)=>b.classList.toggle('active',i===2));
   kc();
-  if(!INV_CACHE[id])INV_CACHE[id]=await loadInvestor(id);
+  INV_CACHE[id]=await loadInvestor(id);
   renderInv(INV_CACHE[id]);
   Promise.all([autoMarcarCobros(INV_CACHE[id]),autoFetchTcInicio(INV_CACHE[id])]).then(([c1,c2])=>{if(c1||c2)renderInv(INV_CACHE[id]);});
 }

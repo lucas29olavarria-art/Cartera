@@ -4125,7 +4125,7 @@ function mkAnalisisDonut(id,segs,segPositions){
           displayColors:false,
           callbacks:{
             title:items=>segs[items[0].dataIndex]?.lb||'',
-            label:item=>`u$s ${fmt(item.parsed)}  ·  ${tot>0?(item.parsed/tot*100).toFixed(1):0}%`
+            label:item=>`u$s ${fmt(item.parsed)}`
           }
         }
       },

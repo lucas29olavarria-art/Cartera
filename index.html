@@ -7156,6 +7156,15 @@ async function impConfirm(){
     INV_CACHE[invId]=await loadInvestor(invId);
     // Auto-snapshot: save portfolio state to localStorage for historical tracking
     await snapAdd(INV_CACHE[invId]);
+    // Also record in price_snapshots so Evolución Patrimonial chart updates immediately
+    const freshInv=INV_CACHE[invId];
+    await sb.from('price_snapshots').upsert({
+      investor_id:invId,
+      snapshot_date:new Date().toISOString().slice(0,10),
+      total_patrimonio:+grand(freshInv).toFixed(2),
+      total_liquido:+totalLiq(freshInv).toFixed(2),
+      total_rend:+totalRend(freshInv).toFixed(2)
+    },{onConflict:'snapshot_date,investor_id'});
 
     // Verify DB state — show inside modal so it's unmissable
     if(impCurrentTab!=='olas'){

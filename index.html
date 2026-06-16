@@ -174,12 +174,37 @@ select.fi{cursor:pointer;}
 .cf-mhdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;}
 .cf-mtitle{font-family:var(--serif);font-size:14px;font-weight:400;font-style:italic;}
 .cf-mtotal{font-family:var(--mono);font-size:12px;color:var(--green);}
-.cf-item{display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--line);font-size:11px;}
-.cf-item:last-child{border-bottom:none;}
+.cf-item{display:flex;align-items:center;gap:8px;background:var(--bg3);border:1px solid var(--line);border-radius:0 12px 12px 0;padding:12px 14px;margin-bottom:6px;min-height:52px;}
+.cf-item:last-child{margin-bottom:0;}
 .cf-date{font-family:var(--mono);color:var(--muted);min-width:78px;}
 .cf-desc{flex:1;color:var(--soft);}
 .cf-monto{font-family:var(--mono);font-weight:500;min-width:110px;text-align:right;}
 .cf-item.big .cf-date,.cf-item.big .cf-monto{color:var(--green);}
+.cf-item.olas{border-left:3px solid var(--amber);}
+.cf-item.rf{border-left:3px solid var(--purple);}
+.cf-hero{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:18px 16px;margin-bottom:10px;}
+.cf-hero-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;}
+.cf-hero-label{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;}
+.cf-hero-badge{font-size:11px;font-weight:600;padding:3px 9px;border-radius:20px;background:rgba(155,127,244,.15);color:var(--purple);}
+.cf-hero-badge.urgent{background:rgba(240,108,108,.15);color:var(--red);}
+.cf-hero-badge.soon{background:rgba(245,166,35,.15);color:var(--amber);}
+.cf-hero-amount{font-family:var(--mono);font-size:24px;font-weight:700;color:var(--text);margin-bottom:4px;line-height:1.1;}
+.cf-hero-sub{font-size:12px;color:var(--soft);}
+.cf-kpi-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px;}
+.cf-kpi{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:12px 8px;text-align:center;}
+.cf-kpi-val{font-family:var(--mono);font-size:14px;font-weight:600;color:var(--text);}
+.cf-kpi-lbl{font-size:10px;color:var(--muted);margin-top:3px;}
+.cf-pills{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap;}
+.cf-pill{font-size:12px;padding:5px 14px;border-radius:20px;border:1px solid var(--line);background:transparent;color:var(--soft);cursor:pointer;font-family:var(--mono);}
+.cf-pill.active{background:var(--purple);border-color:var(--purple);color:#fff;}
+.cf-day-col{display:flex;flex-direction:column;align-items:center;min-width:32px;}
+.cf-day-num{font-family:var(--mono);font-size:19px;font-weight:700;line-height:1;color:var(--text);}
+.cf-day-mo{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;margin-top:1px;}
+.cf-urgency{font-size:10px;padding:2px 7px;border-radius:10px;white-space:nowrap;font-weight:500;}
+.cf-urgency.hoy{background:rgba(240,108,108,.15);color:var(--red);}
+.cf-urgency.manana{background:rgba(245,166,35,.15);color:var(--amber);}
+.cf-urgency.pronto{background:rgba(155,127,244,.12);color:var(--purple);}
+.cf-usd{font-family:var(--mono);font-size:10px;color:var(--muted);display:block;margin-top:2px;}
 .filter-bar{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;}
 .filter-label{font-family:var(--mono);font-size:10px;color:var(--soft);white-space:nowrap;}
 .filter-val{font-family:var(--mono);font-size:12px;color:var(--blue);min-width:60px;}
@@ -3271,68 +3296,112 @@ function olasReport(proj,invId){
 }
 
 // ── FLUJO DE CAJA ─────────────────────────────────────────────
+const _MOS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function rFlujoCaja(inv){
   const rfFlows=genRFFlows(inv);
-  const olasF=(inv.olasFlows||[]).map(fl=>{
+  const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado).map(fl=>{
     const monto=olasMonto(fl);
     return {fecha:olasDate(fl),desc:olasDesc(fl),tipo:'Olas',monto,moneda:'ARS',usd:+(monto/MEP).toFixed(0)};
   });
-  const now=new Date();
-  const inN=new Date();inN.setMonth(inN.getMonth()+cfRangeMonths);
+  const today=new Date();today.setHours(0,0,0,0);
   const all=[...rfFlows,...olasF].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
-  const totN=all.filter(fl=>new Date(fl.fecha)>=now&&(cfRangeMonths===999||new Date(fl.fecha)<=inN)).reduce((s,fl)=>s+fl.usd,0);
-  const rangeLabel=cfRangeMonths===3?'3 meses':cfRangeMonths===6?'6 meses':cfRangeMonths===12?'12 meses':'todo';
+  const future=all.filter(fl=>new Date(fl.fecha)>=today);
 
-  return `<div class="hbox">
-    <div class="kl" style="margin-bottom:5px;">Cobros estimados · ${rangeLabel} · en u$s</div>
-    <div class="hval">≈ u$s ${fmt(totN)}</div>
-    <div class="hlbl">RF en USD + Olas al MEP (~$${MEP.toLocaleString('es-AR')})</div>
-  </div>
-  <div class="filter-bar">
-    <span class="filter-label">Período:</span>
-    ${[3,6,12,999].map(m=>`<button class="ib${cfRangeMonths===m?' pri':''}" style="padding:4px 10px;" onclick="cfRangeMonths=${m};kc();renderInv(INV_CACHE['${inv.id}']||CU_DATA);iTab('flujo');">${m===3?'3m':m===6?'6m':m===12?'1a':'Todo'}</button>`).join('')}
-    <span style="margin-left:8px;font-family:var(--mono);font-size:10px;color:var(--soft);">Mínimo:</span>
-    <input type="range" min="0" max="1000" step="50" value="${cfMinFilter}" min="0" id="cf-slider" style="width:100px;" oninput="cfMinFilter=+this.value;document.getElementById('cf-val').textContent='u$s '+this.value;renderCFList('${inv.id}')">
-    <span class="filter-val" id="cf-val">u$s ${cfMinFilter}</span>
-  </div>
-  <div class="card" style="margin-bottom:12px;"><div class="ct">Flujo mensual · RF (púrpura) + Olas (ámbar)</div><div style="height:170px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div></div>
+  // Hero — próximo cobro
+  const next=future[0];
+  let heroHtml='';
+  if(next){
+    const nd=new Date(next.fecha);nd.setHours(0,0,0,0);
+    const dias=Math.round((nd-today)/86400000);
+    const urgLabel=dias===0?'Hoy':dias===1?'Mañana':`En ${dias} días`;
+    const urgCls=dias===0?'urgent':dias<=3?'soon':'';
+    const [fy,fm]=next.fecha.split('-');
+    const montoStr=next.moneda==='ARS'?'$'+fmtars(next.monto):'u$s '+fmtd(next.monto);
+    const usdStr=next.moneda==='ARS'?` · ≈ u$s ${fmt(next.usd)}`:'';
+    heroHtml=`<div class="cf-hero">
+      <div class="cf-hero-top"><span class="cf-hero-label">Próximo cobro</span><span class="cf-hero-badge${urgCls?' '+urgCls:''}">${urgLabel}</span></div>
+      <div class="cf-hero-amount">${montoStr}${usdStr}</div>
+      <div class="cf-hero-sub">${next.desc} · ${_MOS[+fm-1]} ${fy}</div>
+    </div>`;
+  }else{
+    heroHtml=`<div class="cf-hero"><div class="cf-hero-top"><span class="cf-hero-label">Próximo cobro</span></div><div class="cf-hero-sub" style="margin-top:6px;">Sin cobros futuros registrados.</div></div>`;
+  }
+
+  // KPIs
+  const endM=new Date(today);endM.setMonth(endM.getMonth()+1);endM.setDate(0);
+  const end3=new Date(today);end3.setMonth(end3.getMonth()+3);
+  const end12=new Date(today);end12.setMonth(end12.getMonth()+12);
+  const totM=future.filter(fl=>new Date(fl.fecha)<=endM).reduce((s,fl)=>s+fl.usd,0);
+  const tot3=future.filter(fl=>new Date(fl.fecha)<=end3).reduce((s,fl)=>s+fl.usd,0);
+  const tot12=future.filter(fl=>new Date(fl.fecha)<=end12).reduce((s,fl)=>s+fl.usd,0);
+  const kpiHtml=`<div class="cf-kpi-row">
+    <div class="cf-kpi"><div class="cf-kpi-val">u$s ${fmt(totM)}</div><div class="cf-kpi-lbl">Este mes</div></div>
+    <div class="cf-kpi"><div class="cf-kpi-val">u$s ${fmt(tot3)}</div><div class="cf-kpi-lbl">Próx. 3 meses</div></div>
+    <div class="cf-kpi"><div class="cf-kpi-val">u$s ${fmt(tot12)}</div><div class="cf-kpi-lbl">Próx. 12 meses</div></div>
+  </div>`;
+
+  // Olas past-only warning
+  const olasTotal=(inv.olasFlows||[]).length;
+  const olasWarn=(olasTotal>0&&olasF.length===0)?
+    `<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:var(--r);padding:10px 13px;margin-bottom:10px;font-size:12px;color:var(--amber);">⚠ Hay ${olasTotal} flujos de Olas cargados pero todos están en el pasado.</div>`:'';
+
+  // Pills
+  const pillsHtml=`<div class="cf-pills">
+    ${[3,6,12,999].map(m=>`<button class="cf-pill${cfRangeMonths===m?' active':''}" onclick="cfRangeMonths=${m};renderCFList('${inv.id}');document.querySelectorAll('.cf-pill').forEach(b=>b.classList.remove('active'));this.classList.add('active');">${m===3?'3 meses':m===6?'6 meses':m===12?'12 meses':'Todo'}</button>`).join('')}
+  </div>`;
+
+  return `${heroHtml}${kpiHtml}${olasWarn}${pillsHtml}
+  <div class="card" style="margin-bottom:12px;"><div class="ct">Flujo mensual · RF (púrpura) + Olas (ámbar)</div><div style="height:160px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div></div>
   <div id="cf-list"></div>`;
 }
 
 function renderCFList(invId){
   const inv=INV_CACHE[invId]||(CU?.is_admin?null:CU_DATA);if(!inv)return;
   const rfFlows=genRFFlows(inv);
-  const olasF=(inv.olasFlows||[]).map(fl=>{const monto=olasMonto(fl);return {fecha:olasDate(fl),desc:olasDesc(fl),tipo:'Olas',monto,moneda:'ARS',usd:+(monto/MEP).toFixed(0),id:fl.id};});
-  const now=new Date();
-  const inN=new Date();inN.setMonth(inN.getMonth()+cfRangeMonths);
+  const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado).map(fl=>{
+    const monto=olasMonto(fl);
+    return {fecha:olasDate(fl),desc:olasDesc(fl),tipo:'Olas',monto,moneda:'ARS',usd:+(monto/MEP).toFixed(0),id:fl.id};
+  });
+  const today=new Date();today.setHours(0,0,0,0);
+  const inN=new Date(today);if(cfRangeMonths!==999)inN.setMonth(inN.getMonth()+cfRangeMonths);
   const all=[...rfFlows,...olasF]
-    .filter(fl=>fl.usd>=cfMinFilter&&new Date(fl.fecha)>=now&&(cfRangeMonths===999||new Date(fl.fecha)<=inN))
+    .filter(fl=>new Date(fl.fecha)>=today&&(cfRangeMonths===999||new Date(fl.fecha)<=inN))
     .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
   const byM={};all.forEach(fl=>{const k=fl.fecha.slice(0,7);if(!byM[k])byM[k]=[];byM[k].push(fl);});
   const el=document.getElementById('cf-list');if(!el)return;
-  // Warn if Olas flows exist but all are in the past
-  const olasTotal=(inv.olasFlows||[]).length;
-  const olasFuture=olasF.filter(fl=>new Date(fl.fecha)>=now).length;
-  const olasWarn=(olasTotal>0&&olasFuture===0)?
-    `<div style="background:rgba(245,166,35,.08);border:1px solid rgba(245,166,35,.25);border-radius:var(--r);padding:10px 13px;margin-bottom:10px;font-size:12px;color:var(--amber);">
-      ⚠ Hay ${olasTotal} flujos de Olas cargados pero todos están en el pasado. Revisá la fecha de inicio en el panel de importación.
-    </div>`:''  ;
-  el.innerHTML=olasWarn+Object.keys(byM).sort().map(k=>{
+  el.innerHTML=Object.keys(byM).sort().map(k=>{
     const month=byM[k];const tot=month.reduce((s,fl)=>s+fl.usd,0);const[yr,mo]=k.split('-');
     return `<div class="cf-month">
       <div class="cf-mhdr"><div class="cf-mtitle">${MONTHS[+mo-1]} ${yr}</div><div class="cf-mtotal">≈ u$s ${fmt(tot)}</div></div>
-      ${month.map(fl=>{const big=fl.monto>500000||(fl.moneda==='USD'&&fl.monto>300);
-        return `<div class="cf-item${big?' big':''}" style="display:flex;align-items:center;gap:8px;">
-          <span class="cf-date">${fl.fecha.slice(8,10)}/${fl.fecha.slice(5,7)}</span>
-          <span class="cf-desc" style="flex:1;">${fl.desc}</span>
-          <span class="tag ${fl.tipo==='Olas'?'ta2':'tp2'}">${fl.tipo}</span>
-          <span class="cf-monto">${fl.moneda==='ARS'?'$'+fmtars(fl.monto):'u$s '+fmtd(fl.monto)}</span>
-          ${fl.moneda==='ARS'?`<span style="font-family:var(--mono);font-size:10px;color:var(--muted);min-width:65px;text-align:right;">≈ u$s ${fmt(fl.usd)}</span>`:''}
-          ${fl.tipo==='Olas'&&fl.id?`<button class="dbtn" title="Eliminar esta Ola" onclick="eliminarOlaPorId('${fl.id}','${invId}')">✕</button>`:''}
+      ${month.map(fl=>{
+        const [fy,fm,fd]=fl.fecha.split('-');
+        const flDate=new Date(+fy,+fm-1,+fd);
+        const dias=Math.round((flDate-today)/86400000);
+        const urgLabel=dias===0?'Hoy':dias===1?'Mañana':dias<=7?`En ${dias}d`:null;
+        const urgCls=dias===0?'hoy':dias===1?'manana':dias<=7?'pronto':'';
+        const montoStr=fl.moneda==='ARS'?'$'+fmtars(fl.monto):'u$s '+fmtd(fl.monto);
+        const tipoCls=fl.tipo==='Olas'?'olas':'rf';
+        return `<div class="cf-item ${tipoCls}">
+          <div class="cf-day-col">
+            <span class="cf-day-num">${fd}</span>
+            <span class="cf-day-mo">${_MOS[+fm-1]}</span>
+          </div>
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
+              <span class="cf-desc" style="font-size:12px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fl.desc}</span>
+              ${urgLabel?`<span class="cf-urgency ${urgCls}">${urgLabel}</span>`:''}
+            </div>
+            <span class="tag ${fl.tipo==='Olas'?'ta2':'tp2'}" style="font-size:10px;">${fl.tipo}</span>
+          </div>
+          <div style="text-align:right;flex-shrink:0;padding-left:8px;">
+            <div class="cf-monto" style="min-width:unset;">${montoStr}</div>
+            ${fl.moneda==='ARS'?`<span class="cf-usd">≈ u$s ${fmt(fl.usd)}</span>`:''}
+            ${fl.tipo==='Olas'&&fl.id?`<button class="dbtn" style="margin-top:4px;" title="Eliminar" onclick="eliminarOlaPorId('${fl.id}','${invId}')">✕</button>`:''}
+          </div>
         </div>`;
       }).join('')}
     </div>`;
-  }).join('');
+  }).join('')||'<div class="empty" style="text-align:center;padding:32px 0;color:var(--muted);">Sin cobros estimados en este período.</div>';
 }
 
 // ── GASTOS ────────────────────────────────────────────────────
@@ -3835,10 +3904,11 @@ function buildInvCharts(tab,inv,liq){
   }
   else if(tab==='flujo'){
     const rfF=genRFFlows(inv);
-    const olasF=inv.olasFlows||[];
+    const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado);
+    const today2=new Date();today2.setHours(0,0,0,0);
     const rfByM={},oByM={};
     rfF.forEach(fl=>{const k=fl.fecha.slice(0,7);rfByM[k]=(rfByM[k]||0)+fl.usd;});
-    olasF.forEach(f=>{const k=olasDate(f).slice(0,7);oByM[k]=(oByM[k]||0)+olasMonto(f)/MEP;});
+    olasF.forEach(f=>{const d=olasDate(f);if(new Date(d)>=today2){const k=d.slice(0,7);oByM[k]=(oByM[k]||0)+olasMonto(f)/MEP;}});
     const ks=[...new Set([...Object.keys(rfByM),...Object.keys(oByM)])].sort();
     mkStackedBar('fl-chart',ks,[
       {label:'Renta fija',data:ks.map(k=>+(rfByM[k]||0).toFixed(0)),backgroundColor:'#9b7ff4',borderRadius:4},

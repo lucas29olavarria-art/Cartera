@@ -3347,11 +3347,11 @@ function rFlujoCaja(inv){
 
   // Pills
   const pillsHtml=`<div class="cf-pills">
-    ${[3,6,12,999].map(m=>`<button class="cf-pill${cfRangeMonths===m?' active':''}" onclick="cfRangeMonths=${m};renderCFList('${inv.id}');document.querySelectorAll('.cf-pill').forEach(b=>b.classList.remove('active'));this.classList.add('active');">${m===3?'3 meses':m===6?'6 meses':m===12?'12 meses':'Todo'}</button>`).join('')}
+    ${[3,6,12,999].map(m=>`<button class="cf-pill${cfRangeMonths===m?' active':''}" onclick="cfRangeMonths=${m};renderCFList('${inv.id}');buildFlujoCajaChart('${inv.id}');document.querySelectorAll('.cf-pill').forEach(b=>b.classList.remove('active'));this.classList.add('active');">${m===3?'3 meses':m===6?'6 meses':m===12?'12 meses':'Todo'}</button>`).join('')}
   </div>`;
 
   return `${heroHtml}${kpiHtml}${olasWarn}${pillsHtml}
-  <div class="card" style="margin-bottom:12px;"><div class="ct">Flujo mensual · RF (púrpura) + Olas (ámbar)</div><div style="height:160px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div></div>
+  <div class="card" style="margin-bottom:12px;"><div class="ct">Cobros mensuales estimados · u$s</div><div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div></div>
   <div id="cf-list"></div>`;
 }
 
@@ -3402,6 +3402,50 @@ function renderCFList(invId){
       }).join('')}
     </div>`;
   }).join('')||'<div class="empty" style="text-align:center;padding:32px 0;color:var(--muted);">Sin cobros estimados en este período.</div>';
+}
+
+function buildFlujoCajaChart(invId){
+  const inv=INV_CACHE[invId]||(CU?.is_admin?null:CU_DATA);if(!inv)return;
+  const rfF=genRFFlows(inv);
+  const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado);
+  const today=new Date();today.setHours(0,0,0,0);
+  const inN=new Date(today);if(cfRangeMonths!==999)inN.setMonth(inN.getMonth()+cfRangeMonths);
+  const rfByM={},oByM={};
+  rfF.forEach(fl=>{
+    const d=new Date(fl.fecha);d.setHours(0,0,0,0);
+    if(d>=today&&(cfRangeMonths===999||d<=inN)){const k=fl.fecha.slice(0,7);rfByM[k]=(rfByM[k]||0)+fl.usd;}
+  });
+  olasF.forEach(f=>{
+    const d=olasDate(f);const dt=new Date(d);dt.setHours(0,0,0,0);
+    if(dt>=today&&(cfRangeMonths===999||dt<=inN)){const k=d.slice(0,7);oByM[k]=(oByM[k]||0)+olasMonto(f)/MEP;}
+  });
+  const ks=[...new Set([...Object.keys(rfByM),...Object.keys(oByM)])].sort();
+  if(!ks.length){const el=document.getElementById('fl-chart');if(el&&CHS['fl-chart']){CHS['fl-chart'].destroy();delete CHS['fl-chart'];}return;}
+  const rfData=ks.map(k=>+(rfByM[k]||0).toFixed(0));
+  const olData=ks.map(k=>+(oByM[k]||0).toFixed(0));
+  const totData=ks.map((k,i)=>rfData[i]+olData[i]);
+  const labels=ks.map(k=>{const[yr,mo]=k.split('-');return _MOS[+mo-1]+' \''+yr.slice(2);});
+  const el=document.getElementById('fl-chart');if(!el)return;
+  if(CHS['fl-chart'])CHS['fl-chart'].destroy();
+  CHS['fl-chart']=new Chart(el,{
+    data:{labels,datasets:[
+      {type:'bar',label:'Renta Fija',data:rfData,backgroundColor:'rgba(155,127,244,0.82)',stack:'s',borderRadius:{topLeft:3,topRight:3},order:2},
+      {type:'bar',label:'Olas',data:olData,backgroundColor:'rgba(245,166,35,0.82)',stack:'s',borderRadius:{topLeft:3,topRight:3},order:2},
+      {type:'line',label:'Total mes',data:totData,borderColor:'rgba(255,255,255,0.55)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:'rgba(255,255,255,0.4)',pointBorderWidth:1,fill:false,tension:0,order:1},
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,
+      interaction:{mode:'index',intersect:false},
+      plugins:{
+        legend:{display:true,labels:{color:'#7d8799',font:{family:'Geist Mono',size:10},boxWidth:8,padding:10}},
+        tooltip:{callbacks:{label:c=>'u$s '+fmt(c.parsed.y)}},
+      },
+      scales:{
+        x:{stacked:true,ticks:{color:'#424b5c',font:{family:'Geist Mono',size:9},maxRotation:40},grid:{display:false}},
+        y:{stacked:true,ticks:{color:'#424b5c',font:{family:'Geist Mono',size:9},callback:v=>v>0?'u$s '+fmt(v):''},grid:{color:'rgba(255,255,255,0.04)'}},
+      }
+    }
+  });
 }
 
 // ── GASTOS ────────────────────────────────────────────────────
@@ -3903,17 +3947,7 @@ function buildInvCharts(tab,inv,liq){
     if(activoItems.length>1)mkPie('ov-activo-chart',activoItems.map(x=>x.v),activoItems.map(x=>x.c),activoItems.map(x=>x.lb));
   }
   else if(tab==='flujo'){
-    const rfF=genRFFlows(inv);
-    const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado);
-    const today2=new Date();today2.setHours(0,0,0,0);
-    const rfByM={},oByM={};
-    rfF.forEach(fl=>{const k=fl.fecha.slice(0,7);rfByM[k]=(rfByM[k]||0)+fl.usd;});
-    olasF.forEach(f=>{const d=olasDate(f);if(new Date(d)>=today2){const k=d.slice(0,7);oByM[k]=(oByM[k]||0)+olasMonto(f)/MEP;}});
-    const ks=[...new Set([...Object.keys(rfByM),...Object.keys(oByM)])].sort();
-    mkStackedBar('fl-chart',ks,[
-      {label:'Renta fija',data:ks.map(k=>+(rfByM[k]||0).toFixed(0)),backgroundColor:'#9b7ff4',borderRadius:4},
-      {label:'Olas',data:ks.map(k=>+(oByM[k]||0).toFixed(0)),backgroundColor:'#f5a623',borderRadius:4},
-    ]);
+    buildFlujoCajaChart(inv.id);
     renderCFList(inv.id);
   }
   else if(tab==='gastos'){

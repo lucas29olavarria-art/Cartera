@@ -3351,7 +3351,17 @@ function rFlujoCaja(inv){
   </div>`;
 
   return `${heroHtml}${kpiHtml}${olasWarn}${pillsHtml}
-  <div class="card" style="margin-bottom:12px;"><div class="ct">Cobros mensuales estimados · u$s</div><div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div></div>
+  <div class="card" style="margin-bottom:12px;">
+    <div class="ct" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Cobros mensuales</span>
+      <span style="display:flex;gap:12px;font-family:var(--mono);font-size:10px;color:var(--muted);">
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#9b7ff4;display:inline-block;flex-shrink:0;"></span>RF</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#f5a623;display:inline-block;flex-shrink:0;"></span>Olas</span>
+        <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;border-top:2px dashed rgba(255,255,255,0.35);display:inline-block;flex-shrink:0;"></span>total</span>
+      </span>
+    </div>
+    <div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div>
+  </div>
   <div id="cf-list"></div>`;
 }
 
@@ -3427,22 +3437,44 @@ function buildFlujoCajaChart(invId){
   const labels=ks.map(k=>{const[yr,mo]=k.split('-');return _MOS[+mo-1]+' \''+yr.slice(2);});
   const el=document.getElementById('fl-chart');if(!el)return;
   if(CHS['fl-chart'])CHS['fl-chart'].destroy();
+  // Build gradient fills using canvas context
+  const ctx=el.getContext('2d');
+  const gRF=ctx.createLinearGradient(0,0,0,190);
+  gRF.addColorStop(0,'rgba(155,127,244,0.9)');gRF.addColorStop(1,'rgba(155,127,244,0.55)');
+  const gOl=ctx.createLinearGradient(0,0,0,190);
+  gOl.addColorStop(0,'rgba(245,166,35,0.9)');gOl.addColorStop(1,'rgba(245,166,35,0.55)');
   CHS['fl-chart']=new Chart(el,{
     data:{labels,datasets:[
-      {type:'bar',label:'Renta Fija',data:rfData,backgroundColor:'rgba(155,127,244,0.82)',stack:'s',borderRadius:{topLeft:3,topRight:3},order:2},
-      {type:'bar',label:'Olas',data:olData,backgroundColor:'rgba(245,166,35,0.82)',stack:'s',borderRadius:{topLeft:3,topRight:3},order:2},
-      {type:'line',label:'Total mes',data:totData,borderColor:'rgba(255,255,255,0.55)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[4,3],pointRadius:4,pointBackgroundColor:'#fff',pointBorderColor:'rgba(255,255,255,0.4)',pointBorderWidth:1,fill:false,tension:0,order:1},
+      {type:'bar',label:'Renta Fija',data:rfData,backgroundColor:gRF,stack:'s',borderRadius:{topLeft:0,topRight:0,bottomLeft:5,bottomRight:5},borderSkipped:false,order:2},
+      {type:'bar',label:'Olas',data:olData,backgroundColor:gOl,stack:'s',borderRadius:{topLeft:5,topRight:5,bottomLeft:0,bottomRight:0},borderSkipped:false,order:2},
+      {type:'line',label:'Total',data:totData,borderColor:'rgba(255,255,255,0.3)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,4],pointRadius:3.5,pointBackgroundColor:'rgba(255,255,255,0.9)',pointBorderWidth:0,fill:false,tension:0.2,order:1},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
       interaction:{mode:'index',intersect:false},
       plugins:{
-        legend:{display:true,labels:{color:'#7d8799',font:{family:'Geist Mono',size:10},boxWidth:8,padding:10}},
-        tooltip:{callbacks:{label:c=>'u$s '+fmt(c.parsed.y)}},
+        legend:{display:false},
+        tooltip:{
+          backgroundColor:'rgba(14,17,25,0.92)',
+          borderColor:'rgba(255,255,255,0.08)',
+          borderWidth:1,
+          titleColor:'#9ca3af',
+          bodyColor:'#e5e7eb',
+          padding:10,
+          titleFont:{family:'Geist Mono',size:10},
+          bodyFont:{family:'Geist Mono',size:11},
+          callbacks:{
+            title:items=>{const[yr,mo]=items[0].label.replace("'",'').split(' ');return (MONTHS[+_MOS.indexOf(mo.toLowerCase())]||mo)+' 20'+yr.trim();},
+            label:c=>{
+              const names=['RF','Olas','Total'];
+              return ' '+names[c.datasetIndex]+': u$s '+fmt(c.parsed.y);
+            },
+          }
+        },
       },
       scales:{
-        x:{stacked:true,ticks:{color:'#424b5c',font:{family:'Geist Mono',size:9},maxRotation:40},grid:{display:false}},
-        y:{stacked:true,ticks:{color:'#424b5c',font:{family:'Geist Mono',size:9},callback:v=>v>0?'u$s '+fmt(v):''},grid:{color:'rgba(255,255,255,0.04)'}},
+        x:{stacked:true,ticks:{color:'#4b5563',font:{family:'Geist Mono',size:9},maxRotation:0},grid:{display:false},border:{display:false}},
+        y:{stacked:true,ticks:{color:'#4b5563',font:{family:'Geist Mono',size:9},callback:v=>v>0?'u$s '+fmt(v):'',maxTicksLimit:4},grid:{color:'rgba(255,255,255,0.03)'},border:{display:false}},
       }
     }
   });

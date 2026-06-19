@@ -1826,7 +1826,7 @@ function rCalendario(){
   const allFlows=[];
   invs.forEach(inv=>{
     genRFFlows(inv).filter(fl=>fl.usd>=50).forEach(fl=>{allFlows.push({...fl,who:inv.name,color:inv.color});});
-    (inv.olasFlows||[]).forEach(fl=>{
+    (inv.olasFlows||[]).filter(fl=>!fl.cobrado).forEach(fl=>{
       const monto=olasMonto(fl);
       const usd=+(monto/MEP).toFixed(0);
       if(usd<50)return;
@@ -2092,20 +2092,35 @@ async function genReport(){
   const id=document.getElementById('rep-sel').value;
   if(!id){document.getElementById('rep-out').innerHTML='';return;}
   const inv=INV_CACHE[id];
-  const liq=totalLiq(inv),rend=totalRend(inv),tot=grand(inv);
-  const rendPct=liq>0?(rend/Math.abs(liq-rend)*100).toFixed(1):'0.0';
+  const liq=totalLiq(inv),tot=grand(inv);
+  // Include Olas P&L in rendimiento (re-calculate like renderInv does)
+  const _olasCob=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+  const _seen=new Set();
+  const _olasCap=(inv.olasFlows||[]).reduce((s,f)=>{
+    const proj=(f.descripcion||f.desc||'').split('·')[0].trim()||'__default__';
+    if(_seen.has(proj))return s;_seen.add(proj);
+    if(f.capitalUsd)return s+(+f.capitalUsd);
+    if(f.capitalArs&&f.tcInicio)return s+(+f.capitalArs/+f.tcInicio);
+    return s;
+  },0);
+  const _olasRend=_olasCap>0?(inv.olasVal||0)+_olasCob-_olasCap:0;
+  const rvRfRend=totalRend(inv);
+  const rend=rvRfRend+_olasRend;
+  const _totalCap=(liq-rvRfRend)+(_olasCap>0?_olasCap:(inv.olasVal||0));
+  const rendPct=_totalCap>0?(rend/_totalCap*100).toFixed(1):'0.0';
   const all=[...inv.rv||[],...inv.rf||[]];
   const gainers=all.filter(p=>p.rend>0).sort((a,b)=>b.rend-a.rend).slice(0,6);
   const losers=all.filter(p=>p.rend<0).sort((a,b)=>a.rend-b.rend).slice(0,3);
   const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50).slice(0,6);
-  const olasNext=(inv.olasFlows||[]).filter(fl=>olasMonto(fl)/MEP>=50).slice(0,5);
+  const nowStr=new Date().toISOString().slice(0,10);
+  const olasNext=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasDate(fl)>=nowStr&&olasMonto(fl)/MEP>=50).sort((a,b)=>olasDate(a).localeCompare(olasDate(b))).slice(0,5);
   const today=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
   const quarter='Q'+Math.ceil((new Date().getMonth()+1)/3)+' '+new Date().getFullYear();
   const savedComment=await getSavedComment(id);
   const recom=await getRecom(id);
   const now=new Date();const in12=new Date();in12.setMonth(in12.getMonth()+12);
   const tot12=genRFFlows(inv).filter(fl=>{const d=new Date(fl.fecha);return d>=now&&d<=in12;}).reduce((s,fl)=>s+fl.usd,0)+
-    (inv.olasFlows||[]).filter(fl=>{const d=new Date(olasDate(fl));return d>=now&&d<=in12;}).reduce((s,fl)=>s+olasMonto(fl)/MEP,0);
+    (inv.olasFlows||[]).filter(fl=>{if(fl.cobrado)return false;const d=new Date(olasDate(fl));return d>=now&&d<=in12;}).reduce((s,fl)=>s+olasMonto(fl)/MEP,0);
 
   document.getElementById('rep-out').innerHTML=`
   <div style="border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg2);margin-bottom:12px;">

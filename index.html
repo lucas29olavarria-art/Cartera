@@ -1188,14 +1188,14 @@ async function tryLogin(){
     return;
   }
   CU=data; pin=''; upP();
-  sessionStorage.setItem('cu',JSON.stringify(data));
+  localStorage.setItem('cu',JSON.stringify(data));
   showApp();
 }
 
 async function logout(){
   CU=null; INV_CACHE={};
   if(autoRefreshTimer)clearInterval(autoRefreshTimer);
-  sessionStorage.removeItem('cu');
+  localStorage.removeItem('cu');
   sw('s-login');
 }
 
@@ -7865,14 +7865,14 @@ async function delGasto(invId,gastoId){
     const {data,error}=await sb.from('investors').select('*').eq('access_token',urlToken).single();
     if(data&&!error){
       CU=data;
-      sessionStorage.setItem('cu',JSON.stringify(data));
+      localStorage.setItem('cu',JSON.stringify(data));
       document.getElementById('ww-greeting').textContent=`Hola, ${data.name.split(' ')[0]}`;
       sw('s-welcome');
       return;
     }
     // Token invalid → fall through to PIN screen
   }
-  const saved=sessionStorage.getItem('cu');
+  const saved=localStorage.getItem('cu');
   if(saved){
     CU=JSON.parse(saved);
     await showApp();

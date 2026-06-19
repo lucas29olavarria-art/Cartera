@@ -1384,6 +1384,7 @@ async function showApp(){
     await loadSnapsCache();
     loadAdvisorData();
     ATb='consolidado'; aTab('consolidado');
+    if(location.hash==='#import') setTimeout(openImport, 300);
   } else {
     const inv=await loadInvestor(CU.id);
     CU_DATA=inv;

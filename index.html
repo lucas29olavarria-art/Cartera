@@ -6518,15 +6518,15 @@ function impParseTenencias(rows){
   let section=''; // 'Bonos' | 'Fondos' | skip
 
   for(const r of rows){
-    // Detect section header in col N (index 13)
-    const sectionCell=String(r[13]||'').trim();
-    if(/Tipo de Activo:\s*Bonos/i.test(sectionCell)){section='Bonos';continue;}
-    if(/Tipo de Activo:\s*Fondos/i.test(sectionCell)){section='Fondos';continue;}
-    if(/Tipo de Activo:/i.test(sectionCell)){section='skip';continue;}
+    // Section headers are in column 0 (col 13 repeats the section on every data row — ignore it)
+    const col0=String(r[0]||'').trim();
+    if(/Tipo de Activo:\s*Bonos/i.test(col0)){section='Bonos';continue;}
+    if(/Tipo de Activo:\s*Fondos/i.test(col0)){section='Fondos';continue;}
+    if(/Tipo de Activo:/i.test(col0)){section='skip';continue;}
 
     if(!section||section==='skip')continue;
 
-    const colA=String(r[0]||'').trim();
+    const colA=col0;
     if(!colA||colA==='Ticker'||colA==='Subtotal'||colA==='Total')continue;
     // Skip rows that look like totals (no VN or price)
     const rawVN=r[4];

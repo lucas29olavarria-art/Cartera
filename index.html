@@ -6508,7 +6508,9 @@ function impParseTenencias(rows){
   for(const r of rows){
     const a=String(r[0]||'').trim();
     if(/TC USD MEP/i.test(a)){
-      const v=parseFloat(String(r[1]||'').replace(/\./g,'').replace(',','.'));
+      const raw=String(r[1]||'').trim();
+      // US decimal "1493.05" vs AR format "1.493,05" — detect by pattern
+      const v=/^\d{1,4}\.\d{2}$/.test(raw)?parseFloat(raw):parseFloat(raw.replace(/\./g,'').replace(',','.'));
       if(isFinite(v)&&v>1)tcMep=v;
       break;
     }

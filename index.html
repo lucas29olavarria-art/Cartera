@@ -207,41 +207,37 @@ select.fi{cursor:pointer;}
 .cf-usd{font-family:var(--mono);font-size:10px;color:var(--muted);display:block;margin-top:2px;}
 /* ESCENARIOS */
 .esc-summary{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px;}
-.esc-sc{border-radius:var(--r2);padding:14px 16px;}
-.esc-sc.bull{background:rgba(45,212,160,.07);border:1px solid rgba(45,212,160,.22);}
-.esc-sc.bear{background:rgba(240,108,108,.07);border:1px solid rgba(240,108,108,.22);}
+.esc-sc{border-radius:var(--r2);padding:16px;}
+.esc-sc.bull{background:rgba(45,212,160,.07);border:1px solid rgba(45,212,160,.2);}
+.esc-sc.bear{background:rgba(240,108,108,.07);border:1px solid rgba(240,108,108,.2);}
 .esc-sc-lbl{font-size:9px;font-family:var(--mono);letter-spacing:.1em;text-transform:uppercase;margin-bottom:8px;}
 .esc-sc.bull .esc-sc-lbl{color:var(--green);}
 .esc-sc.bear .esc-sc-lbl{color:var(--red);}
-.esc-sc-pct{font-family:var(--mono);font-size:26px;font-weight:700;line-height:1;margin-bottom:3px;}
+.esc-sc-pct{font-family:var(--mono);font-size:28px;font-weight:700;line-height:1;margin-bottom:2px;}
 .esc-sc.bull .esc-sc-pct{color:var(--green);}
 .esc-sc.bear .esc-sc-pct{color:var(--red);}
-.esc-sc-usd{font-size:10px;font-family:var(--mono);color:var(--soft);margin-bottom:8px;}
-.esc-sc-cond{font-size:10px;color:var(--muted);line-height:1.45;border-top:1px solid rgba(255,255,255,.06);padding-top:8px;margin-top:2px;}
+.esc-sc-dolar{font-size:11px;font-family:var(--mono);color:var(--soft);}
 .esc-pos-list{display:flex;flex-direction:column;gap:8px;}
-.esc-pos{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-.esc-pos-hdr{display:flex;align-items:center;gap:10px;padding:11px 14px;}
-.esc-pos-ticker{font-family:var(--mono);font-size:13px;font-weight:700;color:var(--text);min-width:52px;}
-.esc-pos-name{font-size:11px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
-.esc-pos-w{font-family:var(--mono);font-size:11px;color:var(--soft);flex-shrink:0;}
-.esc-pos-bar-wrap{position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--bg2);}
-.esc-pos-bar{height:2px;background:var(--purple);}
-.esc-pos-hdr-inner{position:relative;display:flex;align-items:center;gap:10px;flex:1;}
-.esc-pos-chev{font-size:11px;color:var(--muted);flex-shrink:0;transition:transform .2s;}
-.esc-pos.open .esc-pos-chev{transform:rotate(90deg);}
-.esc-pos-detail{display:none;border-top:1px solid var(--line);}
-.esc-pos.open .esc-pos-detail{display:block;}
-.esc-pd-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;}
-.esc-pd-row+.esc-pd-row{border-top:1px solid rgba(255,255,255,.04);}
-.esc-pd-dir{font-size:13px;font-weight:700;width:14px;flex-shrink:0;padding-top:1px;}
+.esc-pos{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;}
+.esc-pos-hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 10px;}
+.esc-pos-ticker{font-family:var(--mono);font-size:14px;font-weight:700;color:var(--text);}
+.esc-pos-wval{font-family:var(--mono);font-size:11px;color:var(--muted);text-align:right;line-height:1.4;}
+.esc-pos-live{padding:5px 14px;font-size:10px;font-family:var(--mono);color:var(--purple);background:rgba(155,127,244,.07);border-top:1px solid var(--line);min-height:22px;}
+.esc-pd-row{display:flex;align-items:flex-start;gap:10px;padding:10px 14px;border-top:1px solid var(--line);}
+.esc-pd-dir{font-size:12px;font-weight:700;width:14px;flex-shrink:0;padding-top:2px;}
 .esc-pd-row.bull .esc-pd-dir{color:var(--green);}
 .esc-pd-row.bear .esc-pd-dir{color:var(--red);}
-.esc-pd-ret{font-family:var(--mono);font-size:12px;font-weight:700;min-width:44px;flex-shrink:0;}
+.esc-pd-ret{font-family:var(--mono);font-size:12px;font-weight:700;min-width:38px;flex-shrink:0;}
 .esc-pd-row.bull .esc-pd-ret{color:var(--green);}
 .esc-pd-row.bear .esc-pd-ret{color:var(--red);}
-.esc-pd-why{font-size:11px;color:var(--muted);line-height:1.45;}
+.esc-pd-usd{display:block;font-size:12px;font-weight:600;font-family:var(--mono);margin-bottom:2px;}
+.esc-pd-row.bull .esc-pd-usd{color:rgba(45,212,160,.8);}
+.esc-pd-row.bear .esc-pd-usd{color:rgba(240,108,108,.8);}
+.esc-pd-why{font-size:11px;color:var(--muted);line-height:1.4;}
+.esc-pd-note{padding:6px 14px;font-size:10px;color:var(--muted);font-family:var(--mono);border-top:1px solid rgba(255,255,255,.04);background:rgba(255,255,255,.015);}
 .esc-empty{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:24px;text-align:center;color:var(--muted);font-size:12px;}
 .esc-sec-lbl{font-size:10px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:8px;padding:0 2px;}
+.esc-disclaimer{font-size:10px;font-family:var(--mono);color:var(--muted);padding:10px 2px;opacity:.55;}
 .filter-bar{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;}
 .filter-label{font-family:var(--mono);font-size:10px;color:var(--soft);white-space:nowrap;}
 .filter-val{font-family:var(--mono);font-size:12px;color:var(--blue);min-width:60px;}
@@ -2329,6 +2325,7 @@ function renderInv(inv){
     buildInvCharts(ITb,inv,liq);
     if(ITb==='simulador')setTimeout(calcSim,100);
     if(ITb==='riesgos')loadRiesgos(inv);
+    if(ITb==='escenarios')loadEscData(inv);
     runCountUps();
   },50);
 }
@@ -4022,87 +4019,74 @@ function buildAlerts(pos,liq){
 // ── ESCENARIOS ────────────────────────────────────────────────
 function _escScenario(ticker,cat){
   const t=(ticker||'').toUpperCase().trim();
-  if(/^(GD35|GD38|GD41|GD46)$/.test(t))return{
-    bull:30,bear:-30,
-    bullKey:'Riesgo país comprime a 400bps + Fed dovish → precio sube fuerte por duration larga',
-    bearKey:'Estrés soberano, spreads vuelven a 900bps+ → pérdida amplificada por duration alta',
-  };
-  if(/^(GD29|GD30|AE38)$/.test(t))return{
-    bull:12,bear:-14,
-    bullKey:'Tramo corto: carry fuerte + amortizaciones frecuentes acotan la volatilidad de precio',
-    bearKey:'Toda la curva se abre en estrés, aunque el tramo corto sufre menos que el largo',
-  };
-  if(/^(AL29|AL30)$/.test(t))return{
-    bull:13,bear:-18,
-    bullKey:'Compresión de spread en curva local + vencimientos cercanos dan piso al precio',
-    bearKey:'Ley Argentina: históricamente el primer bono en ser incluido en una reestructuración local',
-  };
-  if(/^(AL35)$/.test(t))return{
-    bull:20,bear:-24,
-    bullKey:'Duration media con buen carry; se aprecia con normalización macro argentina',
-    bearKey:'Ley AR + duration mediana = doble riesgo: legal y de precio ante estrés soberano',
-  };
-  if(/^(NVDA|AMD|TSLA|META|PLTR|MSTR|SMCI)$/.test(t))return{
-    bull:45,bear:-40,
-    bullKey:'Ciclo IA domina el relato, earnings superan. Beta altísimo amplifica cada rally de mercado',
-    bearKey:'Valuaciones extremas: el mínimo miss en guidance o suba de tasas puede generar -30% rápido',
-  };
-  if(/^(AAPL|MSFT|GOOGL?|AMZN|CRM|NFLX|ADBE|ORCL)$/.test(t))return{
-    bull:28,bear:-22,
-    bullKey:'Mega-caps con masa crítica en IA + recompras masivas. P/E razonable para el ciclo tech',
-    bearKey:'Regulación antimonopolio y desaceleración cloud pueden comprimir márgenes y múltiplos',
-  };
-  if(/^(SPY|VOO|IVV|VTI|IVW|SCHB)$/.test(t))return{
-    bull:18,bear:-18,
-    bullKey:'Soft landing: ganancias S&P crecen ~10%, múltiplos estables. Diversificación limita riesgo',
-    bearKey:'Recesión técnica implica -18-22% típico. Concentración en mega-caps puede amplificar la caída',
-  };
-  if(/^(QQQ|QQQM)$/.test(t))return{
-    bull:25,bear:-28,
-    bullKey:'Fed dovish + narrativa IA: QQQ outperforma SPY en bull market por concentración tech',
-    bearKey:'Mayor concentración que SPY: corrección de tasas o tech golpea más duro aquí',
-  };
-  if(/^(IWM|MDY)$/.test(t))return{
-    bull:22,bear:-25,
-    bullKey:'Small caps se benefician más de bajada de tasas: funding más barato, expansión de márgenes',
-    bearKey:'Más sensibles a crédito y ciclo económico. En recesión leve caen más que el S&P 500',
-  };
-  if(/^(EWZ|GXG|MCHI|EEM|VWO|ARGT)$/.test(t))return{
-    bull:22,bear:-28,
-    bullKey:'Risk-on global + dólar débil = flujo masivo a emergentes. Compresión de spreads soberanos',
-    bearKey:'Flight to quality: primeros en vender en estrés. Alta correlación con apetito global por riesgo',
-  };
-  if(/^(XOM|CVX|COP|OXY|MRO|VLO|PSX|SLB|HAL)$/.test(t))return{
-    bull:25,bear:-22,
-    bullKey:'OPEC+ recorta, tensión geopolítica o demanda China se reactiva → petróleo sube, ganancias récord',
-    bearKey:'Exceso de oferta o caída de demanda global comprime márgenes. Capex-intensivo sin catalizador',
-  };
-  if(/^(GLD|IAU|SLV|GDX)$/.test(t))return{
-    bull:15,bear:-12,
-    bullKey:'Dólar débil + Fed dovish + incertidumbre geopolítica: oro como activo de refugio sube',
-    bearKey:'Dólar fuerte + tasas reales positivas: el oro no da rendimiento, pierde atractivo relativo',
-  };
-  if(/^(JPM|BAC|GS|MS|C|WFC|BRK)$/.test(t))return{
-    bull:20,bear:-26,
-    bullKey:'Curva empinada = márgenes bancarios altos. Economía fuerte = baja morosidad y crédito activo',
-    bearKey:'Inversión de curva + crédito deteriorado = doble golpe. Regulación puede exigir más capital',
-  };
-  // Generic by cat
-  if(cat==='rv'||cat==='RV')return{
-    bull:20,bear:-22,
-    bullKey:'Rally de mercado USA + variación del dólar CCL amplifica el retorno en ARS',
-    bearKey:'Corrección USA + volatilidad CCL: doble fuente de riesgo frente al activo directo',
-  };
-  if(cat==='olas')return{
-    bull:8,bear:-15,
-    bullKey:'Crawling peg sostenible + tasa real positiva: la posición crece en USD real cada mes',
-    bearKey:'Devaluación del peso: el valor en USD cae en proporción al salto cambiario',
-  };
-  return{
-    bull:12,bear:-14,
-    bullKey:'Mejora crediticia del emisor y macro estable → carry predecible + apreciación de precio',
-    bearKey:'Deterioro macro o del emisor → spreads se abren. Menor liquidez secundaria complica la salida',
-  };
+  if(/^(GD35|GD38)$/.test(t))return{bull:28,bear:-25,liveSource:'rp',
+    bullWhy:'Si el riesgo país baja a ~400 puntos',
+    bearWhy:'Si el riesgo país sube a ~950 puntos o hay tensión política fuerte',
+    note:'Bono largo: el que más sube en escenario bueno, el que más cae en el malo'};
+  if(/^(GD41|GD46)$/.test(t))return{bull:35,bear:-32,liveSource:'rp',
+    bullWhy:'Si el riesgo país baja a ~400 puntos (el que más sube de toda la curva)',
+    bearWhy:'Si el riesgo país sube a ~950 puntos (el que más cae)',
+    note:'El bono de más plazo: máximo upside posible pero también máximo riesgo'};
+  if(/^(GD29|GD30|AE38)$/.test(t))return{bull:12,bear:-12,liveSource:'rp',
+    bullWhy:'Si la macro argentina mejora gradualmente',
+    bearWhy:'En crisis toda la curva cae, aunque este bono cae menos',
+    note:'Bono corto: cobrás cupones frecuentes y el precio varía poco'};
+  if(/^(AL29|AL30)$/.test(t))return{bull:13,bear:-20,liveSource:'rp',
+    bullWhy:'Si la macro local mejora y el mercado de bonos en pesos acompaña',
+    bearWhy:'Ley Argentina: en una reestructuración, estos son los primeros en sufrir haircut',
+    note:'Más fáciles de operar localmente, pero menor protección legal que los GD'};
+  if(/^(AL35)$/.test(t))return{bull:20,bear:-25,liveSource:'rp',
+    bullWhy:'Si la macro mejora: buen carry más potencial de suba de precio',
+    bearWhy:'Ley argentina y plazo medio: doble riesgo si hay crisis',
+    note:'Mitad de camino entre bono corto y largo'};
+  if(/^(NVDA|AMD|TSLA|META|PLTR|MSTR|SMCI)$/.test(t))return{bull:45,bear:-38,liveSource:'us',
+    bullWhy:'Si la IA sigue creciendo y los resultados del trimestre sorprenden al alza',
+    bearWhy:'Si los resultados decepcionan o el mercado tech corrige',
+    note:'Muy volátil: puede subir o bajar 20-30% en pocos días'};
+  if(/^(AAPL|MSFT|GOOGL?|AMZN|CRM|NFLX|ADBE|ORCL)$/.test(t))return{bull:25,bear:-20,liveSource:'us',
+    bullWhy:'Si la economía de EEUU sigue creciendo y los resultados corporativos vienen bien',
+    bearWhy:'Si hay recesión en EEUU o el sector tech corrige',
+    note:'Empresas gigantes con caja enorme: acompañan al mercado general'};
+  if(/^(SPY|VOO|IVV|VTI|IVW|SCHB)$/.test(t))return{bull:17,bear:-18,liveSource:'us',
+    bullWhy:'Año alcista normal en EEUU: el S&P 500 sube 15-20%',
+    bearWhy:'Si hay recesión en EEUU: el S&P 500 cae 18-25% típicamente',
+    note:'Todo el mercado USA en un instrumento. Lo más diversificado que existe'};
+  if(/^(QQQ|QQQM)$/.test(t))return{bull:23,bear:-26,liveSource:'us',
+    bullWhy:'Si el sector tech lidera el mercado (más upside que el SPY)',
+    bearWhy:'En corrección, el QQQ cae más fuerte que el SPY',
+    note:'Más concentrado en tech que el SPY: más volátil para ambos lados'};
+  if(/^(IWM|MDY)$/.test(t))return{bull:22,bear:-24,liveSource:'us',
+    bullWhy:'Si la Fed baja tasas: las empresas chicas se benefician más que las grandes',
+    bearWhy:'En recesión, las empresas chicas sufren más que las grandes',
+    note:'Empresas medianas/chicas: más volatilidad que el S&P 500'};
+  if(/^(EWZ|GXG|EEM|VWO|ARGT)$/.test(t))return{bull:20,bear:-26,liveSource:'us',
+    bullWhy:'Si el mundo está en modo riesgo y el capital fluye a emergentes',
+    bearWhy:'Cuando hay miedo global, los emergentes son los primeros en caer',
+    note:'Mercados emergentes: alto potencial, alta volatilidad'};
+  if(/^(XOM|CVX|COP|OXY|MRO|VLO|PSX|SLB)$/.test(t))return{bull:24,bear:-20,liveSource:'us',
+    bullWhy:'Si el petróleo sube por recortes OPEC+ o tensión geopolítica',
+    bearWhy:'Si cae el precio del petróleo por exceso de oferta o recesión',
+    note:'El resultado depende casi directamente del precio del petróleo'};
+  if(/^(GLD|IAU|SLV|GDX)$/.test(t))return{bull:15,bear:-12,liveSource:'us',
+    bullWhy:'Si el dólar se debilita o hay incertidumbre global',
+    bearWhy:'Si el dólar se fortalece y las tasas reales suben',
+    note:'Reserva de valor: protege en crisis pero no crece en economías fuertes'};
+  if(/^(JPM|BAC|GS|MS|C|WFC|BRK)$/.test(t))return{bull:20,bear:-26,liveSource:'us',
+    bullWhy:'Si la economía USA está bien: crédito sano y márgenes altos',
+    bearWhy:'En recesión: más créditos impagos y márgenes comprimidos',
+    note:'Los bancos amplifican el ciclo económico'};
+  if(cat==='rv'||cat==='RV')return{bull:18,bear:-20,liveSource:'us',
+    bullWhy:'Si el mercado USA sube',
+    bearWhy:'Si el mercado USA cae',
+    note:'CEDEARs: seguís el precio en USD convertido al tipo de cambio CCL'};
+  if(cat==='olas')return{bull:8,bear:-15,liveSource:'olas',
+    bullWhy:'Si el tipo de cambio se mantiene estable (crawling peg)',
+    bearWhy:'Si hay una devaluación: lo que ganás en pesos lo perdés en dólares',
+    note:'Sin riesgo de precio, pero con riesgo cambiario'};
+  return{bull:12,bear:-14,liveSource:null,
+    bullWhy:'Si la empresa emisora mantiene su solidez financiera',
+    bearWhy:'Si el emisor tiene problemas o hay estrés de mercado',
+    note:'ON corporativa: flujo de cupones en dólares, riesgo del emisor'};
 }
 
 function rEscenarios(inv){
@@ -4126,83 +4110,106 @@ function rEscenarios(inv){
     const sc=_escScenario('OLAS','olas');
     positions.push({ticker:'Olas',nombre:'FCI Money Market ARS',valor:olasVal,cat:'olas',sc});
   }
-
-  // Sort by valor desc, compute weights
   positions.sort((a,b)=>b.valor-a.valor);
   positions.forEach(p=>{p.w=total>0?p.valor/total:0;});
 
-  // Portfolio-level weighted scenarios
   const bullPort=positions.reduce((s,p)=>s+p.w*p.sc.bull,0);
   const bearPort=positions.reduce((s,p)=>s+p.w*p.sc.bear,0);
   const bullUSD=total*bullPort/100;
   const bearUSD=total*bearPort/100;
-
-  // Generate narrative conditions based on dominant exposure
-  const rfW=rf.reduce((s,p)=>s+(p.valor||0),0)/total;
-  const rvW=rv.reduce((s,p)=>s+(p.valor||0),0)/total;
-  const olasW=olasVal/total;
-  const hasGovBonds=rf.some(p=>/^(GD|AL|AE|TX|TO)/.test((p.ticker||'').toUpperCase()));
-  const hasCedears=rv.length>0;
-  const bullConds=[];
-  const bearConds=[];
-  if(hasGovBonds){bullConds.push('riesgo país comprime por debajo de 500bps');bearConds.push('estrés soberano o incumplimiento FMI');}
-  if(hasCedears){bullConds.push('mercado USA en soft landing con Fed dovish');bearConds.push('recesión técnica en EEUU o corrección de valuaciones');}
-  if(olasW>0.1){bullConds.push('ancla cambiaria sostenida y tasa real positiva');bearConds.push('aceleración inflacionaria o salto cambiario');}
-
   const fmtPct=v=>(v>0?'+':'')+v.toFixed(1)+'%';
-  const fmtUSD=v=>'u$s '+(v>0?'+':'')+Math.round(Math.abs(v)).toLocaleString('es-AR')+(v<0?' menos':' más');
+  const fmtD=v=>(v>=0?'+':'')+Math.round(Math.abs(v)).toLocaleString('es-AR');
 
-  // Summary cards
   const summary=`<div class="esc-summary">
     <div class="esc-sc bull">
       <div class="esc-sc-lbl">Escenario positivo</div>
       <div class="esc-sc-pct">${fmtPct(bullPort)}</div>
-      <div class="esc-sc-usd">~${fmtUSD(bullUSD)}</div>
-      <div class="esc-sc-cond">${bullConds.length?'Si: '+bullConds.join(', ')+'.':"Factores macroeconómicos y locales evolucionan favorablemente."}</div>
+      <div class="esc-sc-dolar">ganarías ~u$s ${Math.round(bullUSD).toLocaleString('es-AR')}</div>
     </div>
     <div class="esc-sc bear">
       <div class="esc-sc-lbl">Escenario negativo</div>
       <div class="esc-sc-pct">${fmtPct(bearPort)}</div>
-      <div class="esc-sc-usd">~${fmtUSD(bearUSD)}</div>
-      <div class="esc-sc-cond">${bearConds.length?'Si: '+bearConds.join(', ')+'.':"Deterioro macro, estrés soberano o corrección de mercado."}</div>
+      <div class="esc-sc-dolar">perderías ~u$s ${Math.round(Math.abs(bearUSD)).toLocaleString('es-AR')}</div>
     </div>
   </div>`;
 
-  // Per-position list
-  const posHtml=positions.map((p,i)=>{
+  const posHtml=positions.map(p=>{
     const wPct=(p.w*100).toFixed(1)+'%';
-    const barW=Math.round(p.w*100);
-    const id='esc-pos-'+i;
-    return`<div class="esc-pos" id="${id}" onclick="document.getElementById('${id}').classList.toggle('open')">
+    const valUSD=Math.round(p.valor).toLocaleString('es-AR');
+    const bullD=Math.round(p.valor*p.sc.bull/100).toLocaleString('es-AR');
+    const bearD=Math.round(Math.abs(p.valor*p.sc.bear/100)).toLocaleString('es-AR');
+    const liveAttr=p.sc.liveSource?`data-esc-live="${p.sc.liveSource==='us'?'us-'+p.ticker:p.sc.liveSource}"`:'';
+    const liveRow=p.sc.liveSource?`<div class="esc-pos-live" ${liveAttr}></div>`:'';
+    return`<div class="esc-pos">
       <div class="esc-pos-hdr">
         <span class="esc-pos-ticker">${p.ticker}</span>
-        <div class="esc-pos-hdr-inner">
-          <span class="esc-pos-name">${p.nombre}</span>
-          <div class="esc-pos-bar-wrap"><div class="esc-pos-bar" style="width:${barW}%"></div></div>
-        </div>
-        <span class="esc-pos-w">${wPct}</span>
-        <span class="esc-pos-chev">›</span>
+        <span class="esc-pos-wval">u$s ${valUSD}<br>${wPct} del portfolio</span>
       </div>
-      <div class="esc-pos-detail">
-        <div class="esc-pd-row bull">
-          <span class="esc-pd-dir">▲</span>
-          <span class="esc-pd-ret">+${p.sc.bull}%</span>
-          <span class="esc-pd-why">${p.sc.bullKey}</span>
-        </div>
-        <div class="esc-pd-row bear">
-          <span class="esc-pd-dir">▼</span>
-          <span class="esc-pd-ret">${p.sc.bear}%</span>
-          <span class="esc-pd-why">${p.sc.bearKey}</span>
-        </div>
+      ${liveRow}
+      <div class="esc-pd-row bull">
+        <span class="esc-pd-dir">▲</span>
+        <span class="esc-pd-ret">+${p.sc.bull}%</span>
+        <div><span class="esc-pd-usd">+u$s ${bullD}</span><span class="esc-pd-why">${p.sc.bullWhy}</span></div>
       </div>
+      <div class="esc-pd-row bear">
+        <span class="esc-pd-dir">▼</span>
+        <span class="esc-pd-ret">${p.sc.bear}%</span>
+        <div><span class="esc-pd-usd">-u$s ${bearD}</span><span class="esc-pd-why">${p.sc.bearWhy}</span></div>
+      </div>
+      <div class="esc-pd-note">${p.sc.note}</div>
     </div>`;
   }).join('');
 
   return`<div>
     ${summary}
-    <div class="esc-sec-lbl">Por posición — tocá para ver el detalle</div>
+    <div class="esc-sec-lbl">Por posición</div>
     <div class="esc-pos-list">${posHtml}</div>
+    <div class="esc-disclaimer">* Los % son rangos históricos estimados, no predicciones exactas. Precios en vivo desde Ambito y Yahoo Finance.</div>
   </div>`;
+}
+
+async function loadEscData(inv){
+  const _get=async(url,ms=6000)=>{
+    const ctrl=new AbortController();
+    const id=setTimeout(()=>ctrl.abort(),ms);
+    try{const r=await fetch(url,{signal:ctrl.signal});clearTimeout(id);return r.ok?r.json():null;}
+    catch(e){clearTimeout(id);return null;}
+  };
+  // Riesgo país — for AR bonds
+  const rpData=await _get('https://mercados.ambito.com/riesgo-pais/variacion');
+  if(rpData){
+    const rp=parseInt(String(rpData.valor||'').replace(/\D/g,''))||null;
+    if(rp){
+      document.querySelectorAll('[data-esc-live="rp"]').forEach(el=>{
+        el.textContent=`Riesgo país hoy: ${rp.toLocaleString('es-AR')} puntos`;
+      });
+    }
+  }
+  // CCL — for Olas
+  const cclData=await _get('https://api.bluelytics.com.ar/v2/latest');
+  if(cclData){
+    const ccl=cclData.ccl?.value_sell||cclData.ccl?.value_buy||0;
+    if(ccl>0){
+      document.querySelectorAll('[data-esc-live="olas"]').forEach(el=>{
+        el.textContent=`Dólar CCL hoy: $${Math.round(ccl).toLocaleString('es-AR')}`;
+      });
+    }
+  }
+  // Yahoo Finance — US tickers (may fail due to CORS, degrades gracefully)
+  const usTickers=[...(inv.rv||[])].map(p=>(p.ticker||p.symbol||'').toUpperCase()).filter(Boolean);
+  for(const t of usTickers){
+    const el=document.querySelector(`[data-esc-live="us-${t}"]`);
+    if(!el)continue;
+    const d=await _get(`https://query1.finance.yahoo.com/v8/finance/chart/${t}?interval=1d&range=5d`);
+    if(!d)continue;
+    const meta=d?.chart?.result?.[0]?.meta;
+    if(!meta?.regularMarketPrice)continue;
+    const price=meta.regularMarketPrice;
+    const h52=meta.fiftyTwoWeekHigh,l52=meta.fiftyTwoWeekLow;
+    let txt=`Cotiza hoy u$s ${price.toFixed(0)}`;
+    if(h52&&l52)txt+=` · rango del año: ${l52.toFixed(0)}–${h52.toFixed(0)}`;
+    el.textContent=txt;
+  }
 }
 
 // ── BUILD INV CHARTS ──────────────────────────────────────────

@@ -292,7 +292,13 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 }
 /* Analisis responsive grids */
 .an-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
-.an-charts{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:14px;}
+.an-charts{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;}
+.an-charts .drow{flex-direction:column;align-items:center;gap:0;}
+.an-charts .dslot{width:150px!important;height:150px!important;margin-bottom:10px;}
+.an-charts .leg{width:100%;display:grid;grid-template-columns:1fr 1fr;}
+.an-charts .lr{padding:3px 5px;border-bottom:none;}
+.an-charts .ln{font-size:10px;}
+.an-charts .lp{font-size:9px;min-width:22px;}
 @media(max-width:768px){
   .krow{grid-template-columns:1fr 1fr;}
   .g2,.g3{grid-template-columns:1fr;}
@@ -2514,54 +2520,95 @@ function getMilestone(tot){
 function rOverview(inv,liq,rend,tot,rendPct,best){
   const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0,tot0=rv0+rf0+ol0;
   const advisorMsg=inv.advisor_msg||'';
-  const hasObjetivo=inv.objetivo_desc&&inv.objetivo_monto>0;
 
   const today0=new Date().toISOString().slice(0,10);
   const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50&&fl.fecha>=today0);
   const olasF=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasMonto(fl)/MEP>=50&&olasDate(fl)>=today0);
-  const nextCobro=rfFlows[0]||null;
-  const nextOlas=olasF[0]||null;
-  const nextAny=nextCobro&&nextOlas?(new Date(nextCobro.fecha)<new Date(olasDate(nextOlas))?nextCobro:null):nextCobro||null;
-  const nextOlasFirst=!nextAny?nextOlas:null;
+
+  // Merge & sort next 3 cobros from RF + Olas
+  const allNextFlows=[
+    ...rfFlows.map(f=>({src:'rf',fecha:f.fecha,monto:f.usd||f.monto||0,tipo:f.tipo,tipo_pago:f.tipo_pago})),
+    ...olasF.map(f=>({src:'olas',fecha:olasDate(f),monto:olasMonto(f)/MEP,tipo:'Olas',desc:(f.descripcion||f.desc||'').split('·')[0].trim()}))
+  ].sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,3);
+  const nextFlow=allNextFlows[0]||null;
 
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):0;
-  const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días · Contactá a tu asesor':'Actualizado '+inv.last_import_date):'';
+  const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días':'Actualizado '+inv.last_import_date):'';
+
+  // Top performers by return %
+  const allPos=[...(inv.rv||[]).filter(p=>p.vinicial>0),...(inv.rf||[]).filter(p=>p.vinicial>0)];
+  const topPerf=[...allPos].sort((a,b)=>(b.rend/b.vinicial)-(a.rend/a.vinicial)).slice(0,3);
+
+  // Allocation mini-bar segments
+  const allocBar=[];
+  if(rv0>0&&tot0>0)allocBar.push({c:'#5b9cf6',pct:(rv0/tot0*100),lb:'RV'});
+  if(rf0>0&&tot0>0)allocBar.push({c:'#2dd4a0',pct:(rf0/tot0*100),lb:'RF'});
+  if(ol0>0&&tot0>0)allocBar.push({c:'#f5a623',pct:(ol0/tot0*100),lb:'Olas'});
+
+  const totalPos=(inv.rv||[]).length+(inv.rf||[]).length;
 
   const waBest=best?'\nMejor posición: '+best.ticker+' '+(best.rend>=0?'+':'')+best.rend.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' u$s':'';
-  const waNext=(nextAny||nextOlasFirst)?(()=>{const n=nextAny||nextOlasFirst;const fecha=n.fecha||olasDate(n);const monto=n.usd?'u$s '+fmt(n.usd):'$'+fmtars(olasMonto(n));const prod=n.tipo||(n.descripcion||n.desc||'').split('·')[0].trim();return '\nPróximo cobro: '+fecha+' · '+monto+(prod?' ('+prod+')':'');})():'';
+  const waNext=nextFlow?'\nPróximo cobro: '+nextFlow.fecha+' · u$s '+fmt(nextFlow.monto)+(nextFlow.tipo?' ('+nextFlow.tipo+')':''):'';
   const waTxt='Hola '+inv.name.split(' ')[0]+'! Resumen al '+new Date().toLocaleDateString('es-AR')+':\n\nPatrimonio: u$s '+fmt(tot)+'\nRendimiento: '+(rend>=0?'+':'')+rendPct+'%'+waBest+waNext;
   const waUrl='https://wa.me/?text='+encodeURIComponent(waTxt);
 
   let html='';
+  const rendColor=rend>=0?'#2dd4a0':'#f06c6c';
+  const rendRgb=rend>=0?'45,212,160':'240,108,108';
 
   // ── HERO ──────────────────────────────────────────────────────
   html+=`
-  <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.1);border-radius:22px;padding:30px 24px 24px;margin-bottom:14px;position:relative;overflow:hidden;">
-    <div style="position:absolute;top:-80px;right:-60px;width:260px;height:260px;background:radial-gradient(circle,rgba(91,156,246,.07),transparent 65%);pointer-events:none;"></div>
-    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:18px;">${inv.name}</div>
-    <div style="margin-bottom:20px;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:8px;">Patrimonio total</div>
-      <div style="font-family:var(--mono);font-size:48px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
-    </div>
-    <div style="margin-bottom:16px;">
-      <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
-        <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Rendimiento</div>
-        <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
-        <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+  <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.13);border-radius:22px;padding:26px 22px 20px;margin-bottom:12px;position:relative;overflow:hidden;">
+    <div style="position:absolute;top:-60px;right:-50px;width:220px;height:220px;background:radial-gradient(circle,rgba(91,156,246,.08),transparent 65%);pointer-events:none;"></div>
+    <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:14px;">${inv.name}</div>
+    <div style="display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:16px;">
+      <div>
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:6px;">Patrimonio total</div>
+        <div style="font-family:var(--mono);font-size:44px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;">u$s ${fmt(tot)}</div>
+      </div>
+      <div style="background:rgba(${rendRgb},.1);border:1px solid rgba(${rendRgb},.2);border-radius:14px;padding:10px 16px;text-align:right;flex-shrink:0;">
+        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:${rendColor};opacity:.7;margin-bottom:4px;">Rendimiento</div>
+        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${rendColor};line-height:1;">${rend>=0?'+':''}${rendPct}%</div>
+        <div style="font-family:var(--mono);font-size:10px;color:${rendColor};opacity:.7;margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
       </div>
     </div>
-    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
-      ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.7)':'rgba(255,255,255,.22)'};">${staleInfo}</div>`:''}
+    ${allocBar.length>1?`
+    <div style="margin-bottom:10px;">
+      <div style="display:flex;height:5px;border-radius:4px;overflow:hidden;gap:1px;margin-bottom:7px;">
+        ${allocBar.map(s=>`<div style="flex:${s.pct.toFixed(1)};background:${s.c};min-width:3px;"></div>`).join('')}
+      </div>
+      <div style="display:flex;gap:14px;flex-wrap:wrap;">
+        ${allocBar.map(s=>`<div style="display:flex;align-items:center;gap:4px;"><div style="width:6px;height:6px;border-radius:1px;background:${s.c};flex-shrink:0;"></div><span style="font-family:var(--mono);font-size:9px;color:rgba(255,255,255,.38);">${s.lb} ${s.pct.toFixed(0)}%</span></div>`).join('')}
+      </div>
+    </div>`:''}
+    ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.7)':'rgba(255,255,255,.22)'};">${staleInfo}</div>`:''}
+  </div>`;
+
+  // ── QUICK STATS ───────────────────────────────────────────────
+  const daysToNext=nextFlow?Math.ceil((new Date(nextFlow.fecha+'T12:00:00')-new Date())/(864e5)):null;
+  html+=`
+  <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:12px;">
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:14px 10px;text-align:center;">
+      <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:#eceef3;">${totalPos}</div>
+      <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:5px;letter-spacing:.08em;text-transform:uppercase;">Posiciones</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:14px 10px;text-align:center;">
+      ${best?`<div style="font-family:var(--mono);font-size:13px;font-weight:700;color:#2dd4a0;line-height:1.2;">${best.ticker}</div><div style="font-family:var(--mono);font-size:10px;color:#2dd4a0;margin-top:2px;">+u$s ${fmt(best.rend)}</div>`:`<div style="font-family:var(--mono);font-size:18px;color:var(--muted);line-height:1;">—</div>`}
+      <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:5px;letter-spacing:.08em;text-transform:uppercase;">Top pos.</div>
+    </div>
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:16px;padding:14px 10px;text-align:center;">
+      ${daysToNext!==null?`<div style="font-family:var(--mono);font-size:${daysToNext<=9?'22':'16'}px;font-weight:700;color:#f5a623;line-height:1.2;">${daysToNext<=0?'HOY':daysToNext===1?'MAÑ':daysToNext+'d'}</div>`:`<div style="font-family:var(--mono);font-size:18px;color:var(--muted);line-height:1;">—</div>`}
+      <div style="font-family:var(--mono);font-size:8px;color:var(--muted);margin-top:5px;letter-spacing:.08em;text-transform:uppercase;">Próx. cobro</div>
     </div>
   </div>`;
 
   // ── MENSAJE DEL ASESOR ────────────────────────────────────────
   if(advisorMsg){
     html+=`
-    <div style="background:rgba(91,156,246,.04);border:1px solid rgba(91,156,246,.1);border-radius:18px;padding:24px;margin-bottom:14px;">
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(91,156,246,.5);margin-bottom:16px;">Nota de tu asesor</div>
-      <div style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:rgba(255,255,255,.8);line-height:1.8;margin-bottom:18px;">&ldquo;${advisorMsg}&rdquo;</div>
-      <div style="display:flex;align-items:center;gap:10px;padding-top:16px;border-top:1px solid rgba(255,255,255,.06);">
+    <div style="background:rgba(91,156,246,.04);border:1px solid rgba(91,156,246,.1);border-radius:18px;padding:22px;margin-bottom:12px;">
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(91,156,246,.5);margin-bottom:14px;">Nota de tu asesor</div>
+      <div style="font-family:var(--serif);font-size:15px;font-weight:300;font-style:italic;color:rgba(255,255,255,.8);line-height:1.8;margin-bottom:16px;">&ldquo;${advisorMsg}&rdquo;</div>
+      <div style="display:flex;align-items:center;gap:10px;padding-top:14px;border-top:1px solid rgba(255,255,255,.06);">
         <div style="width:32px;height:32px;border-radius:9px;background:linear-gradient(135deg,#5b9cf6,#4080e0);display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:700;color:#fff;flex-shrink:0;">L</div>
         <div>
           <div style="font-size:12px;font-weight:500;color:rgba(255,255,255,.7);">Lucas Olavarria</div>
@@ -2578,62 +2625,25 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     if(rf0>0)allocs.push({lb:'Renta Fija',sub:'Bonos y ONs',v:rf0,c:'#2dd4a0'});
     if(ol0>0)allocs.push({lb:'Olas (Yont)',sub:'Fideicomiso ARS',v:ol0,c:'#f5a623'});
     html+=`
-    <div class="card" style="margin-bottom:14px;">
-      <div class="ct" style="margin-bottom:18px;">¿Dónde está tu dinero?</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="ct" style="margin-bottom:16px;">¿Dónde está tu dinero?</div>
       <div class="drow">
         <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Distribución"></canvas>
           <div class="dmid"><div style="font-family:var(--mono);font-size:9px;text-align:center;line-height:1.5;color:rgba(255,255,255,.35);">u$s<br>${fmt(tot0)}</div></div>
         </div>
         <div class="leg">${allocs.map(a=>`<div class="lr" style="padding:10px 0;">
-          <div style="width:8px;height:8px;border-radius:2px;background:${a.c};flex-shrink:0;margin-right:10px;"></div>
-          <div style="flex:1;">
-            <div style="font-size:12px;font-weight:500;">${a.lb}</div>
-            <div style="font-size:10px;color:var(--muted);margin-top:1px;">${a.sub}</div>
+          <div style="width:8px;height:8px;border-radius:2px;background:${a.c};flex-shrink:0;margin-right:4px;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-size:12px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${a.lb}</div>
+            <div style="font-size:10px;color:var(--muted);">${a.sub}</div>
           </div>
-          <div style="text-align:right;">
+          <div style="text-align:right;flex-shrink:0;">
             <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:${a.c};">${(a.v/tot0*100).toFixed(0)}%</div>
             <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(a.v)}</div>
           </div>
         </div>`).join('')}</div>
       </div>
     </div>`;
-  }
-
-  // ── DISTRIBUCIÓN POR ACTIVO ──────────────────────────────────
-  {
-    const allItems=allocItems(inv);
-    const totAlloc=allItems.reduce((s,x)=>s+x.v,0);
-    if(allItems.length>1&&totAlloc>0){
-      const sorted=allItems; // already sorted by value
-      const safeInvId=inv.id;
-      const _haRV=(inv.rv||[]).some(p=>p.valor>0);
-      const _haRF=(inv.rf||[]).some(p=>p.valor>0);
-      const _haOl=(inv.olasVal||0)>0;
-      const _fBtns=[['all','Todos'],...(_haRV?[['rv','Acciones']]:[ ]),...(_haRF?[['rf','Bonos']]:[ ]),...(_haOl?[['olas','Olas']]:[ ])];
-      html+=`
-      <div class="card" style="margin-bottom:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
-          <div class="ct" style="margin-bottom:0;">Distribución por activo</div>
-          <button class="ib" style="font-size:11px;padding:4px 12px;" onclick="downloadAllocChart('${safeInvId}')">⬇ PNG</button>
-        </div>
-        <div style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap;">
-          ${_fBtns.map(([k,lb])=>`<button data-alloc-filter="${k}" onclick="filterAllocChart('${k}','${safeInvId}')" style="font-family:var(--mono);font-size:10px;padding:4px 11px;border-radius:20px;border:1px solid ${k==='all'?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)'};background:${k==='all'?'rgba(255,255,255,.1)':'transparent'};color:${k==='all'?'#eceef3':'var(--muted)'};cursor:pointer;transition:all .15s;">${lb}</button>`).join('')}
-        </div>
-        <div style="position:relative;height:280px;margin-bottom:16px;">
-          <canvas id="ov-activo-chart" style="display:block;"></canvas>
-        </div>
-        <div id="ov-activo-leg" style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
-          ${sorted.map(x=>`
-          <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
-            <div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div>
-            <div style="flex:1;min-width:0;">
-              <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#eceef3;">${x.lb}</div>
-              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(x.v)} · ${(x.v/totAlloc*100).toFixed(1)}%</div>
-            </div>
-          </div>`).join('')}
-        </div>
-      </div>`;
-    }
   }
 
   // ── CAPITAL vs RENDIMIENTO ────────────────────────────────────
@@ -2645,20 +2655,14 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       const pct=cap>0?(Math.abs(r)/cap*100).toFixed(1)+'%':'';
       return`${sign}u$s ${fmt(Math.abs(r))}${pct?` <span style="font-size:9px;color:inherit;opacity:.7;">(${sign}${pct})</span>`:''}`;
     };
-
-    // ── RV
     const rvVal=totalRV(inv);
     const rvCap=(inv.rv||[]).reduce((s,p)=>s+safeNum(p.vinicial),0);
     const rvHasCost=rvCap>0;
     const rvRend=rvHasCost?rvVal-rvCap:null;
-
-    // ── RF
     const rfVal=totalRF(inv);
     const rfCap=(inv.rf||[]).reduce((s,p)=>s+safeNum(+p.vn_total*(+p.precio_compra||0)/100),0);
     const rfHasCost=rfCap>0;
     const rfRend=rfHasCost?rfVal-rfCap:null;
-
-    // ── Olas — dedup por proyecto (capital_usd se repite en cada flow del mismo Ola)
     const olasVal=inv.olasVal||0;
     const olasCapRaw=(()=>{
       const seen=new Set();
@@ -2671,30 +2675,22 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
         return s;
       },0);
     })();
-    // Total ya cobrado en USD (flujos recibidos): capital retornado + intereses cobrados
-    const olasCobradoUSD=(inv.olasFlows||[])
-      .filter(f=>f.cobrado)
-      .reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
+    const olasCobradoUSD=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
     const olasCap=olasCapRaw>0?olasCapRaw:olasVal;
     const olasHasCost=olasCapRaw>0;
-    // Valor efectivo = lo ya cobrado + lo aún pendiente/activo
     const olasEfectivo=olasVal+olasCobradoUSD;
     const olasRend=olasHasCost?olasEfectivo-olasCap:null;
-
-    // ── Totals
     const totalCap=rvCap+rfCap+olasCap;
-    // Para totales usamos el valor efectivo de Olas (cobrado+activo) para no distorsionar el total
     const totalVal=rvVal+rfVal+olasEfectivo;
     const hasCostTotal=rvHasCost||rfHasCost||olasHasCost;
     const totalRendCalc=hasCostTotal?totalVal-totalCap:null;
     const capBar=totalCap>0?Math.min(120,totalVal/totalCap*100):100;
     const totalC=totalRendCalc===null?'#5b9cf6':totalRendCalc>=0?'#2dd4a0':'#f06c6c';
-
     const mkCatRow=(ic,label,val,cap,hasCost,rnd)=>{
       if(val<=0)return'';
       const rc=rnd===null?'var(--muted)':rnd>=0?'#2dd4a0':'#f06c6c';
       return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);">
-        <div style="display:flex;align-items:center;gap:7px;min-width:100px;">
+        <div style="display:flex;align-items:center;gap:7px;min-width:90px;">
           <span style="font-size:14px;line-height:1;">${ic}</span>
           <span style="font-size:11px;color:var(--soft);">${label}</span>
         </div>
@@ -2707,9 +2703,8 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
         </div>
       </div>`;
     };
-
     html+=`
-    <div class="card" style="margin-bottom:14px;">
+    <div class="card" style="margin-bottom:12px;">
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:var(--muted);margin-bottom:14px;">Tu dinero trabajando</div>
       ${hasCostTotal?`
       <div style="height:5px;background:rgba(255,255,255,.06);border-radius:3px;overflow:hidden;margin-bottom:4px;">
@@ -2725,7 +2720,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
         const pct=olasCap>0?(Math.abs(olasRend||0)/olasCap*100).toFixed(1)+'%':'';
         const rendStr=olasRend===null?'—':`${sign}u$s ${fmt(Math.abs(olasRend||0))}${pct?` <span style="font-size:9px;opacity:.7;">(${sign}${pct})</span>`:''}`;
         return`<div style="display:flex;justify-content:space-between;align-items:flex-start;padding:9px 0;border-bottom:1px solid var(--line);">
-          <div style="display:flex;align-items:center;gap:7px;min-width:100px;">
+          <div style="display:flex;align-items:center;gap:7px;min-width:90px;">
             <span style="font-size:14px;line-height:1;">🌊</span>
             <span style="font-size:11px;color:var(--soft);">Olas (Yont)</span>
           </div>
@@ -2752,32 +2747,103 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     </div>`;
   }
 
-
-  // ── PRÓXIMO COBRO ─────────────────────────────────────────────
-  if(nextAny||nextOlasFirst){
-    const isAmort=nextAny&&nextAny.tipo_pago==='Amortización';
-    const accentC=isAmort?'#5b9cf6':'#f5a623';
-    const accentA=isAmort?'rgba(91,156,246,':' rgba(245,166,35,';
-    const cobroVal=nextAny?'u$s '+fmt(nextAny.monto):'$'+fmtars(olasMonto(nextOlasFirst));
-    const cobroDate=nextAny?nextAny.fecha:olasDate(nextOlasFirst);
-    const cobroLabel=isAmort?`🔵 Amortización · ${nextAny.tipo}`:(nextAny?`Cupón · ${nextAny.tipo}`:'Olas');
-    const daysTo=Math.ceil((new Date(cobroDate+'T12:00:00')-new Date())/(864e5));
-    const daysLabel=daysTo<=0?'Hoy':daysTo===1?'Mañana':'En '+daysTo+' días';
+  // ── TOP PERFORMERS ────────────────────────────────────────────
+  if(topPerf.length>0){
+    const maxRp=topPerf[0].vinicial>0?Math.abs(topPerf[0].rend/topPerf[0].vinicial*100):1;
     html+=`
-    <div style="background:${accentA}.04);border:1px solid ${accentA}.14);border-radius:18px;padding:18px 22px;margin-bottom:14px;display:flex;align-items:center;justify-content:space-between;gap:12px;">
-      <div>
-        <div style="font-family:var(--mono);font-size:9px;letter-spacing:.18em;text-transform:uppercase;color:${accentC};opacity:.6;margin-bottom:7px;">${cobroLabel}</div>
-        <div style="font-family:var(--mono);font-size:22px;font-weight:700;color:${accentC};">${cobroVal}</div>
-        <div style="font-size:11px;color:rgba(255,255,255,.32);margin-top:4px;">${cobroDate}${isAmort?' · <span style="color:#5b9cf6;font-size:10px;">Capital que vuelve</span>':''}</div>
-      </div>
-      <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${accentC};background:${accentA}.1);border-radius:20px;padding:7px 16px;white-space:nowrap;flex-shrink:0;">${daysLabel}</div>
+    <div class="card" style="margin-bottom:12px;">
+      <div class="ct" style="margin-bottom:14px;">Mejores posiciones</div>
+      ${topPerf.map((p,i)=>{
+        const rp=p.vinicial>0?(p.rend/p.vinicial*100):0;
+        const gc=p.rend>=0?'#2dd4a0':'#f06c6c';
+        const grp=SECTOR_NORM[p.sector||p.tipo||'Otro']||'Otro';
+        const sc=SECTOR_CFG[grp]||SECTOR_CFG['Otro'];
+        const bw=maxRp>0?(Math.abs(rp)/maxRp*100).toFixed(0):0;
+        return `<div style="padding:10px 0;border-bottom:1px solid rgba(255,255,255,${i<topPerf.length-1?'.05':'0'});">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:5px;">
+            <div style="width:3px;height:36px;border-radius:2px;background:${sc.cl};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;">${p.ticker}</div>
+              <div style="font-size:10px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre||''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-family:var(--mono);font-size:13px;font-weight:700;color:${gc};">${p.rend>=0?'+':''}${rp.toFixed(1)}%</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${p.rend>=0?'+':''}u$s ${fmt(Math.abs(p.rend))}</div>
+            </div>
+          </div>
+          <div style="margin-left:13px;height:2px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden;">
+            <div style="width:${bw}%;height:100%;background:${gc};border-radius:2px;"></div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+  }
+
+  // ── DISTRIBUCIÓN POR ACTIVO ──────────────────────────────────
+  {
+    const allItems=allocItems(inv);
+    const totAlloc=allItems.reduce((s,x)=>s+x.v,0);
+    if(allItems.length>1&&totAlloc>0){
+      const sorted=allItems;
+      const safeInvId=inv.id;
+      const _haRV=(inv.rv||[]).some(p=>p.valor>0);
+      const _haRF=(inv.rf||[]).some(p=>p.valor>0);
+      const _haOl=(inv.olasVal||0)>0;
+      const _fBtns=[['all','Todos'],...(_haRV?[['rv','Acciones']]:[ ]),...(_haRF?[['rf','Bonos']]:[ ]),...(_haOl?[['olas','Olas']]:[ ])];
+      html+=`
+      <div class="card" style="margin-bottom:12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div class="ct" style="margin-bottom:0;">Distribución por activo</div>
+          <button class="ib" style="font-size:11px;padding:4px 12px;" onclick="downloadAllocChart('${safeInvId}')">⬇ PNG</button>
+        </div>
+        <div style="display:flex;gap:5px;margin-bottom:14px;flex-wrap:wrap;">
+          ${_fBtns.map(([k,lb])=>`<button data-alloc-filter="${k}" onclick="filterAllocChart('${k}','${safeInvId}')" style="font-family:var(--mono);font-size:10px;padding:4px 11px;border-radius:20px;border:1px solid ${k==='all'?'rgba(255,255,255,.25)':'rgba(255,255,255,.1)'};background:${k==='all'?'rgba(255,255,255,.1)':'transparent'};color:${k==='all'?'#eceef3':'var(--muted)'};cursor:pointer;transition:all .15s;">${lb}</button>`).join('')}
+        </div>
+        <div style="position:relative;height:280px;margin-bottom:16px;">
+          <canvas id="ov-activo-chart" style="display:block;"></canvas>
+        </div>
+        <div id="ov-activo-leg" style="display:grid;grid-template-columns:1fr 1fr;gap:0;">
+          ${sorted.map(x=>`
+          <div style="display:flex;align-items:center;gap:8px;padding:7px 6px;border-bottom:1px solid rgba(255,255,255,.04);">
+            <div style="width:10px;height:10px;border-radius:3px;background:${x.c};flex-shrink:0;"></div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-family:var(--mono);font-size:11px;font-weight:700;color:#eceef3;">${x.lb}</div>
+              <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">u$s ${fmt(x.v)} · ${(x.v/totAlloc*100).toFixed(1)}%</div>
+            </div>
+          </div>`).join('')}
+        </div>
+      </div>`;
+    }
+  }
+
+  // ── PRÓXIMOS COBROS ───────────────────────────────────────────
+  if(allNextFlows.length>0){
+    html+=`
+    <div class="card" style="margin-bottom:12px;">
+      <div class="ct" style="margin-bottom:14px;">Próximos cobros</div>
+      ${allNextFlows.map((f,i)=>{
+        const isAmort=f.tipo_pago==='Amortización';
+        const ac=isAmort?'#5b9cf6':f.src==='olas'?'#f5a623':'#2dd4a0';
+        const lbl=isAmort?'Amortización':f.src==='olas'?'Olas (Yont)':'Cupón'+(f.tipo?' · '+f.tipo:'');
+        const dTo=Math.ceil((new Date(f.fecha+'T12:00:00')-new Date())/(864e5));
+        const dLb=dTo<=0?'Hoy':dTo===1?'Mañana':'En '+dTo+' días';
+        return `<div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid rgba(255,255,255,${i<allNextFlows.length-1?'.05':'0'});">
+          <div style="width:3px;height:42px;border-radius:2px;background:${ac};flex-shrink:0;"></div>
+          <div style="flex:1;min-width:0;">
+            <div style="font-family:var(--mono);font-size:9px;color:${ac};opacity:.7;letter-spacing:.1em;text-transform:uppercase;margin-bottom:3px;">${lbl}</div>
+            <div style="font-family:var(--mono);font-size:15px;font-weight:700;color:${ac};">u$s ${fmt(f.monto)}</div>
+            <div style="font-size:10px;color:rgba(255,255,255,.3);margin-top:2px;">${f.fecha}</div>
+          </div>
+          <div style="font-family:var(--mono);font-size:11px;font-weight:600;color:${ac};background:rgba(255,255,255,.05);border-radius:20px;padding:6px 12px;white-space:nowrap;flex-shrink:0;">${dLb}</div>
+        </div>`;
+      }).join('')}
     </div>`;
   }
 
   // ── WHATSAPP (solo admin) ─────────────────────────────────────
   if(CU.is_admin){
     html+=`
-    <a href="${waUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.14);border-radius:12px;padding:13px;color:rgba(37,211,102,.8);font-size:12px;font-weight:500;text-decoration:none;margin-bottom:14px;">
+    <a href="${waUrl}" target="_blank" style="display:flex;align-items:center;justify-content:center;gap:8px;width:100%;background:rgba(37,211,102,.06);border:1px solid rgba(37,211,102,.14);border-radius:12px;padding:13px;color:rgba(37,211,102,.8);font-size:12px;font-weight:500;text-decoration:none;margin-bottom:12px;">
       <svg width="15" height="15" viewBox="0 0 24 24" fill="currentColor"><path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347"/></svg>
       Enviar resumen por WhatsApp
     </a>`;

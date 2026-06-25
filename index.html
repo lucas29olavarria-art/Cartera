@@ -205,6 +205,27 @@ select.fi{cursor:pointer;}
 .cf-urgency.manana{background:rgba(245,166,35,.15);color:var(--amber);}
 .cf-urgency.pronto{background:rgba(155,127,244,.12);color:var(--purple);}
 .cf-usd{font-family:var(--mono);font-size:10px;color:var(--muted);display:block;margin-top:2px;}
+/* ESCENARIOS */
+.esc-wrap{display:flex;flex-direction:column;gap:18px;}
+.esc-sec{display:flex;flex-direction:column;gap:8px;}
+.esc-sec-hdr{display:flex;align-items:center;gap:10px;padding:0 2px 4px;border-bottom:1px solid var(--line);}
+.esc-sec-icon{font-size:18px;line-height:1;}
+.esc-sec-title{font-size:13px;font-weight:700;color:var(--text);letter-spacing:.02em;}
+.esc-sec-sub{font-size:10px;font-family:var(--mono);color:var(--muted);margin-left:auto;}
+.esc-card{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;}
+.esc-card-hdr{display:flex;align-items:center;justify-content:space-between;padding:10px 14px 8px;border-bottom:1px solid var(--line);}
+.esc-factor{font-size:13px;font-weight:700;color:var(--text);}
+.esc-tickers{font-size:10px;font-family:var(--mono);color:var(--purple);background:rgba(155,127,244,.1);border-radius:20px;padding:2px 8px;}
+.esc-row{display:flex;align-items:flex-start;gap:10px;padding:9px 14px;}
+.esc-row+.esc-row{border-top:1px solid rgba(255,255,255,.04);}
+.esc-dir{font-size:16px;font-weight:700;width:16px;flex-shrink:0;margin-top:1px;}
+.esc-row.al .esc-dir{color:var(--green);}
+.esc-row.ba .esc-dir{color:var(--red);}
+.esc-trigger{display:block;font-size:12px;font-weight:600;color:var(--soft);margin-bottom:2px;}
+.esc-row.al .esc-trigger{color:rgba(45,212,160,.9);}
+.esc-row.ba .esc-trigger{color:rgba(240,108,108,.9);}
+.esc-imp{display:block;font-size:11px;color:var(--muted);line-height:1.4;}
+.esc-empty{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:24px;text-align:center;color:var(--muted);font-size:12px;}
 .filter-bar{display:flex;align-items:center;gap:14px;background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);padding:10px 14px;margin-bottom:14px;}
 .filter-label{font-family:var(--mono);font-size:10px;color:var(--soft);white-space:nowrap;}
 .filter-val{font-family:var(--mono);font-size:12px;color:var(--blue);min-width:60px;}
@@ -451,6 +472,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
+    <button class="tb" id="itb-escenarios" onclick="iTab('escenarios')">Escenarios</button>
     <button class="tb" id="itb-micartera" onclick="iTab('micartera')">Carteras</button>
   </div>
   <div class="content" id="cnt"></div>
@@ -2282,6 +2304,7 @@ function renderInv(inv){
   else if(ITb==='simulador')body=rSimulador(inv,tot);
   else if(ITb==='reporte')body=rReporteMensual(inv);
   else if(ITb==='riesgos')body=rRiesgos(inv);
+  else if(ITb==='escenarios')body=rEscenarios(inv);
 
   sc(hdr+body);
 
@@ -3978,6 +4001,237 @@ function buildAlerts(pos,liq){
   if(liq>0&&arg/liq>.28)a.push({t:'Exposición Argentina elevada',d:`${(arg/liq*100).toFixed(0)}% en activos locales.`,c:'var(--blue)',bg:'rgba(91,156,246,.07)'});
   if(!a.length)a.push({t:'Sin alertas críticas',d:'Distribución equilibrada.',c:'var(--green)',bg:'rgba(45,212,160,.07)'});
   return a.map(x=>`<div class="alert" style="border-color:${x.c};background:${x.bg};"><div class="alert-t" style="color:${x.c}">${x.t}</div><div class="alert-d">${x.d}</div></div>`).join('');
+}
+
+// ── ESCENARIOS ────────────────────────────────────────────────
+function rEscenarios(inv){
+  const rv=inv.rv||[];
+  const rf=inv.rf||[];
+  const tks=[...rv,...rf].map(p=>(p.ticker||p.symbol||'').toUpperCase().replace(/\s/g,''));
+  const hasOlas=(inv.olasFlows||[]).length>0||(inv.olasVal||0)>0;
+
+  // Exposure flags
+  const hasGovBondsAR=tks.some(t=>/^(GD|AL|AE|TX|TO|PR|PM|MG|BPY|BP|TL|TJ)\d/.test(t));
+  const hasCorpBonds=rf.some(p=>{const t=(p.ticker||'').toUpperCase();return!/^(GD|AL|AE|TX|TO|PR|PM|MG|BPY|BP|TL|TJ)\d/.test(t);});
+  const hasRV=rv.length>0;
+  const hasTech=tks.some(t=>['AAPL','MSFT','NVDA','AMZN','GOOGL','GOOG','META','TSLA','AMD','INTC','CRM','ORCL','NFLX','ADBE','QQQM','QQQ'].includes(t));
+  const hasBroadUS=tks.some(t=>['SPY','VOO','IVV','VTI','IWM','DIA'].includes(t));
+  const hasLATAM=tks.some(t=>['EWZ','GXG','MCHI','EEM','VWO','ARGT'].includes(t));
+  const hasEnergy=tks.some(t=>['XOM','CVX','COP','VLO','MRO','OXY','BP','SHEL','USO','BNO','UCO'].includes(t));
+  const hasCedears=rv.length>0; // all RV in this app are CEDEARs
+  const hasAnything=hasCedears||rf.length>0||hasOlas;
+  const hasAR=hasGovBondsAR||hasCorpBonds||hasOlas;
+
+  // Helper: build scenario card
+  function card(factor,alcista,bajista,relTickers){
+    const tShow=relTickers.filter(t=>tks.includes(t));
+    const tkBadge=tShow.length?`<span class="esc-tickers">${tShow.slice(0,4).join(' · ')}</span>`:'';
+    return`<div class="esc-card">
+      <div class="esc-card-hdr"><span class="esc-factor">${factor}</span>${tkBadge}</div>
+      <div class="esc-row al">
+        <span class="esc-dir">▲</span>
+        <div><span class="esc-trigger">${alcista[0]}</span><span class="esc-imp">${alcista[1]}</span></div>
+      </div>
+      <div class="esc-row ba">
+        <span class="esc-dir">▼</span>
+        <div><span class="esc-trigger">${bajista[0]}</span><span class="esc-imp">${bajista[1]}</span></div>
+      </div>
+    </div>`;
+  }
+
+  function section(icon,title,sub,cards){
+    if(!cards.length)return'';
+    return`<div class="esc-sec">
+      <div class="esc-sec-hdr">
+        <span class="esc-sec-icon">${icon}</span>
+        <span class="esc-sec-title">${title}</span>
+        <span class="esc-sec-sub">${sub}</span>
+      </div>
+      ${cards.join('')}
+    </div>`;
+  }
+
+  // ── MACRO GLOBAL ────────────────────────────────────────────
+  const globalCards=[];
+
+  if(hasCedears||rf.length>0){
+    globalCards.push(card(
+      'Tasas de la Fed (política monetaria)',
+      ['Fed pausa o baja tasas — ciclo expansivo','Los bonos de duration larga suben de precio. Las valuaciones de acciones de crecimiento y tech se expanden. Dólar global se debilita → emergentes se benefician.'],
+      ['Fed sube tasas o tono hawkish sorpresivo','Tasas largas suben → bonos bajan. Acciones tech y growth son las más golpeadas. El carry global se aplana y el flujo de capital sale de emergentes.'],
+      ['GD35','GD41','GD38','GD46','AL30','AL35','QQQ','AAPL','MSFT','NVDA','SPY']
+    ));
+  }
+
+  if(hasCedears||hasGovBondsAR){
+    globalCards.push(card(
+      'Dólar global (DXY — índice del dólar)',
+      ['DXY baja — dólar se debilita','Activos emergentes se aprecian en dólares. Bonos EM suben. Commodities se benefician. Flujo de capitales hacia mercados periféricos aumenta.'],
+      ['DXY sube — dólar se fortalece','Activos emergentes caen en USD relativo. Argentina bajo presión por su deuda en dólares y brecha cambiaria. CEDEARs en ARS impactan diferencial contra dólar.'],
+      ['GD35','GD41','AL30','SPY','QQQ','EEM']
+    ));
+  }
+
+  if(hasBroadUS||hasTech){
+    globalCards.push(card(
+      'Ciclo económico EEUU (recesión vs. expansión)',
+      ['Soft landing o no-recesión — expansión sostenida','Ganancias corporativas robustas, consumo fuerte, mercado laboral sano. SPY y QQQ sostienen valuaciones. Apetito por riesgo elevado.'],
+      ['Recesión técnica o hard landing','Ganancias caen, múltiplos se comprimen. Rotación a defensivos y bonos del Tesoro. CEDEARs cíclicos y tech growth son los más afectados.'],
+      ['SPY','QQQ','AAPL','MSFT','AMZN','TSLA','NVDA','IWM']
+    ));
+  }
+
+  if(hasTech){
+    globalCards.push(card(
+      'Ciclo de IA y valuaciones tech',
+      ['Narrativa IA sostiene — capex, ingresos y márgenes en alza','Semis y software con exposición a IA (NVDA, MSFT, GOOGL) lideran. Múltiplos se expanden con cada ciclo de anuncios. Fuerte efecto momentum.'],
+      ['Decepción en resultados o saturación del relato IA','Corrección violenta en semis y plataformas cloud. P/E elevados no toleran miss en guidance. Rotación a value. NVDA puede caer 30–40% en escenario bear.'],
+      ['NVDA','MSFT','AAPL','GOOGL','AMD','META','AMZN','QQQ']
+    ));
+  }
+
+  if(hasEnergy){
+    globalCards.push(card(
+      'Precio del petróleo (Brent/WTI)',
+      ['Corte OPEC+, conflicto geopolítico o demanda China — petróleo sube','Energéticas reportan ganancias récord y aumentan dividendos. Alto flujo de caja en XOM, CVX, COP. Efecto positivo en balanza de YPF y exportadoras AR.'],
+      ['Exceso oferta o caída demanda global — petróleo baja','Márgenes de refinación caen. Exploradores y productoras de alto costo operativo pierden valor. Presión sobre proyectos capex-intensivos.'],
+      ['XOM','CVX','COP','OXY','MRO','VLO','BP','SHEL']
+    ));
+  }
+
+  if(hasLATAM){
+    globalCards.push(card(
+      'Emergentes y flujo de fondos globales',
+      ['Risk-on global — capitales fluyen a emergentes','ETFs como EEM y EWZ suben. Compresión de spreads soberanos. Capitales buscan yield en EM. Argentina se beneficia si el contexto macro lo acompaña.'],
+      ['Risk-off o salida de emergentes — flight to quality','Venta masiva de activos EM. Spreads se abren. Brasil y Argentina sufren depreciación de moneda. Fuga a bonos del Tesoro USA.'],
+      ['EEM','VWO','EWZ','GXG','MCHI','ARGT']
+    ));
+  }
+
+  // ── MERCADO LOCAL ARGENTINA ──────────────────────────────────
+  const localCards=[];
+
+  if(hasGovBondsAR){
+    localCards.push(card(
+      'Riesgo país (EMBI+ Argentina)',
+      ['Riesgo país baja de 500 — acceso a mercados voluntarios de deuda','Los bonos soberanos GD/AL se aprecian fuertemente. Cada 100bps de compresión equivale a 5–15% de suba en precio según duration. Catalizador: cumplimiento fiscal + reservas + acuerdo FMI.'],
+      ['Riesgo país sube — estrés soberano o default percibido','Bonos caen, spreads se abren. GD35 y GD41 (mayor duration) son los más sensibles. Correlación negativa con dólar CCL: sube la brecha, bajan los bonos.'],
+      ['GD35','GD38','GD41','GD46','AL29','AL30','AL35']
+    ));
+  }
+
+  if(hasGovBondsAR||hasCorpBonds){
+    localCards.push(card(
+      'Programa económico y FMI',
+      ['Cumplimiento de metas fiscales — superávit primario sostenido','Desembolsos del FMI en tiempo y forma. Fortalecimiento de reservas. Credibilidad del ancla cambiaria. Compresión del riesgo soberano. Bonos soberanos y corporativos se aprecian.'],
+      ['Desvío fiscal o incumplimiento FMI — negociación tensa','Incertidumbre sobre futuros pagos. El mercado exige mayor tasa de descuento. Escenario extremo: reperfilamiento o reestructuración. Impacto negativo en ONs corporativas también.'],
+      ['GD35','GD41','AL30','AL35','GD38','GD46']
+    ));
+  }
+
+  if(hasAR){
+    localCards.push(card(
+      'Brecha cambiaria y tipo de cambio',
+      ['Brecha se cierra — unificación o convergencia al oficial','Normalización del mercado cambiario. Baja del dólar financiero. Inversores extranjeros pueden entrar. Activos argentinos en USD suben. Las ONs cotizan mejor.'],
+      ['Brecha se amplía — cepo se endurecía o devaluación brusca','Aceleración inflacionaria, pérdida de reservas. Activos en pesos pierden valor real. Bonos dollar-linked y dólar-linked protegen; los nominados en ARS se licuan.'],
+      ['GD35','AL30','AL35','GD41']
+    ));
+  }
+
+  if(hasOlas){
+    localCards.push(card(
+      'Inflación y tasa de política monetaria (BCRA)',
+      ['Inflación converge a la baja — crawling peg estable','Tasa real positiva sostenible. Los FCI en ARS y Olas rinden bien en términos reales. Ancla de expectativas funciona. Menor presión cambiaria.'],
+      ['Inflación se acelera — desequilibrio fiscal o shock externo','El rendimiento nominal del FCI no alcanza a cubrir la inflación. Pérdida de poder adquisitivo en ARS. Incentivo a dolarizar posiciones.'],
+      ['Olas']
+    ));
+  }
+
+  if(hasAR){
+    localCards.push(card(
+      'Ciclo político (Elecciones 2027)',
+      ['Continuidad del programa económico — mercado premia certeza','Baja la incertidumbre política. Inversores de mediano plazo entran con confianza. Curva soberana se aplana. Potencial upgrade de calificadora (S&P, Fitch).'],
+      ['Cambio de signo político — retorno a populismo fiscal','Riesgo de reversión de reformas. Salida de capitales anticipatoria. Spread soberano se abre. Impacto directo en precio de bonos GD y AL. Posible presión sobre ONs.'],
+      ['GD35','GD41','AL30','GD38','GD46']
+    ));
+  }
+
+  // ── ACTIVO PUNTUAL ───────────────────────────────────────────
+  const activoCards=[];
+
+  const longDuration=tks.filter(t=>['GD35','GD38','GD41','GD46'].includes(t));
+  const shortDuration=tks.filter(t=>['AL29','AL30','GD29','AL35'].includes(t));
+
+  if(longDuration.length){
+    activoCards.push(card(
+      `Bonos ley NY — duration larga (${longDuration.join(', ')})`,
+      ['Compresión de riesgo país + Fed dovish — rally de larga duración','Los bonos de mayor duration como GD35 y GD41 amplifican los movimientos. Una caída de 200bps en el spread puede generar 20–30% de retorno de precio. Mayor convexidad = más ganancia en rally.'],
+      ['Shock de tasas globales o estrés soberano','Ley NY protege al tenedor frente a restructuraciones unilaterales, pero no frente a la caída de precio. En stress: GD41 puede caer más que GD30 por duration. Mayor volatilidad.'],
+      longDuration
+    ));
+  }
+
+  if(shortDuration.length){
+    activoCards.push(card(
+      `Bonos ley AR — corto plazo (${shortDuration.join(', ')})`,
+      ['Estabilidad macro — carry atractivo y liquidez','Duration corta = menor sensibilidad a tasas. Flujo de cupones recurrente (renta + amortización). Ideal en contexto de incertidumbre: capturás renta sin asumir riesgo de precio extremo.'],
+      ['Estrés soberano local o restructuración','Ley Argentina implica menor protección legal vs. tenedores extranjeros. Historia reciente muestra que ley local fue incluida en restructuraciones (2020). Mayor riesgo de evento ante crisis local.'],
+      shortDuration
+    ));
+  }
+
+  const onTickers=rf.filter(p=>{const t=(p.ticker||'').toUpperCase();return!/^(GD|AL|AE|TX|TO|PR|PM)./.test(t);}).map(p=>p.ticker||'').filter(Boolean);
+  if(onTickers.length){
+    activoCards.push(card(
+      `Obligaciones Negociables corporativas (${onTickers.slice(0,3).join(', ')})`,
+      ['Empresa emitente sana — flujo de caja predecible y rating estable','Las ONs tienen mayor yield que bonos soberanos del mismo plazo. Si el emisor mantiene su calidad crediticia, el flujo de cupones es muy predecible. Son dólar-linked o hard dollar: protegen del riesgo cambiario.'],
+      ['Deterioro del emisor o sector — riesgo crediticio específico','A diferencia de bonos soberanos, el riesgo es del emisor individual. Una reestructuración soberana no te afecta, pero si el emisor cae en default, sí. Menor liquidez en mercado secundario = difícil salida rápida.'],
+      onTickers
+    ));
+  }
+
+  const techHeld=tks.filter(t=>['AAPL','MSFT','NVDA','AMZN','GOOGL','META','TSLA','AMD','QQQ','QQQM'].includes(t));
+  if(techHeld.length){
+    activoCards.push(card(
+      `CEDEARs tecnológicos (${techHeld.slice(0,4).join(', ')})`,
+      ['Buenos resultados trimestrales + narrativa IA sostenida','Múltiplos se expanden. Effecto momentum fuerte: una empresa como NVDA puede subir 10–15% en una sola sesión post-earnings. Las posiciones se aprecian también por el movimiento del dólar CCL (ratio CEDEAR/ADR).'],
+      ['Miss de resultados o corrección de mercado USA','CEDEARs reaccionan al precio del ADR + variación del tipo de cambio CCL. En caída de mercado USA, el doble efecto (activo baja + dólar CCL se mueve) puede amplificar la pérdida. Beta alto vs. SPY.'],
+      techHeld
+    ));
+  }
+
+  const broadHeld=tks.filter(t=>['SPY','VOO','IVV','VTI','DIA','IWM'].includes(t));
+  if(broadHeld.length){
+    activoCards.push(card(
+      `ETFs de mercado amplio (${broadHeld.join(', ')})`,
+      ['Mercado USA en tendencia alcista sostenida — momentum y recompras','Los ETFs de índice capturan todo el rally. Diversificación interna protege vs. stock-picking. Históricamente, permanecer invertido en SPY outperforma al 80% de los gestores activos en períodos de 5+ años.'],
+      ['Corrección del mercado USA (-15% o más)','Sin protección sector-específica: todo el índice cae. Menor upside en recuperación vs. stock individual. En reversión a la media, sectores sobrerepresentados (tech, mega-caps) arrastran el índice.'],
+      broadHeld
+    ));
+  }
+
+  if(hasOlas&&!hasGovBondsAR&&!hasCedears){
+    activoCards.push(card(
+      'Olas / FCI money market en ARS',
+      ['Tasa de política alta y ancla cambiaria estable','Rendimiento diario en ARS que supera inflación mensual. Liquidez inmediata. Ideal como colchón antes de decidir en qué invertir. Sin volatilidad de precio.'],
+      ['Aceleración inflacionaria o devaluación brusca','Si la tasa nominal no corre a la inflación, el rendimiento real se vuelve negativo. En un salto cambiario brusco, el FCI en ARS no protege: el poder de compra en dólares cae inmediatamente.'],
+      ['Olas']
+    ));
+  }
+
+  if(!hasAnything){
+    return`<div class="esc-empty">Esta cartera no tiene posiciones cargadas. Importá los datos para ver el análisis de escenarios.</div>`;
+  }
+
+  const secGlobal=section('🌐','Macro Global','afecta todos los mercados',globalCards);
+  const secLocal=section('🇦🇷','Mercado Local','contexto argentina',localCards);
+  const secActivo=section('📈','Activo Puntual','riesgo por instrumento',activoCards);
+
+  if(!secGlobal&&!secLocal&&!secActivo){
+    return`<div class="esc-empty">No hay escenarios configurados para los activos de esta cartera.</div>`;
+  }
+
+  return`<div class="esc-wrap">${secGlobal}${secLocal}${secActivo}</div>`;
 }
 
 // ── BUILD INV CHARTS ──────────────────────────────────────────

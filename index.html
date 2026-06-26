@@ -3444,7 +3444,52 @@ function rFlujoCaja(inv){
     </div>
     <div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div>
   </div>
-  <div id="cf-list"></div>`;
+  <div id="cf-list"></div>
+  ${(()=>{
+    const rvPos=inv.rv||[];
+    const rfPos=inv.rf||[];
+    if(!rvPos.length)return '';
+    const rvTot=rvPos.reduce((s,p)=>s+p.valor,0);
+    const rfTot=rfPos.reduce((s,p)=>s+p.valor,0);
+    const olasTot=inv.olasVal||0;
+    const sorted=[...rvPos].sort((a,b)=>b.valor-a.valor).slice(0,8);
+    const maxV=sorted[0]?.valor||1;
+    return `<div class="card" style="margin-top:12px;">
+      <div class="ct" style="margin-bottom:14px;">Cartera completa</div>
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
+        ${rvTot>0?`<div style="background:rgba(91,156,246,.07);border:1px solid rgba(91,156,246,.15);border-radius:12px;padding:10px;text-align:center;">
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#5b9cf6;">u$s ${fmt(rvTot)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Acciones / CEDEARs</div>
+        </div>`:''}
+        ${rfTot>0?`<div style="background:rgba(45,212,160,.07);border:1px solid rgba(45,212,160,.15);border-radius:12px;padding:10px;text-align:center;">
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#2dd4a0;">u$s ${fmt(rfTot)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Bonos / RF</div>
+        </div>`:''}
+        ${olasTot>0?`<div style="background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.15);border-radius:12px;padding:10px;text-align:center;">
+          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#f5a623;">u$s ${fmt(olasTot)}</div>
+          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Olas (Yont)</div>
+        </div>`:''}
+      </div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Posiciones en acciones y CEDEARs</div>
+      ${sorted.map(p=>{
+        const rp=p.vinicial>0?((p.rend/p.vinicial)*100):0;
+        const gc=p.rend>=0?'#2dd4a0':'#f06c6c';
+        const bw=(p.valor/maxV*100).toFixed(0);
+        return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
+            <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;min-width:60px;">${p.ticker}</div>
+            <div style="font-size:10px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre||''}</div>
+            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:#eceef3;flex-shrink:0;">u$s ${fmt(p.valor)}</div>
+            <div style="font-family:var(--mono);font-size:11px;color:${gc};flex-shrink:0;min-width:48px;text-align:right;">${p.rend>=0?'+':''}${rp.toFixed(1)}%</div>
+          </div>
+          <div style="height:2px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;">
+            <div style="width:${bw}%;height:100%;background:#5b9cf6;opacity:.6;border-radius:2px;"></div>
+          </div>
+        </div>`;
+      }).join('')}
+      ${rvPos.length>8?`<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px 0;">+ ${rvPos.length-8} posiciones más</div>`:''}
+    </div>`;
+  })()}`;
 }
 
 function renderCFList(invId){
@@ -6524,7 +6569,7 @@ async function cancelarOperacion(movId, invId){
   }
 }
 // ── IMPORTADOR ────────────────────────────────────────────────
-let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impParsedTenencias=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={}, _impRawRV=[];
+let impParsedRV=[], impParsedOlas=[], impParsedRFFlows=[], impParsedTenencias=[], impParsedRVFromTen=[], impCurrentTab='rv', impTcMep=MEP, impInviuDebug={}, _impRawRV=[];
 
 // ── CREAR CLIENTE INLINE EN IMPORT ───────────────────────────
 let impNewInvColor=PAL[0];
@@ -6595,7 +6640,7 @@ function openImport(){
   sel.disabled=!CU.is_admin;
   document.getElementById('imp-new-inv-btn').style.display=CU.is_admin?'':'none';
   document.getElementById('imp-new-inv-form').style.display='none';
-  impParsedRV=[]; _impRawRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[];
+  impParsedRV=[]; _impRawRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[]; impParsedRVFromTen=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
@@ -6665,16 +6710,35 @@ function impParseTenencias(rows){
   }
 
   impParsedTenencias=[];
-  let section=''; // 'Bonos' | 'Fondos' | skip
+  impParsedRVFromTen=[];
+  let section=''; // 'Bonos' | 'Fondos' | 'RV' | 'skip'
 
   for(const r of rows){
     // Section headers are in column 0 (col 13 repeats the section on every data row — ignore it)
     const col0=String(r[0]||'').trim();
     if(/Tipo de Activo:\s*Bonos/i.test(col0)){section='Bonos';continue;}
     if(/Tipo de Activo:\s*Fondos/i.test(col0)){section='Fondos';continue;}
+    if(/Tipo de Activo:\s*(Acciones|Cedear)/i.test(col0)){section='RV';continue;}
     if(/Tipo de Activo:/i.test(col0)){section='skip';continue;}
 
     if(!section||section==='skip')continue;
+
+    // ── RV (Acciones + CEDEARs) ───────────────────────────────
+    if(section==='RV'){
+      const ticker=col0.toUpperCase();
+      if(!ticker||ticker==='Ticker'||/^Subtotal/i.test(ticker)||ticker==='Total')continue;
+      const _n=v=>{if(v==null)return 0;const s=String(v).replace(/\./g,'').replace(',','.');const n=parseFloat(s);return isFinite(n)?n:0;};
+      const nombre=String(r[1]||'').trim();
+      const qty=_n(r[4]);
+      const precioArs=_n(r[6]);
+      const ppcArs=_n(r[9]);
+      if(qty<=0||precioArs<=0)continue;
+      const valorUsd=parseFloat((qty*precioArs/tcMep).toFixed(2));
+      const vinicialUsd=ppcArs>0?parseFloat((qty*ppcArs/tcMep).toFixed(2)):valorUsd;
+      const tm=TICKER_MAP[ticker]||{};
+      impParsedRVFromTen.push({ticker,nombre:nombre||tm.nombre||ticker,qty,valor:valorUsd,vinicial:vinicialUsd,rend:parseFloat((valorUsd-vinicialUsd).toFixed(2)),tipo:tm.tipo||'CEDEAR',sector:tm.sector||'Otro',pais:tm.pais||'USA'});
+      continue;
+    }
 
     const colA=col0;
     if(!colA||colA==='Ticker'||colA==='Subtotal'||colA==='Total')continue;
@@ -6734,24 +6798,46 @@ function impParseTenencias(rows){
 
 function impShowTenPreview(){
   const el=document.getElementById('imp-ten-preview');
-  if(!impParsedTenencias.length){
+  if(!impParsedTenencias.length&&!impParsedRVFromTen.length){
     el.innerHTML='<div style="color:var(--red);font-size:12px;padding:8px;">No se encontraron posiciones. Verificá que sea el formato Tenencias de Inviu.</div>';
     return;
   }
-  const rows=impParsedTenencias.map(p=>`
-    <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
-      <td style="font-family:var(--mono);font-size:11px;font-weight:700;padding:6px 8px;">${p.ticker}</td>
-      <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.tipo}</td>
-      <td style="font-size:11px;color:var(--green);padding:6px 8px;">u$s ${fmt(p.valor)}</td>
-      <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.vencimiento||'—'}</td>
-    </tr>`).join('');
-  const total=impParsedTenencias.reduce((s,p)=>s+p.valor,0);
-  el.innerHTML=`
-    <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);overflow:hidden;margin-bottom:10px;">
-      <div style="padding:8px 10px;font-size:10px;color:var(--green);border-bottom:1px solid rgba(45,212,160,.15);">${impParsedTenencias.length} posiciones · u$s ${fmt(total)}</div>
-      <table style="width:100%;border-collapse:collapse;">${rows}</table>
+  let html='';
+  // ── RF section
+  if(impParsedTenencias.length){
+    const rfRows=impParsedTenencias.map(p=>`
+      <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+        <td style="font-family:var(--mono);font-size:11px;font-weight:700;padding:6px 8px;">${p.ticker}</td>
+        <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.tipo}</td>
+        <td style="font-size:11px;color:var(--green);padding:6px 8px;">u$s ${fmt(p.valor)}</td>
+        <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.vencimiento||'—'}</td>
+      </tr>`).join('');
+    const rfTotal=impParsedTenencias.reduce((s,p)=>s+p.valor,0);
+    html+=`
+    <div style="background:rgba(45,212,160,.06);border:1px solid rgba(45,212,160,.2);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
+      <div style="padding:8px 10px;font-size:10px;color:var(--green);border-bottom:1px solid rgba(45,212,160,.15);">${impParsedTenencias.length} bonos/fondos RF · u$s ${fmt(rfTotal)}</div>
+      <table style="width:100%;border-collapse:collapse;">${rfRows}</table>
     </div>
-    <button class="bok" onclick="impConfirmTenencias()" style="width:100%;font-size:13px;background:var(--green);">📥 Crear ${impParsedTenencias.length} posiciones RF</button>`;
+    <button class="bok" onclick="impConfirmTenencias()" style="width:100%;font-size:13px;background:rgba(45,212,160,.8);margin-bottom:10px;">📥 Importar ${impParsedTenencias.length} posiciones RF (bonos)</button>`;
+  }
+  // ── RV section
+  if(impParsedRVFromTen.length){
+    const rvRows=impParsedRVFromTen.map(p=>`
+      <tr style="border-bottom:1px solid rgba(255,255,255,.05);">
+        <td style="font-family:var(--mono);font-size:11px;font-weight:700;padding:6px 8px;">${p.ticker}</td>
+        <td style="font-size:10px;color:var(--txt2);padding:6px 4px;">${p.tipo}</td>
+        <td style="font-size:11px;color:var(--blue);padding:6px 8px;">u$s ${fmt(p.valor)}</td>
+        <td style="font-family:var(--mono);font-size:10px;color:${p.rend>=0?'var(--green)':'var(--red)'};padding:6px 4px;">${p.rend>=0?'+':''}${p.vinicial>0?(p.rend/p.vinicial*100).toFixed(1)+'%':'—'}</td>
+      </tr>`).join('');
+    const rvTotal=impParsedRVFromTen.reduce((s,p)=>s+p.valor,0);
+    html+=`
+    <div style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.2);border-radius:var(--r);overflow:hidden;margin-bottom:8px;">
+      <div style="padding:8px 10px;font-size:10px;color:var(--blue);border-bottom:1px solid rgba(91,156,246,.15);">${impParsedRVFromTen.length} acciones / CEDEARs · u$s ${fmt(rvTotal)}</div>
+      <table style="width:100%;border-collapse:collapse;">${rvRows}</table>
+    </div>
+    <button class="bok" onclick="impConfirmRVFromTen()" style="width:100%;font-size:13px;">📥 Importar ${impParsedRVFromTen.length} posiciones RV (acciones / CEDEARs)</button>`;
+  }
+  el.innerHTML=html;
 }
 
 async function impConfirmTenencias(){
@@ -6780,6 +6866,38 @@ async function impConfirmTenencias(){
     kc();renderInv(inv);
     showToast(`✓ ${toInsert.length} posiciones RF importadas`);
     el.innerHTML=`<div style="color:var(--green);font-size:12px;padding:8px;">✓ ${toInsert.length} posiciones creadas correctamente</div>`;
+  }catch(e){
+    el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error: ${e.message}</div>`;
+  }
+}
+
+async function impConfirmRVFromTen(){
+  const invId=document.getElementById('imp-inv').value;
+  if(!invId||!impParsedRVFromTen.length)return;
+  const el=document.getElementById('imp-ten-preview');
+  el.innerHTML='<div style="color:var(--blue);font-size:12px;padding:10px;"><span class="spinner"></span> Guardando posiciones RV...</div>';
+  try{
+    await sb.from('positions_rv').delete().eq('investor_id',invId);
+    const toInsert=impParsedRVFromTen.map(p=>({
+      investor_id:invId,
+      ticker:p.ticker,
+      nombre:p.nombre,
+      tipo:p.tipo,
+      sector:p.sector,
+      pais:p.pais,
+      riesgo:3,
+      valor:p.valor,
+      vinicial:p.vinicial,
+      qty:p.qty,
+      auto_price:!!(YAHOO_MAP&&YAHOO_MAP[p.ticker]),
+    }));
+    const{error}=await sb.from('positions_rv').insert(toInsert);
+    if(error)throw error;
+    impParsedRVFromTen=[];
+    const inv=await loadInvestor(invId);
+    kc();renderInv(inv);
+    showToast(`✓ ${toInsert.length} posiciones RV importadas`);
+    el.innerHTML=`<div style="color:var(--blue);font-size:12px;padding:8px;">✓ ${toInsert.length} posiciones RV creadas</div>`;
   }catch(e){
     el.innerHTML=`<div style="color:var(--red);font-size:12px;padding:8px;">Error: ${e.message}</div>`;
   }

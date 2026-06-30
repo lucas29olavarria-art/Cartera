@@ -3444,52 +3444,7 @@ function rFlujoCaja(inv){
     </div>
     <div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div>
   </div>
-  <div id="cf-list"></div>
-  ${(()=>{
-    const rvPos=inv.rv||[];
-    const rfPos=inv.rf||[];
-    if(!rvPos.length)return '';
-    const rvTot=rvPos.reduce((s,p)=>s+p.valor,0);
-    const rfTot=rfPos.reduce((s,p)=>s+p.valor,0);
-    const olasTot=inv.olasVal||0;
-    const sorted=[...rvPos].sort((a,b)=>b.valor-a.valor).slice(0,8);
-    const maxV=sorted[0]?.valor||1;
-    return `<div class="card" style="margin-top:12px;">
-      <div class="ct" style="margin-bottom:14px;">Cartera completa</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:16px;">
-        ${rvTot>0?`<div style="background:rgba(91,156,246,.07);border:1px solid rgba(91,156,246,.15);border-radius:12px;padding:10px;text-align:center;">
-          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#5b9cf6;">u$s ${fmt(rvTot)}</div>
-          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Acciones / CEDEARs</div>
-        </div>`:''}
-        ${rfTot>0?`<div style="background:rgba(45,212,160,.07);border:1px solid rgba(45,212,160,.15);border-radius:12px;padding:10px;text-align:center;">
-          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#2dd4a0;">u$s ${fmt(rfTot)}</div>
-          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Bonos / RF</div>
-        </div>`:''}
-        ${olasTot>0?`<div style="background:rgba(245,166,35,.07);border:1px solid rgba(245,166,35,.15);border-radius:12px;padding:10px;text-align:center;">
-          <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#f5a623;">u$s ${fmt(olasTot)}</div>
-          <div style="font-size:9px;color:var(--muted);margin-top:3px;">Olas (Yont)</div>
-        </div>`:''}
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Posiciones en acciones y CEDEARs</div>
-      ${sorted.map(p=>{
-        const rp=p.vinicial>0?((p.rend/p.vinicial)*100):0;
-        const gc=p.rend>=0?'#2dd4a0':'#f06c6c';
-        const bw=(p.valor/maxV*100).toFixed(0);
-        return `<div style="padding:7px 0;border-bottom:1px solid rgba(255,255,255,.04);">
-          <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
-            <div style="font-family:var(--mono);font-size:12px;font-weight:700;color:#eceef3;min-width:60px;">${p.ticker}</div>
-            <div style="font-size:10px;color:var(--muted);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre||''}</div>
-            <div style="font-family:var(--mono);font-size:12px;font-weight:600;color:#eceef3;flex-shrink:0;">u$s ${fmt(p.valor)}</div>
-            <div style="font-family:var(--mono);font-size:11px;color:${gc};flex-shrink:0;min-width:48px;text-align:right;">${p.rend>=0?'+':''}${rp.toFixed(1)}%</div>
-          </div>
-          <div style="height:2px;background:rgba(255,255,255,.05);border-radius:2px;overflow:hidden;">
-            <div style="width:${bw}%;height:100%;background:#5b9cf6;opacity:.6;border-radius:2px;"></div>
-          </div>
-        </div>`;
-      }).join('')}
-      ${rvPos.length>8?`<div style="font-size:10px;color:var(--muted);text-align:center;padding:8px 0;">+ ${rvPos.length-8} posiciones más</div>`:''}
-    </div>`;
-  })()}`;
+  <div id="cf-list"></div>`;
 }
 
 function renderCFList(invId){
@@ -4449,9 +4404,10 @@ function mkAnalisisDonut(id,segs,segPositions){
   if(mlEl)mlEl.textContent='Total';
   CHS[id]=new Chart(el,{
     type:'doughnut',
-    data:{labels:segs.map(s=>s.lb),datasets:[{data:segs.map(s=>s.v),backgroundColor:segs.map(s=>s.c),borderWidth:2,borderColor:'#0d0f14',hoverOffset:14}]},
+    data:{labels:segs.map(s=>s.lb),datasets:[{data:segs.map(s=>s.v),backgroundColor:segs.map(s=>s.c),borderWidth:2,borderColor:'#0d0f14',hoverOffset:6}]},
     options:{
       responsive:true,maintainAspectRatio:true,cutout:'70%',
+      layout:{padding:4},
       animation:{duration:800,easing:'easeOutQuart',animateRotate:true,animateScale:false},
       plugins:{
         legend:{display:false},
@@ -4480,9 +4436,10 @@ function mkDonut(id,data,colors){
   const tot=data.reduce((s,v)=>s+v,0);
   CHS[id]=new Chart(el,{
     type:'doughnut',
-    data:{datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:12}]},
+    data:{datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:6}]},
     options:{
       responsive:true,maintainAspectRatio:true,cutout:'70%',
+      layout:{padding:4},
       plugins:{legend:{display:false},tooltip:{..._TTC,callbacks:{label:c=>'u$s '+fmt(c.parsed)+'  ·  '+(tot>0?(c.parsed/tot*100).toFixed(1):0)+'%'}}},
       animation:{duration:700,easing:'easeOutQuart'}
     }

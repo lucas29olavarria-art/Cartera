@@ -99,9 +99,9 @@ body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:1
 .g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;margin-bottom:12px;}
 .drow{display:flex;align-items:center;gap:14px;}
 .dslot{position:relative;flex-shrink:0;width:130px;height:130px;}
-.dmid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;padding:0 8px;}
-.dmv{font-family:var(--mono);font-size:11px;font-weight:500;text-align:center;}
-.dml{font-size:9px;color:var(--muted);margin-top:2px;text-align:center;line-height:1.3;max-width:100%;overflow:hidden;}
+.dmid{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:none;padding:0 10px;}
+.dmv{font-family:var(--mono);font-size:10px;font-weight:500;text-align:center;color:#eceef3;transition:color .15s,font-size .15s;}
+.dml{font-size:9px;color:var(--muted);margin-top:3px;text-align:center;line-height:1.3;max-width:100%;transition:color .15s;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .leg{flex:1;}
 .lr{display:flex;align-items:center;gap:7px;padding:4px 0;border-bottom:1px solid var(--line);}
 .lr:last-child{border-bottom:none;}
@@ -4369,8 +4369,8 @@ function selectDonutSeg(id,idx){
   chart.update('none');
   const _mv=document.getElementById(id+'-mv'),_ml=document.getElementById(id+'-ml');
   const _tot=segs.reduce((s,x)=>s+x.v,0);
-  if(newSel===null){if(_mv)_mv.textContent='u$s '+fmt(_tot);if(_ml)_ml.textContent='Total';}
-  else if(segs[newSel]){const _s=segs[newSel];if(_mv)_mv.textContent='u$s '+fmt(_s.v);if(_ml)_ml.textContent=(_tot>0?(_s.v/_tot*100).toFixed(1):0)+'%  ·  '+_s.lb;}
+  if(newSel===null){_dcSet(_mv,_ml,'u$s '+fmt(_tot),'Total',null);}
+  else if(segs[newSel]){const _s=segs[newSel];_dcSet(_mv,_ml,(_tot>0?(_s.v/_tot*100).toFixed(1):0)+'%',_s.lb,_s.c);}
   const legEl=document.getElementById(id+'-leg');
   if(legEl)legEl.querySelectorAll('.lr').forEach((row,i)=>{row.style.opacity=newSel===null||i===newSel?'1':'0.3';});
   const detEl=document.getElementById(id+'-detail');
@@ -4400,8 +4400,7 @@ function mkAnalisisDonut(id,segs,segPositions){
   el._segs=segs;el._segPositions=segPositions||[];el._selectedSeg=null;el._origColors=segs.map(s=>s.c);
   const mvEl=document.getElementById(id+'-mv');
   const mlEl=document.getElementById(id+'-ml');
-  if(mvEl)mvEl.textContent='u$s '+fmt(tot);
-  if(mlEl)mlEl.textContent='Total';
+  _dcSet(mvEl,mlEl,'u$s '+fmt(tot),'Total',null);
   CHS[id]=new Chart(el,{
     type:'doughnut',
     data:{labels:segs.map(s=>s.lb),datasets:[{data:segs.map(s=>s.v),backgroundColor:segs.map(s=>s.c),borderWidth:2,borderColor:'#0d0f14',hoverOffset:6}]},
@@ -4409,19 +4408,10 @@ function mkAnalisisDonut(id,segs,segPositions){
       responsive:true,maintainAspectRatio:true,cutout:'70%',
       layout:{padding:4},
       animation:{duration:800,easing:'easeOutQuart',animateRotate:true,animateScale:false},
-      plugins:{
-        legend:{display:false},
-        tooltip:{enabled:false}
-      },
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
       onHover(evt,elements){
-        if(elements.length){
-          const s=segs[elements[0].index];
-          if(mvEl)mvEl.textContent='u$s '+fmt(s.v);
-          if(mlEl)mlEl.textContent=(tot>0?(s.v/tot*100).toFixed(1):0)+'%  ·  '+s.lb;
-        }else{
-          if(mvEl)mvEl.textContent='u$s '+fmt(tot);
-          if(mlEl)mlEl.textContent='Total';
-        }
+        if(elements.length){const s=segs[elements[0].index];_dcSet(mvEl,mlEl,(tot>0?(s.v/tot*100).toFixed(1):0)+'%',s.lb,s.c);}
+        else{_dcSet(mvEl,mlEl,'u$s '+fmt(tot),'Total',null);}
       },
       onClick(evt,elements){
         if(!elements.length){selectDonutSeg(id,null);return;}
@@ -4430,14 +4420,17 @@ function mkAnalisisDonut(id,segs,segPositions){
     }
   });
 }
+function _dcSet(mvEl,mlEl,val,lbl,col){
+  if(mvEl){mvEl.textContent=val;mvEl.style.color=col||'#eceef3';mvEl.style.fontSize=col?'15px':'10px';mvEl.style.fontWeight=col?'700':'500';}
+  if(mlEl){mlEl.textContent=lbl;mlEl.style.color=col?'rgba(236,238,243,.55)':'var(--muted)';}
+}
 function mkDonut(id,data,colors,labels){
   const el=document.getElementById(id);if(!el)return;
   if(CHS[id])CHS[id].destroy();
   const tot=data.reduce((s,v)=>s+v,0);
   const mvEl=document.getElementById(id+'-mv');
   const mlEl=document.getElementById(id+'-ml');
-  if(mvEl)mvEl.textContent='u$s '+fmt(tot);
-  if(mlEl)mlEl.textContent='Total';
+  _dcSet(mvEl,mlEl,'u$s '+fmt(tot),'Total',null);
   CHS[id]=new Chart(el,{
     type:'doughnut',
     data:{datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:6}]},
@@ -4447,14 +4440,11 @@ function mkDonut(id,data,colors,labels){
       plugins:{legend:{display:false},tooltip:{enabled:false}},
       animation:{duration:700,easing:'easeOutQuart'},
       onHover(evt,elements){
-        if(!mvEl&&!mlEl)return;
         if(elements.length){
           const i=elements[0].index;
-          if(mvEl)mvEl.textContent='u$s '+fmt(data[i]);
-          if(mlEl)mlEl.textContent=(tot>0?(data[i]/tot*100).toFixed(1):0)+'%'+(labels?'  ·  '+labels[i]:'');
+          _dcSet(mvEl,mlEl,(tot>0?(data[i]/tot*100).toFixed(1):0)+'%',labels?labels[i]:'',colors[i]);
         }else{
-          if(mvEl)mvEl.textContent='u$s '+fmt(tot);
-          if(mlEl)mlEl.textContent='Total';
+          _dcSet(mvEl,mlEl,'u$s '+fmt(tot),'Total',null);
         }
       }
     }

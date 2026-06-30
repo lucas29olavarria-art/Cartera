@@ -448,7 +448,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
     <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
     <button class="tb" id="atb-borrar" onclick="aTab('borrar')" style="color:var(--red);">Borrar import</button>
-    <button class="tb" id="atb-micartera" onclick="aTab('micartera')">Carteras</button>
+    <button class="tb" id="atb-micartera" onclick="aTab('micartera')" style="display:none;">Carteras</button>
     <button class="tb" onclick="openImport()">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
@@ -457,7 +457,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     <button class="tb" id="itb-analisis" onclick="iTab('analisis')">Análisis</button>
     <button class="tb" id="itb-simulador" onclick="iTab('simulador')">Simulador</button>
     <button class="tb" id="itb-reporte" onclick="iTab('reporte')">Reporte</button>
-    <button class="tb" id="itb-micartera" onclick="iTab('micartera')">Carteras</button>
+    <button class="tb" id="itb-micartera" onclick="iTab('micartera')" style="display:none;">Carteras</button>
   </div>
   <div class="content" id="cnt"></div>
 </div>
@@ -2629,7 +2629,7 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       <div class="ct" style="margin-bottom:16px;">¿Dónde está tu dinero?</div>
       <div class="drow">
         <div class="dslot"><canvas id="ov-alloc" role="img" aria-label="Distribución"></canvas>
-          <div class="dmid"><div style="font-family:var(--mono);font-size:9px;text-align:center;line-height:1.5;color:rgba(255,255,255,.35);">u$s<br>${fmt(tot0)}</div></div>
+          <div class="dmid"><div class="dmv" id="ov-alloc-mv" style="font-family:var(--mono);font-size:10px;font-weight:500;text-align:center;">u$s ${fmt(tot0)}</div><div class="dml" id="ov-alloc-ml" style="font-size:9px;color:var(--muted);margin-top:2px;text-align:center;">Total</div></div>
         </div>
         <div class="leg">${allocs.map(a=>`<div class="lr" style="padding:10px 0;">
           <div style="width:8px;height:8px;border-radius:2px;background:${a.c};flex-shrink:0;margin-right:4px;"></div>
@@ -4055,7 +4055,7 @@ function buildInvCharts(tab,inv,liq){
     if(rv0>0)segs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
     if(rf0>0)segs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
     if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
-    if(segs.length) mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c));
+    if(segs.length) mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c),segs.map(s=>s.lb));
     // Per-asset chart
     const activoItems=allocItems(inv);
     if(activoItems.length>1)mkPie('ov-activo-chart',activoItems.map(x=>x.v),activoItems.map(x=>x.c),activoItems.map(x=>x.lb));
@@ -4430,18 +4430,33 @@ function mkAnalisisDonut(id,segs,segPositions){
     }
   });
 }
-function mkDonut(id,data,colors){
+function mkDonut(id,data,colors,labels){
   const el=document.getElementById(id);if(!el)return;
   if(CHS[id])CHS[id].destroy();
   const tot=data.reduce((s,v)=>s+v,0);
+  const mvEl=document.getElementById(id+'-mv');
+  const mlEl=document.getElementById(id+'-ml');
+  if(mvEl)mvEl.textContent='u$s '+fmt(tot);
+  if(mlEl)mlEl.textContent='Total';
   CHS[id]=new Chart(el,{
     type:'doughnut',
     data:{datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:'#0d0f14',hoverOffset:6}]},
     options:{
       responsive:true,maintainAspectRatio:true,cutout:'70%',
       layout:{padding:4},
-      plugins:{legend:{display:false},tooltip:{..._TTC,callbacks:{label:c=>'u$s '+fmt(c.parsed)+'  ·  '+(tot>0?(c.parsed/tot*100).toFixed(1):0)+'%'}}},
-      animation:{duration:700,easing:'easeOutQuart'}
+      plugins:{legend:{display:false},tooltip:{enabled:false}},
+      animation:{duration:700,easing:'easeOutQuart'},
+      onHover(evt,elements){
+        if(!mvEl&&!mlEl)return;
+        if(elements.length){
+          const i=elements[0].index;
+          if(mvEl)mvEl.textContent='u$s '+fmt(data[i]);
+          if(mlEl)mlEl.textContent=(tot>0?(data[i]/tot*100).toFixed(1):0)+'%'+(labels?'  ·  '+labels[i]:'');
+        }else{
+          if(mvEl)mvEl.textContent='u$s '+fmt(tot);
+          if(mlEl)mlEl.textContent='Total';
+        }
+      }
     }
   });
 }

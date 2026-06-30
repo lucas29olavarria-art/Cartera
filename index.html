@@ -1,3 +1,4 @@
+<!-- SQL: create table if not exists app_settings (key text primary key, value text, updated_at timestamptz default now()); -->
 <!-- SQL: alter table investors add column if not exists last_import_date date; alter table investors add column if not exists last_import_source text; -->
 <!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; alter table olas_flows add column if not exists capital_ars numeric; -->
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; alter table positions_rv add column if not exists imported_at timestamptz default now(); -->
@@ -1260,6 +1261,20 @@ async function fetchLiveMEP(){
   return MEP;
 }
 
+async function saveMEPSetting(val){
+  if(!val||val<100)return;
+  MEP=val;
+  document.querySelectorAll('.live-mep-val').forEach(el=>el.textContent=fmt(MEP));
+  try{await sb.from('app_settings').upsert({key:'tc_mep',value:String(val),updated_at:new Date().toISOString()});}
+  catch(e){console.warn('[MEP] save failed:',e.message);}
+}
+async function loadMEPSetting(){
+  try{
+    const{data}=await sb.from('app_settings').select('value').eq('key','tc_mep').maybeSingle();
+    if(data?.value){const v=parseFloat(data.value);if(v>100){MEP=v;document.querySelectorAll('.live-mep-val').forEach(el=>el.textContent=fmt(MEP));}}
+  }catch(e){console.warn('[MEP] load failed:',e.message);}
+}
+
 async function autoMarcarCobros(inv){
   if(!(inv.olasFlows?.length))return false;
   const today=new Date();today.setHours(23,59,59,999);
@@ -1367,7 +1382,7 @@ async function showApp(){
   setTimeout(()=>wo.remove(), 1800);
 
   sw('s-app');
-  fetchLiveMEP().then(()=>{setTimeout(fetchLiveMEP,10*60*1000);});
+  loadMEPSetting().then(()=>fetchLiveMEP().then(()=>{setTimeout(fetchLiveMEP,10*60*1000);}));
   const av=document.getElementById('t-av');
   av.style.background=CU.color; av.textContent=CU.name[0].toUpperCase();
   document.getElementById('t-name').textContent=CU.name;
@@ -6682,17 +6697,17 @@ function impTenFile(file){
 
 function impParseTenencias(rows){
   // Find TC MEP
-  let tcMep=1;
+  let tcMep=MEP;
   for(const r of rows){
     const a=String(r[0]||'').trim();
     if(/TC USD MEP/i.test(a)){
       const raw=String(r[1]||'').trim().replace(/[^0-9.,]/g,'');
-      // US thousands "1,493.05", US decimal "1493.05", AR format "1.493,05"
+      // US thousands "1,493.05", US decimal "1493.05", AR format "1.493,05" e.g. "1511,15"
       let _tcv=0;
       if(/^\d{1,3},\d{3}(\.\d+)?$/.test(raw))_tcv=parseFloat(raw.replace(/,/g,''));
       else if(/^\d{1,4}\.\d{2}$/.test(raw))_tcv=parseFloat(raw);
       else _tcv=parseFloat(raw.replace(/\./g,'').replace(',','.'));
-      if(isFinite(_tcv)&&_tcv>100)tcMep=_tcv;
+      if(isFinite(_tcv)&&_tcv>100){tcMep=_tcv;saveMEPSetting(_tcv);}
       break;
     }
   }

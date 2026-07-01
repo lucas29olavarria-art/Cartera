@@ -253,14 +253,24 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 .hmc:hover{opacity:.8;}
 .hmc-tk{font-size:11px;font-weight:500;color:#fff;}
 .hmc-pct{font-size:10px;color:rgba(255,255,255,.75);margin-top:1px;}
+@page{margin:1.5cm 2cm;size:A4;}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   body.print-reporte{background:#fff!important;}
-  body.print-reporte .topbar,body.print-reporte .tabbar,body.print-reporte .ihdr,body.print-reporte .no-print{display:none!important;}
+  body.print-reporte .topbar,
+  body.print-reporte .tabbar,
+  body.print-reporte #tabs-a,
+  body.print-reporte #tabs-i,
+  body.print-reporte .ihdr,
+  body.print-reporte .sec-hdr,
+  body.print-reporte .no-print,
+  body.print-reporte #rep-sel,
+  body.print-reporte .fr,
+  body.print-reporte .rpt-actions{display:none!important;}
   body.print-reporte .content{padding:0!important;max-width:100%!important;background:#fff!important;}
   body.print-reporte .screen.active{display:block!important;}
-  body.print-reporte #rep-out>div{border:none!important;border-radius:0!important;}
-  body.print-reporte #rpt-print{padding:24px 32px!important;}
+  body.print-reporte #rep-out>div{border:none!important;border-radius:0!important;box-shadow:none!important;}
+  body.print-reporte #rpt-print{padding:0!important;width:100%!important;}
 }
 /* Analisis responsive grids */
 .an-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
@@ -2286,7 +2296,7 @@ async function biDeleteAll(invId,invName){
 function rReporte(){
   const invs=Object.values(INV_CACHE);
   sc(`<div class="sec-hdr"><h3>Reporte de cliente</h3></div>
-  <div style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:11px 13px;font-size:11px;color:var(--blue);margin-bottom:14px;">
+  <div class="no-print" style="background:rgba(91,156,246,.06);border:1px solid rgba(91,156,246,.15);border-radius:var(--r);padding:11px 13px;font-size:11px;color:var(--blue);margin-bottom:14px;">
     Revisá el reporte, editá el comentario y guardalo como PDF desde el botón imprimir.
   </div>
   <div class="fr" style="margin-bottom:14px;">
@@ -2451,7 +2461,7 @@ async function genReport(){
 
     </div>
   </div>
-  <div style="display:flex;gap:8px;">
+  <div class="rpt-actions" style="display:flex;gap:8px;">
     <button class="ib pri" onclick="printReport('${id}')">Imprimir / PDF</button>
     <button class="ib" onclick="genReport()">Actualizar</button>
   </div>`;
@@ -2479,6 +2489,7 @@ async function saveComment(invId){
 }
 
 function printReport(invId){
+  const inv=INV_CACHE[invId];
   const ta=document.getElementById('rpt-mercado');
   const ta2=document.getElementById('rpt-recom');
   const pc=document.getElementById('print-cmt-'+invId);
@@ -2487,12 +2498,15 @@ function printReport(invId){
   if(pc){pc.innerHTML=(ta?.value||'').replace(/\n/g,'<br>');pc.style.display='block';}
   if(pc2){pc2.innerHTML=(ta2?.value||'').replace(/\n/g,'<br>');pc2.style.display='block';}
   document.body.classList.add('print-reporte');
+  const prevTitle=document.title;
+  document.title='Reporte '+(inv?.name||'')+'  — '+new Date().toLocaleDateString('es-AR');
   window.print();
   setTimeout(()=>{
     document.body.classList.remove('print-reporte');
     document.querySelectorAll('.no-print').forEach(el=>el.style.display='');
     if(pc)pc.style.display='none';
     if(pc2)pc2.style.display='none';
+    document.title=prevTitle;
   },800);
 }
 

@@ -253,43 +253,14 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 .hmc:hover{opacity:.8;}
 .hmc-tk{font-size:11px;font-weight:500;color:#fff;}
 .hmc-pct{font-size:10px;color:rgba(255,255,255,.75);margin-top:1px;}
-/* Reporte Mensual — print header (hidden on screen) */
-.rpt-print-header{display:none;padding:0 0 20px;margin-bottom:24px;border-bottom:2px solid #1a2744;}
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
-  body.print-reporte{background:#fff!important;color:#0d1422!important;}
+  body.print-reporte{background:#fff!important;}
   body.print-reporte .topbar,body.print-reporte .tabbar,body.print-reporte .ihdr,body.print-reporte .no-print{display:none!important;}
   body.print-reporte .content{padding:0!important;max-width:100%!important;background:#fff!important;}
   body.print-reporte .screen.active{display:block!important;}
-  body.print-reporte .rpt-print-header{display:flex!important;}
-  /* Cards → white with light border */
-  body.print-reporte .card{background:#f8f9fb!important;border:1px solid #dde1ea!important;border-radius:8px!important;}
-  body.print-reporte .kpi{background:#f0f2f7!important;border-radius:6px!important;}
-  body.print-reporte .kl{color:#6b7280!important;}
-  body.print-reporte .kv{color:#0d1422!important;}
-  body.print-reporte .ct{color:#374151!important;border-color:#dde1ea!important;}
-  /* Report-specific elements */
-  body.print-reporte .rpt{background:#fff!important;padding:32px!important;}
-  body.print-reporte .rpt-kpi{background:#f0f2f7!important;}
-  body.print-reporte .rpt-kl{color:#6b7280!important;}
-  body.print-reporte .rpt-kv{color:#0d1422!important;}
-  body.print-reporte .rpt-sec-t{color:#6b7280!important;border-color:#dde1ea!important;}
-  body.print-reporte .rpt-row{border-color:#dde1ea!important;color:#0d1422!important;}
-  body.print-reporte .rpt-ticker{background:#e8ecf5!important;color:#1a2744!important;}
-  body.print-reporte .rpt-name{color:#0d1422!important;}
-  body.print-reporte .rpt-date{color:#6b7280!important;}
-  /* Green/red/amber stay vivid */
-  body.print-reporte [style*="var(--green)"]{color:#0d9f6b!important;}
-  body.print-reporte [style*="var(--red)"]{color:#dc2626!important;}
-  body.print-reporte [style*="var(--amber)"]{color:#d97706!important;}
-  body.print-reporte [style*="var(--blue)"]{color:#2563eb!important;}
-  body.print-reporte [style*="var(--soft)"]{color:#374151!important;}
-  body.print-reporte [style*="var(--muted)"]{color:#6b7280!important;}
-  /* Progress bars, chart containers */
-  body.print-reporte canvas{max-width:100%!important;}
-  /* Pagination: avoid breaking cards mid-page */
-  body.print-reporte .card{page-break-inside:avoid;}
-  body.print-reporte .rpt-sec{page-break-inside:avoid;}
+  body.print-reporte #rep-out>div{border:none!important;border-radius:0!important;}
+  body.print-reporte #rpt-print{padding:24px 32px!important;}
 }
 /* Analisis responsive grids */
 .an-sum{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;}
@@ -2330,7 +2301,6 @@ async function genReport(){
   if(!id){document.getElementById('rep-out').innerHTML='';return;}
   const inv=INV_CACHE[id];
   const liq=totalLiq(inv),tot=grand(inv);
-  // Include Olas P&L in rendimiento (re-calculate like renderInv does)
   const _olasCob=(inv.olasFlows||[]).filter(f=>f.cobrado).reduce((s,f)=>s+(f.montoRealArs||f.ars||0)/(f.tcCobro||MEP),0);
   const _seen=new Set();
   const _olasCap=(inv.olasFlows||[]).reduce((s,f)=>{
@@ -2345,86 +2315,140 @@ async function genReport(){
   const rend=rvRfRend+_olasRend;
   const _totalCap=(liq-rvRfRend)+(_olasCap>0?_olasCap:(inv.olasVal||0));
   const rendPct=_totalCap>0?(rend/_totalCap*100).toFixed(1):'0.0';
-  const all=[...inv.rv||[],...inv.rf||[]];
-  const gainers=all.filter(p=>p.rend>0).sort((a,b)=>b.rend-a.rend).slice(0,6);
-  const losers=all.filter(p=>p.rend<0).sort((a,b)=>a.rend-b.rend).slice(0,3);
-  const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50).slice(0,6);
+  const rendColor=rend>=0?'#0d9f6b':'#dc2626';
+  const allPos=[...inv.rv||[],...inv.rf||[]].sort((a,b)=>b.valor-a.valor);
+  const maxVal=allPos.length?allPos[0].valor:1;
   const nowStr=new Date().toISOString().slice(0,10);
-  const olasNext=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasDate(fl)>=nowStr&&olasMonto(fl)/MEP>=50).sort((a,b)=>olasDate(a).localeCompare(olasDate(b))).slice(0,5);
+  const now=new Date();const in12=new Date();in12.setMonth(in12.getMonth()+12);
+  const rfFlowsAll=genRFFlows(inv).filter(fl=>fl.usd>=50&&(()=>{const d=new Date(fl.fecha);return d>=now&&d<=in12;})());
+  const olasFlowsNext=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasDate(fl)>=nowStr&&olasMonto(fl)/MEP>=50).sort((a,b)=>olasDate(a).localeCompare(olasDate(b)));
+  const allFlows=[
+    ...rfFlowsAll.map(fl=>({date:fl.fecha,desc:fl.desc,usd:fl.usd,color:'#0d9f6b',prefix:''})),
+    ...olasFlowsNext.map(fl=>({date:olasDate(fl),desc:olasDesc(fl),usd:olasMonto(fl)/MEP,color:'#f59e0b',prefix:'≈ '}))
+  ].sort((a,b)=>a.date.localeCompare(b.date));
+  const shownFlows=allFlows.slice(0,8);
+  const extraFlows=allFlows.length-shownFlows.length;
+  const tot12=allFlows.reduce((s,fl)=>s+fl.usd,0);
   const today=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
   const quarter='Q'+Math.ceil((new Date().getMonth()+1)/3)+' '+new Date().getFullYear();
   const savedComment=await getSavedComment(id);
   const recom=await getRecom(id);
-  const now=new Date();const in12=new Date();in12.setMonth(in12.getMonth()+12);
-  const tot12=genRFFlows(inv).filter(fl=>{const d=new Date(fl.fecha);return d>=now&&d<=in12;}).reduce((s,fl)=>s+fl.usd,0)+
-    (inv.olasFlows||[]).filter(fl=>{if(fl.cobrado)return false;const d=new Date(olasDate(fl));return d>=now&&d<=in12;}).reduce((s,fl)=>s+olasMonto(fl)/MEP,0);
+  const hasRF=(inv.rf||[]).length>0;
+
+  const S='style="';
+  const base='font-family:Geist,sans-serif;font-size:13px;color:#111827;';
+  const mono='font-family:\'Geist Mono\',monospace;';
 
   document.getElementById('rep-out').innerHTML=`
-  <div style="border:1px solid var(--line);border-radius:var(--r2);overflow:hidden;background:var(--bg2);margin-bottom:12px;">
-    <div class="rpt" id="rpt-print">
-      <div class="rpt-logo no-print" style="display:flex;align-items:center;gap:10px;">
-        <svg height="32" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
-          <circle cx="25" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
-          <line x1="16" y1="6" x2="16" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
-          <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
-        <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:13px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;margin-top:3px;">Asesor Financiero · Mat. CNV 2062 · Informe Trimestral</div>
+  <div id="rpt-print" style="background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;margin-bottom:12px;">
+    <div style="background:#fff;padding:40px 48px 32px;max-width:820px;margin:0 auto;">
+
+      <!-- HEADER -->
+      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:24px;">
+        <div style="display:flex;align-items:center;gap:14px;">
+          <svg height="36" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="25" cy="20" r="12.5" stroke="#2563eb" stroke-width="2.2"/>
+            <line x1="16" y1="6" x2="16" y2="34" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round"/>
+            <line x1="16" y1="34" x2="29" y2="34" stroke="#2563eb" stroke-width="2.2" stroke-linecap="round"/>
+          </svg>
+          <div>
+            <div style="${mono}font-size:13px;font-weight:600;color:#111827;letter-spacing:.04em;">Lucas Olavarria</div>
+            <div style="${mono}font-size:9px;color:#6b7280;letter-spacing:.05em;margin-top:3px;">ASESOR FINANCIERO · MAT. CNV 2062</div>
+          </div>
+        </div>
+        <div style="text-align:right;">
+          <div style="${mono}font-size:18px;font-weight:700;color:#2563eb;letter-spacing:.03em;">${quarter}</div>
+          <div style="${mono}font-size:9px;color:#6b7280;margin-top:4px;">${today}</div>
         </div>
       </div>
-      <div class="rpt-print-header" style="display:flex;align-items:center;gap:12px;">
-        <svg height="40" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg" style="-webkit-print-color-adjust:exact;print-color-adjust:exact;">
-          <circle cx="25" cy="20" r="12.5" stroke="#eceef3" stroke-width="2.2"/>
-          <line x1="16" y1="6" x2="16" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
-          <line x1="16" y1="34" x2="29" y2="34" stroke="#eceef3" stroke-width="2.2" stroke-linecap="round"/>
-        </svg>
-        <div style="line-height:1;">
-          <div style="font-family:var(--mono);font-size:15px;letter-spacing:.05em;color:#eceef3;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Lucas Olavarria</div>
-          <div style="width:32px;height:1px;background:#5b9cf6;margin:5px 0;-webkit-print-color-adjust:exact;print-color-adjust:exact;"></div>
-          <div style="font-family:var(--mono);font-size:8px;letter-spacing:.04em;color:#5b9cf6;-webkit-print-color-adjust:exact;print-color-adjust:exact;">Asesor Financiero · Mat. CNV 2062</div>
+
+      <div style="height:1px;background:#e5e7eb;margin-bottom:32px;"></div>
+
+      <!-- HERO: client name + KPIs -->
+      <div style="margin-bottom:32px;">
+        <div style="font-family:Fraunces,serif;font-size:36px;font-style:italic;color:#111827;line-height:1.1;margin-bottom:20px;">${inv.name}</div>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;">
+          <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px;">
+            <div style="${mono}font-size:9px;color:#6b7280;letter-spacing:.06em;margin-bottom:8px;">PATRIMONIO TOTAL</div>
+            <div style="${mono}font-size:22px;font-weight:700;color:#111827;">u$s ${fmt(tot)}</div>
+          </div>
+          <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px;">
+            <div style="${mono}font-size:9px;color:#6b7280;letter-spacing:.06em;margin-bottom:8px;">RENDIMIENTO</div>
+            <div style="${mono}font-size:22px;font-weight:700;color:${rendColor};">${rend>=0?'+':''}${rendPct}%</div>
+            <div style="${mono}font-size:10px;color:#6b7280;margin-top:4px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+          </div>
+          <div style="border:1px solid #e5e7eb;border-radius:10px;padding:16px 18px;">
+            <div style="${mono}font-size:9px;color:#6b7280;letter-spacing:.06em;margin-bottom:8px;">COBROS PRÓX. 12M</div>
+            <div style="${mono}font-size:22px;font-weight:700;color:#f59e0b;">≈ u$s ${fmt(tot12)}</div>
+            ${inv.olasVal>0?`<div style="${mono}font-size:10px;color:#6b7280;margin-top:4px;">Olas: u$s ${fmt(inv.olasVal)}</div>`:''}
+          </div>
         </div>
       </div>
-      <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:4px;">
-        <div class="rpt-name">${inv.name}</div>
-        <div style="font-family:var(--mono);font-size:11px;color:var(--muted);padding-top:10px;">${quarter}</div>
-      </div>
-      <div class="rpt-date">${today}</div>
-      <div class="rpt-sec">
-        <div class="rpt-sec-t">1 · Resumen ejecutivo</div>
-        <div class="rpt-kpis">
-          <div class="rpt-kpi"><div class="rpt-kl">Patrimonio total</div><div class="rpt-kv">u$s ${fmt(tot)}</div></div>
-          <div class="rpt-kpi"><div class="rpt-kl">Portafolio de mercado</div><div class="rpt-kv">u$s ${fmt(liq)}</div></div>
-          <div class="rpt-kpi"><div class="rpt-kl">Rendimiento</div><div class="rpt-kv" style="color:${rend>=0?'var(--green)':'var(--red)'}">${rend>=0?'+':''}${rendPct}%</div></div>
-          ${inv.olasVal>0?`<div class="rpt-kpi"><div class="rpt-kl">Fideicomiso Olas</div><div class="rpt-kv" style="color:var(--blue)">u$s ${fmt(inv.olasVal)}</div></div>`:''}
-          ${tot12>0?`<div class="rpt-kpi"><div class="rpt-kl">Cobros próx. 12 meses</div><div class="rpt-kv g">≈ u$s ${fmt(tot12)}</div></div>`:''}
+
+      <!-- SECTION: CARTERA -->
+      ${allPos.length?`
+      <div style="margin-bottom:32px;">
+        <div style="${mono}font-size:9px;font-weight:600;color:#6b7280;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #f3f4f6;">Cartera</div>
+        <div style="display:grid;grid-template-columns:80px 1fr 90px 70px 90px;gap:0;font-size:10px;color:#9ca3af;${mono}padding:0 4px 6px;letter-spacing:.05em;">
+          <span>TICKER</span><span>NOMBRE</span><span style="text-align:right;">VALOR</span><span style="text-align:right;">REND.</span><span style="text-align:right;">%</span>
         </div>
-      </div>
-      <div class="rpt-sec">
-        <div class="rpt-sec-t">2 · Cartera</div>
-        ${all.sort((a,b)=>b.valor-a.valor).map(p=>`<div class="rpt-row">
-          <span class="rpt-ticker">${p.ticker}</span>
-          <span style="flex:1;padding:0 10px;font-size:11px;color:var(--soft);">${p.nombre}</span>
-          <span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:80px;text-align:right;">u$s ${fmt(p.valor)}</span>
-          <span style="font-family:var(--mono);font-size:11px;min-width:80px;text-align:right;color:${p.rend>=0?'var(--green)':'var(--red)'};">${p.rend>=0?'+':''}u$s ${fmt(Math.abs(p.rend))}</span>
-        </div>`).join('')}
-      </div>
-      ${(rfFlows.length||olasNext.length)?`<div class="rpt-sec">
-        <div class="rpt-sec-t">3 · Próximos cobros (u$s)</div>
-        ${rfFlows.map(fl=>`<div class="rpt-row"><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:90px;">${fl.fecha}</span><span style="flex:1;font-size:11px;color:var(--soft);">${fl.desc}</span><span style="font-family:var(--mono);font-size:12px;color:var(--green);">u$s ${fmtd(fl.monto)}</span></div>`).join('')}
-        ${olasNext.map(fl=>`<div class="rpt-row"><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:90px;">${olasDate(fl)}</span><span style="flex:1;font-size:11px;color:var(--soft);">${olasDesc(fl)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--amber);">≈ u$s ${fmt(olasMonto(fl)/MEP)}</span></div>`).join('')}
+        ${allPos.map(p=>{
+          const barW=Math.round(p.valor/maxVal*100);
+          const pct=p.vinicial&&p.vinicial>0?((p.rend/p.vinicial)*100).toFixed(1):null;
+          return `<div style="padding:8px 4px;border-bottom:1px solid #f9fafb;">
+            <div style="display:grid;grid-template-columns:80px 1fr 90px 70px 90px;align-items:center;gap:0;">
+              <span style="background:#f3f4f6;border-radius:5px;padding:2px 7px;${mono}font-size:10px;font-weight:600;color:#374151;display:inline-block;">${p.ticker}</span>
+              <span style="font-size:11px;color:#6b7280;padding:0 8px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre||''}</span>
+              <span style="${mono}font-size:11px;color:#111827;text-align:right;">u$s ${fmt(p.valor)}</span>
+              <span style="${mono}font-size:11px;color:${p.rend>=0?'#0d9f6b':'#dc2626'};text-align:right;">${p.rend>=0?'+':''}${fmt(Math.abs(p.rend))}</span>
+              <span style="${mono}font-size:11px;color:${p.rend>=0?'#0d9f6b':'#dc2626'};text-align:right;">${pct!==null?(p.rend>=0?'+':'')+pct+'%':'—'}</span>
+            </div>
+            <div style="margin-top:5px;height:3px;background:#f3f4f6;border-radius:2px;overflow:hidden;">
+              <div style="height:100%;width:${barW}%;background:${p.rend>=0?'#0d9f6b':'#dc2626'};border-radius:2px;opacity:.55;"></div>
+            </div>
+          </div>`;
+        }).join('')}
       </div>`:''}
-      <div class="rpt-sec">
-        <div class="rpt-sec-t">4 · Contexto de mercado</div>
-        <textarea class="rpt-comment no-print" id="rpt-mercado" placeholder="¿Qué pasó en el mercado este trimestre? ¿Por qué se movieron las posiciones?" style="min-height:90px;" oninput="saveComment('${id}')">${savedComment}</textarea>
-        <div id="print-cmt-${id}" style="display:none;font-size:12px;line-height:1.9;">${savedComment.replace(/\n/g,'<br>')}</div>
+
+      <!-- SECTION: RF (only if client has RF) -->
+      ${hasRF&&allFlows.length?''/* merged into cobros below */:''}
+
+      <!-- SECTION: PRÓXIMOS COBROS -->
+      ${shownFlows.length?`
+      <div style="margin-bottom:32px;">
+        <div style="${mono}font-size:9px;font-weight:600;color:#6b7280;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #f3f4f6;">Próximos cobros</div>
+        ${shownFlows.map(fl=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f9fafb;">
+          <span style="${mono}font-size:10px;color:#9ca3af;min-width:72px;">${fl.date}</span>
+          <span style="flex:1;font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${fl.desc}</span>
+          <span style="${mono}font-size:12px;font-weight:600;color:${fl.color};">${fl.prefix}u$s ${fmt(fl.usd)}</span>
+        </div>`).join('')}
+        ${extraFlows>0?`<div style="${mono}font-size:10px;color:#9ca3af;padding-top:8px;">y ${extraFlows} cobros más…</div>`:''}
+      </div>`:''}
+
+      <!-- SECTION: NOTA ASESOR -->
+      <div style="margin-bottom:32px;">
+        <div style="${mono}font-size:9px;font-weight:600;color:#6b7280;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #f3f4f6;">Nota del asesor</div>
+        <div style="margin-bottom:16px;">
+          <div style="font-size:10px;color:#9ca3af;${mono}margin-bottom:6px;letter-spacing:.04em;">CONTEXTO DE MERCADO</div>
+          <textarea id="rpt-mercado" class="no-print" placeholder="¿Qué pasó en el mercado este trimestre? ¿Por qué se movieron las posiciones?" oninput="saveComment('${id}')" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px;font-family:Geist,sans-serif;color:#374151;resize:vertical;min-height:90px;outline:none;background:#fafafa;">${savedComment}</textarea>
+          <div id="print-cmt-${id}" style="display:none;border-left:3px solid #2563eb;padding:10px 14px;background:#f0f6ff;border-radius:0 8px 8px 0;font-size:12px;line-height:1.8;color:#374151;">${savedComment.replace(/\n/g,'<br>')}</div>
+        </div>
+        <div>
+          <div style="font-size:10px;color:#9ca3af;${mono}margin-bottom:6px;letter-spacing:.04em;">RECOMENDACIONES</div>
+          <textarea id="rpt-recom" class="no-print" placeholder="¿Qué vas a hacer diferente? ¿Qué posiciones revisar o incorporar?" oninput="saveRecom('${id}')" style="width:100%;box-sizing:border-box;border:1px solid #e5e7eb;border-radius:8px;padding:12px;font-size:12px;font-family:Geist,sans-serif;color:#374151;resize:vertical;min-height:80px;outline:none;background:#fafafa;">${recom}</textarea>
+          <div id="print-recom-${id}" style="display:none;border-left:3px solid #f59e0b;padding:10px 14px;background:#fffbeb;border-radius:0 8px 8px 0;font-size:12px;line-height:1.8;color:#374151;"></div>
+        </div>
       </div>
-      <div class="rpt-sec">
-        <div class="rpt-sec-t">5 · Próximos pasos y recomendaciones</div>
-        <textarea class="rpt-comment no-print" id="rpt-recom" placeholder="¿Qué vas a hacer diferente? ¿Qué posiciones revisar?" style="min-height:80px;" oninput="saveRecom('${id}')">${recom}</textarea>
-        <div id="print-recom-${id}" style="display:none;font-size:12px;line-height:1.9;"></div>
+
+      <!-- FOOTER -->
+      <div style="height:1px;background:#e5e7eb;margin-bottom:14px;"></div>
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span style="${mono}font-size:8px;color:#9ca3af;">Lucas Olavarria · Asesor Financiero · Mat. CNV 2062 · ${today}</span>
+        <span style="${mono}font-size:8px;color:#9ca3af;">Documento confidencial</span>
       </div>
-      <div style="margin-top:32px;padding-top:14px;border-top:1px solid var(--line);font-family:var(--mono);font-size:9px;color:var(--muted);display:flex;justify-content:space-between;"><span>Lucas Olavarria · Asesor Financiero · Mat. CNV 2062 · ${today}</span><span>Documento confidencial</span></div>
+      <div style="${mono}font-size:7.5px;color:#d1d5db;margin-top:8px;line-height:1.5;">La información contenida en este informe es de carácter privado y confidencial. Los rendimientos pasados no garantizan resultados futuros. Este documento no constituye oferta pública de valores.</div>
+
     </div>
   </div>
   <div style="display:flex;gap:8px;">
@@ -2448,7 +2472,7 @@ async function getSavedComment(invId){
 }
 
 async function saveComment(invId){
-  const val=document.getElementById('rpt-comment')?.value||'';
+  const val=document.getElementById('rpt-mercado')?.value||'';
   await sb.from('report_comments').upsert({investor_id:invId,comentario:val,updated_at:new Date().toISOString()},{onConflict:'investor_id'});
   const pc=document.getElementById('print-cmt-'+invId);
   if(pc)pc.innerHTML=val.replace(/\n/g,'<br>');
@@ -2459,11 +2483,17 @@ function printReport(invId){
   const ta2=document.getElementById('rpt-recom');
   const pc=document.getElementById('print-cmt-'+invId);
   const pc2=document.getElementById('print-recom-'+invId);
-  document.querySelectorAll('.rpt-comment.no-print').forEach(el=>el.style.display='none');
+  document.querySelectorAll('.no-print').forEach(el=>el.style.display='none');
   if(pc){pc.innerHTML=(ta?.value||'').replace(/\n/g,'<br>');pc.style.display='block';}
   if(pc2){pc2.innerHTML=(ta2?.value||'').replace(/\n/g,'<br>');pc2.style.display='block';}
+  document.body.classList.add('print-reporte');
   window.print();
-  setTimeout(()=>{document.querySelectorAll('.rpt-comment.no-print').forEach(el=>el.style.display='');if(pc)pc.style.display='none';if(pc2)pc2.style.display='none';},500);
+  setTimeout(()=>{
+    document.body.classList.remove('print-reporte');
+    document.querySelectorAll('.no-print').forEach(el=>el.style.display='');
+    if(pc)pc.style.display='none';
+    if(pc2)pc2.style.display='none';
+  },800);
 }
 
 // ── INVESTOR DASHBOARD ────────────────────────────────────────

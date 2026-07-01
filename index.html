@@ -657,9 +657,9 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 
     <!-- TABS -->
     <div style="display:flex;gap:1px;border-bottom:1px solid var(--line);margin-bottom:16px;">
-      <button class="tb active" id="imp-tab-rv" onclick="impTab('rv')">Renta Variable</button>
-      <button class="tb" id="imp-tab-cartera" onclick="impTab('cartera')">📂 Cartera</button>
+      <button class="tb active" id="imp-tab-cartera" onclick="impTab('cartera')">📋 Inviu</button>
       <button class="tb" id="imp-tab-flujo" onclick="impTab('flujo')">📅 Flujo de Cobros</button>
+      <button class="tb" id="imp-tab-rv" onclick="impTab('rv')">🏦 Balanz / Manual</button>
     </div>
 
     <!-- RV PANEL — ambos brokers juntos -->
@@ -706,10 +706,11 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 
     <!-- CARTERA PANEL (Tenencias: bonos → RF + acciones → RV) -->
     <div id="imp-cartera-panel" style="display:none;">
-      <div style="background:rgba(45,212,160,.05);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:8px 12px;font-size:11px;color:var(--green);margin-bottom:10px;">
-        <strong>Tenencias Inviu</strong> — detecta bonos (→ Renta Fija) y acciones/CEDEARs (→ Renta Variable) y los importa en un solo paso.
+      <div style="background:rgba(45,212,160,.05);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:10px 13px;font-size:12px;color:var(--green);margin-bottom:12px;line-height:1.5;">
+        <strong>Tenencias Inviu</strong> — subí el Excel que bajás de Inviu → Tenencias.<br>
+        <span style="font-size:11px;opacity:.8;">Detecta bonos (→ Renta Fija) y acciones/CEDEARs (→ Renta Variable) automáticamente en un solo paso.</span>
       </div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;">Tenencias Inviu (.xlsx)</div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;">Archivo Excel de Tenencias (.xlsx)</div>
       <div id="imp-ten-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-ten-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impTenDrop(event)">
         <div style="font-size:22px;margin-bottom:4px;">📋</div>
         <div style="font-size:11px;color:var(--soft);">Arrastrá el Excel de Tenencias</div>
@@ -6868,7 +6869,7 @@ function openImport(){
   document.getElementById('imp-confirm-btn').style.display='none';
   document.getElementById('imp-preview-btn').style.display='none';
   impUpdateCombined();
-  impTab('rv');
+  impTab('cartera');
   oo('m-import');
 }
 

@@ -442,16 +442,16 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   </div>
   <div class="tabbar no-print" id="tabs-a" style="display:none;">
     <button class="tb" id="atb-home" onclick="aTab('home')">🏠 Inicio</button>
-    <button class="tb" id="atb-consolidado" onclick="aTab('consolidado')">Consolidado</button>
-    <button class="tb" id="atb-inversores" onclick="aTab('inversores')">Inversores</button>
-    <button class="tb" id="atb-dashboard" onclick="aTab('dashboard')">Dashboard</button>
-    <button class="tb" id="atb-calendario" onclick="aTab('calendario')">Calendario</button>
-    <button class="tb" id="atb-historial" onclick="aTab('historial')">Historial</button>
-    <button class="tb" id="atb-notas" onclick="aTab('notas')">Notas de mercado</button>
-    <button class="tb" id="atb-reporte" onclick="aTab('reporte')">Reporte</button>
-    <button class="tb" id="atb-borrar" onclick="aTab('borrar')" style="color:var(--red);">Borrar import</button>
+    <button class="tb" id="atb-consolidado" onclick="aTab('consolidado')" style="display:none;">Consolidado</button>
+    <button class="tb" id="atb-inversores" onclick="aTab('inversores')" style="display:none;">Inversores</button>
+    <button class="tb" id="atb-dashboard" onclick="aTab('dashboard')" style="display:none;">Dashboard</button>
+    <button class="tb" id="atb-calendario" onclick="aTab('calendario')" style="display:none;">Calendario</button>
+    <button class="tb" id="atb-historial" onclick="aTab('historial')" style="display:none;">Historial</button>
+    <button class="tb" id="atb-notas" onclick="aTab('notas')" style="display:none;">Notas de mercado</button>
+    <button class="tb" id="atb-reporte" onclick="aTab('reporte')" style="display:none;">Reporte</button>
+    <button class="tb" id="atb-borrar" onclick="aTab('borrar')" style="display:none;">Borrar import</button>
     <button class="tb" id="atb-micartera" onclick="aTab('micartera')" style="display:none;">Carteras</button>
-    <button class="tb" onclick="openImport()">⬆ Importar</button>
+    <button class="tb" onclick="openImport()" style="display:none;">⬆ Importar</button>
   </div>
   <div class="tabbar no-print" id="tabs-i" style="display:none;">
     <button class="tb" id="itb-overview" onclick="iTab('overview')">Overview</button>
@@ -4855,7 +4855,12 @@ function buildDonuts(list){
 }
 
 // ── UTILS ─────────────────────────────────────────────────────
-function sc(h){document.getElementById('cnt').innerHTML=h;}
+function sc(h){
+  const backBtn=CU?.is_admin&&ATb!=='home'
+    ?`<button onclick="aTab('home')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:12px;padding:0;margin-bottom:14px;display:flex;align-items:center;gap:5px;">← Inicio</button>`
+    :'';
+  document.getElementById('cnt').innerHTML=backBtn+h;
+}
 function fmt(n){return Number(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});}
 function fmtd(n){return Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
 function fmtars(n){return Number(n).toLocaleString('es-AR',{minimumFractionDigits:0,maximumFractionDigits:0});}

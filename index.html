@@ -1437,6 +1437,10 @@ async function loadInvestor(id){
   const allDbRv=rvR.data||[];
   const maxTs=allDbRv.reduce((m,p)=>p.imported_at&&p.imported_at>m?p.imported_at:m,null);
   inv._dbRv=maxTs?allDbRv.filter(p=>p.imported_at===maxTs):allDbRv;
+  // Filter RF to latest import batch (by imported_at). Null rows treated as legacy.
+  const allDbRf=rfR.data||[];
+  const maxRfTs=allDbRf.reduce((m,p)=>p.imported_at&&p.imported_at>m?p.imported_at:m,null);
+  const activeRf=maxRfTs?allDbRf.filter(p=>p.imported_at===maxRfTs):allDbRf;
   const rvMerged={};
   for(const p of inv._dbRv){
     if(!rvMerged[p.ticker]){
@@ -1451,7 +1455,7 @@ async function loadInvestor(id){
     }
   }
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
-  inv.rf=(rfR.data||[]).map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
+  inv.rf=activeRf.map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null,capitalArs:fx.capital_ars||null}));
   inv.rfFlows=(rfFlowsR.data||[]);
   autoConfirmarVencidos(inv);
@@ -2091,7 +2095,7 @@ async function biLoad(){
   // Load all data in parallel
   const[rvRes,rfRes,rfFlowsRes]= await Promise.all([
     sb.from('positions_rv').select('imported_at,ticker').eq('investor_id',invId).order('imported_at',{ascending:false}),
-    sb.from('positions_rf').select('ticker,tipo,valor,vencimiento').eq('investor_id',invId).order('ticker'),
+    sb.from('positions_rf').select('imported_at,ticker,tipo,valor').eq('investor_id',invId).order('imported_at',{ascending:false}),
     sb.from('rf_flows').select('ticker,tipo,fecha,monto_usd').eq('investor_id',invId).order('fecha',{ascending:false}),
   ]);
 
@@ -2104,8 +2108,14 @@ async function biLoad(){
   });
   const batchList=Object.entries(batches).sort((a,b)=>b[0].localeCompare(a[0]));
 
-  // RF positions (single batch per investor — delete+insert on each import)
-  const rfRows=rfRes.data||[];
+  // Group RF by imported_at batch
+  const rfBatches={};
+  (rfRes.data||[]).forEach(p=>{
+    const key=p.imported_at||'legacy';
+    if(!rfBatches[key])rfBatches[key]=[];
+    rfBatches[key].push(p);
+  });
+  const rfBatchList=Object.entries(rfBatches).sort((a,b)=>b[0].localeCompare(a[0]));
 
   // RF flows
   const rfFlows=rfFlowsRes.data||[];
@@ -2122,7 +2132,7 @@ async function biLoad(){
   });
   const olasProjList=Object.keys(olasByProj);
 
-  const hasAny=batchList.length||rfRows.length||rfFlows.length||olasProjList.length;
+  const hasAny=batchList.length||rfBatchList.length||rfFlows.length||olasProjList.length;
   let html='';
 
   // ── Botón borrar todo ─────────────────────────────────────
@@ -2162,19 +2172,27 @@ async function biLoad(){
 
   // ── RF positions ──────────────────────────────────────────
   html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Renta Fija (bonos · Tenencias)</div>`;
-  if(!rfRows.length){
+  if(!rfBatchList.length){
     html+=`<div class="empty">Sin importaciones.</div>`;
   }else{
-    const rfTotal=rfRows.reduce((s,p)=>s+(p.valor||0),0);
-    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:500;">${rfRows.length} bonos · u$s ${fmt(rfTotal)}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rfRows.slice(0,8).map(p=>p.ticker).join(' · ')}${rfRows.length>8?' +'+(rfRows.length-8)+' más':''}</div>
-      </div>
-      <button onclick="biDeleteRF('${invId}','${invName}')" title="Borrar posiciones RF"
-        style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
-        onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
-    </div>`;
+    rfBatchList.forEach(([ts,rows],idx)=>{
+      const isLatest=idx===0;
+      const label=ts==='legacy'?'Importación anterior (sin fecha)':new Date(ts).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+      const tsSafe=ts.replace(/'/g,"\\'");
+      const rfTotal=rows.reduce((s,p)=>s+(p.valor||0),0);
+      html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <span style="font-size:13px;font-weight:500;">${label}</span>
+            ${isLatest?'<span style="background:rgba(91,156,246,.15);color:var(--blue);font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;flex-shrink:0;">ACTIVA</span>':''}
+          </div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rows.length} bonos · u$s ${fmt(rfTotal)} · ${rows.slice(0,6).map(p=>p.ticker).join(' · ')}${rows.length>6?' +'+(rows.length-6)+' más':''}</div>
+        </div>
+        <button onclick="biDeleteRFBatch('${invId}','${invName}','${tsSafe}',${isLatest})" title="Borrar esta importación RF"
+          style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
+          onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
+      </div>`;
+    });
   }
   html+=`</div>`;
 
@@ -2232,6 +2250,18 @@ async function biDeleteBatch(invId,invName,ts,isLatest){
   // Reload investor from DB so cache reflects new active batch
   INV_CACHE[invId]=await loadInvestor(invId);
   showToast('✓ Importación eliminada');
+  biLoad();
+}
+
+async function biDeleteRFBatch(invId,invName,ts,isLatest){
+  const label=ts==='legacy'?'la importación anterior':new Date(ts).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
+  if(!confirm('¿Borrar la importación RF del '+label+' de '+invName+'?'+(isLatest?'\n\nLa importación anterior quedará activa.':'')))return;
+  let q=sb.from('positions_rf').delete().eq('investor_id',invId);
+  if(ts==='legacy'){q=q.is('imported_at',null);}else{q=q.eq('imported_at',ts);}
+  const{error}=await q;
+  if(error)return showToast('Error: '+error.message);
+  INV_CACHE[invId]=await loadInvestor(invId);
+  showToast('✓ Importación RF eliminada');
   biLoad();
 }
 
@@ -7112,7 +7142,7 @@ async function impConfirmTenenciasAll(){
     let rfCount=0,rvCount=0;
     // ── RF (bonos) ────────────────────────────────────────────
     if(impParsedTenencias.length){
-      await sb.from('positions_rf').delete().eq('investor_id',invId);
+      const batchTs=new Date().toISOString();
       const rfRows=impParsedTenencias.map(p=>({
         investor_id:invId,
         ticker:p.ticker,
@@ -7123,6 +7153,7 @@ async function impConfirmTenenciasAll(){
         valor:p.valor,
         precio_compra:p.precio_compra,
         vencimiento:p.vencimiento,
+        imported_at:batchTs,
       }));
       const{error:rfErr}=await sb.from('positions_rf').insert(rfRows);
       if(rfErr)throw rfErr;

@@ -2326,7 +2326,7 @@ async function genReport(){
   const _totalCap=(liq-rvRfRend)+(_olasCap>0?_olasCap:(inv.olasVal||0));
   const rendPct=_totalCap>0?(rend/_totalCap*100).toFixed(1):'0.0';
   const rendColor=rend>=0?'#0d9f6b':'#dc2626';
-  const allPos=[...inv.rv||[],...inv.rf||[]].sort((a,b)=>b.valor-a.valor);
+  const allPos=[...inv.rv||[],...inv.rf||[]].sort((a,b)=>b.rend-a.rend);
   const maxVal=allPos.length?allPos[0].valor:1;
   const nowStr=new Date().toISOString().slice(0,10);
   const now=new Date();const in12=new Date();in12.setMonth(in12.getMonth()+12);

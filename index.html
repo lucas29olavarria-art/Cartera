@@ -1998,17 +1998,30 @@ async function biLoad(){
   const inv=INV_CACHE[invId];
   const invName=(inv?.name||'').replace(/'/g,"\\'");
 
-  // Load ALL RV rows for this investor (all historical batches)
-  const{data:allRv}=await sb.from('positions_rv').select('imported_at,ticker').eq('investor_id',invId).order('imported_at',{ascending:false});
+  // Load all data in parallel
+  const[rvRes,rfRes,rfFlowsRes]= await Promise.all([
+    sb.from('positions_rv').select('imported_at,ticker').eq('investor_id',invId).order('imported_at',{ascending:false}),
+    sb.from('positions_rf').select('ticker,tipo,valor,vencimiento').eq('investor_id',invId).order('ticker'),
+    sb.from('rf_flows').select('ticker,tipo,fecha,monto_usd').eq('investor_id',invId).order('fecha',{ascending:false}),
+  ]);
 
-  // Group by imported_at
+  // Group RV by imported_at batch
   const batches={};
-  (allRv||[]).forEach(p=>{
+  (rvRes.data||[]).forEach(p=>{
     const key=p.imported_at||'legacy';
     if(!batches[key])batches[key]=[];
     batches[key].push(p.ticker);
   });
   const batchList=Object.entries(batches).sort((a,b)=>b[0].localeCompare(a[0]));
+
+  // RF positions (single batch per investor — delete+insert on each import)
+  const rfRows=rfRes.data||[];
+
+  // RF flows
+  const rfFlows=rfFlowsRes.data||[];
+  const rfFlowTickers=[...new Set(rfFlows.map(f=>f.ticker))];
+  const rfFlowMin=rfFlows.length?rfFlows.reduce((m,f)=>f.fecha<m?f.fecha:m,rfFlows[0].fecha):null;
+  const rfFlowMax=rfFlows.length?rfFlows.reduce((m,f)=>f.fecha>m?f.fecha:m,rfFlows[0].fecha):null;
 
   // Olas by project
   const olasByProj={};
@@ -2019,10 +2032,21 @@ async function biLoad(){
   });
   const olasProjList=Object.keys(olasByProj);
 
+  const hasAny=batchList.length||rfRows.length||rfFlows.length||olasProjList.length;
   let html='';
 
-  // RV batches
-  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Importaciones RV</div>`;
+  // ── Botón borrar todo ─────────────────────────────────────
+  if(hasAny){
+    html+=`<div style="display:flex;justify-content:flex-end;margin-bottom:12px;">
+      <button onclick="biDeleteAll('${invId}','${invName}')"
+        style="background:rgba(240,108,108,.1);border:1px solid rgba(240,108,108,.35);border-radius:var(--r2);padding:7px 16px;cursor:pointer;color:var(--red);font-size:12px;font-weight:600;">
+        🗑 Eliminar todo de ${inv?.name||'este inversor'}
+      </button>
+    </div>`;
+  }
+
+  // ── RV batches ────────────────────────────────────────────
+  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Renta Variable (acciones / CEDEARs)</div>`;
   if(!batchList.length){
     html+=`<div class="empty">Sin importaciones.</div>`;
   }else{
@@ -2036,7 +2060,7 @@ async function biLoad(){
             <span style="font-size:13px;font-weight:500;">${label}</span>
             ${isLatest?'<span style="background:rgba(91,156,246,.15);color:var(--blue);font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;flex-shrink:0;">ACTIVA</span>':''}
           </div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tickers.length} posiciones · ${tickers.slice(0,8).join(' · ')}${tickers.length>8?' +'+( tickers.length-8)+' más':''}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${tickers.length} posiciones · ${tickers.slice(0,8).join(' · ')}${tickers.length>8?' +'+(tickers.length-8)+' más':''}</div>
         </div>
         <button onclick="biDeleteBatch('${invId}','${invName}','${tsSafe}',${isLatest})" title="Borrar esta importación"
           style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
@@ -2046,7 +2070,43 @@ async function biLoad(){
   }
   html+=`</div>`;
 
-  // Olas
+  // ── RF positions ──────────────────────────────────────────
+  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Renta Fija (bonos · Tenencias)</div>`;
+  if(!rfRows.length){
+    html+=`<div class="empty">Sin importaciones.</div>`;
+  }else{
+    const rfTotal=rfRows.reduce((s,p)=>s+(p.valor||0),0);
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${rfRows.length} bonos · u$s ${fmt(rfTotal)}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rfRows.slice(0,8).map(p=>p.ticker).join(' · ')}${rfRows.length>8?' +'+(rfRows.length-8)+' más':''}</div>
+      </div>
+      <button onclick="biDeleteRF('${invId}','${invName}')" title="Borrar posiciones RF"
+        style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
+        onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
+    </div>`;
+  }
+  html+=`</div>`;
+
+  // ── RF Flows ──────────────────────────────────────────────
+  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Flujo de Cobros (cupones / amortizaciones)</div>`;
+  if(!rfFlows.length){
+    html+=`<div class="empty">Sin importaciones.</div>`;
+  }else{
+    const fmtD=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
+    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:500;">${rfFlows.length} flujos · ${rfFlowTickers.length} bono${rfFlowTickers.length!==1?'s':''}</div>
+        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;">${fmtD(rfFlowMin)} → ${fmtD(rfFlowMax)} · ${rfFlowTickers.slice(0,6).join(' · ')}${rfFlowTickers.length>6?' +'+(rfFlowTickers.length-6)+' más':''}</div>
+      </div>
+      <button onclick="biDeleteRFFlows('${invId}','${invName}')" title="Borrar flujos RF"
+        style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
+        onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
+    </div>`;
+  }
+  html+=`</div>`;
+
+  // ── Olas ──────────────────────────────────────────────────
   if(olasProjList.length){
     html+=`<div class="card"><div class="ct">Fideicomisos Olas</div>`;
     olasProjList.forEach(proj=>{
@@ -2064,8 +2124,11 @@ async function biLoad(){
       </div>`;
     });
     html+=`</div>`;
+  }else{
+    html+=`<div class="card"><div class="ct">Fideicomisos Olas</div><div class="empty">Sin importaciones.</div></div>`;
   }
 
+  if(!hasAny) html='<div class="empty" style="padding:24px;text-align:center;">Este inversor no tiene importaciones.</div>';
   el.innerHTML=html;
 }
 
@@ -2089,6 +2152,39 @@ async function biDeleteOla(invId,invName,proj){
   const inv=INV_CACHE[invId];
   if(inv)inv.olasFlows=(inv.olasFlows||[]).filter(f=>(f.descripcion||'').split('·')[0].trim()!==proj);
   showToast('✓ Ola "'+proj+'" eliminada');
+  biLoad();
+}
+
+async function biDeleteRF(invId,invName){
+  if(!confirm('¿Borrar todas las posiciones de Renta Fija (bonos) de '+invName+'?'))return;
+  const{error}=await sb.from('positions_rf').delete().eq('investor_id',invId);
+  if(error)return showToast('Error: '+error.message);
+  INV_CACHE[invId]=await loadInvestor(invId);
+  showToast('✓ Posiciones RF eliminadas');
+  biLoad();
+}
+
+async function biDeleteRFFlows(invId,invName){
+  if(!confirm('¿Borrar todos los flujos de cobros (cupones y amortizaciones) de '+invName+'?'))return;
+  const{error}=await sb.from('rf_flows').delete().eq('investor_id',invId);
+  if(error)return showToast('Error: '+error.message);
+  INV_CACHE[invId]=await loadInvestor(invId);
+  showToast('✓ Flujos RF eliminados');
+  biLoad();
+}
+
+async function biDeleteAll(invId,invName){
+  if(!confirm('⚠️ ¿Eliminar TODAS las importaciones de '+invName+'?\n\nEsto borra:\n• Posiciones RV (todas las importaciones)\n• Posiciones RF (bonos)\n• Flujo de Cobros\n• Fideicomisos Olas\n\nEsta acción no se puede deshacer.'))return;
+  const results=await Promise.all([
+    sb.from('positions_rv').delete().eq('investor_id',invId),
+    sb.from('positions_rf').delete().eq('investor_id',invId),
+    sb.from('rf_flows').delete().eq('investor_id',invId),
+    sb.from('olas_flows').delete().eq('investor_id',invId),
+  ]);
+  const err=results.find(r=>r.error);
+  if(err)return showToast('Error: '+err.error.message);
+  INV_CACHE[invId]=await loadInvestor(invId);
+  showToast('✓ Todas las importaciones de '+invName+' eliminadas');
   biLoad();
 }
 

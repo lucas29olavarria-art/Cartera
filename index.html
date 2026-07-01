@@ -441,6 +441,7 @@ input[type=range]{flex:1;accent-color:var(--blue);}
     </div>
   </div>
   <div class="tabbar no-print" id="tabs-a" style="display:none;">
+    <button class="tb" id="atb-home" onclick="aTab('home')">🏠 Inicio</button>
     <button class="tb" id="atb-consolidado" onclick="aTab('consolidado')">Consolidado</button>
     <button class="tb" id="atb-inversores" onclick="aTab('inversores')">Inversores</button>
     <button class="tb" id="atb-dashboard" onclick="aTab('dashboard')">Dashboard</button>
@@ -1399,7 +1400,7 @@ async function showApp(){
     ALL_INVESTORS=await loadAllInvestors();
     await loadSnapsCache();
     loadAdvisorData();
-    ATb='consolidado'; aTab('consolidado');
+    ATb='home'; aTab('home');
     if(location.hash==='#import') setTimeout(openImport, 300);
   } else {
     const inv=await loadInvestor(CU.id);
@@ -1599,14 +1600,15 @@ async function refreshPrices(){
 // ── ADMIN ─────────────────────────────────────────────────────
 function aTab(t){
   ATb=t;
-  ['consolidado','inversores','dashboard','calendario','historial','notas','reporte','borrar','micartera'].forEach(name=>{
+  ['home','consolidado','inversores','dashboard','calendario','historial','notas','reporte','borrar','micartera'].forEach(name=>{
     const el=document.getElementById('atb-'+name);
     if(el)el.classList.toggle('active', name===t);
   });
   kc(); renderAdmin();
 }
 function renderAdmin(){
-  if(ATb==='consolidado')rConsolidado();
+  if(ATb==='home')rHome();
+  else if(ATb==='consolidado')rConsolidado();
   else if(ATb==='inversores')rInversores();
   else if(ATb==='dashboard'){if(AVId){renderInv(INV_CACHE[AVId]);}else sc('<div class="empty">Seleccioná un inversor desde "Inversores".</div>');}
   else if(ATb==='calendario')rCalendario();
@@ -1615,6 +1617,53 @@ function renderAdmin(){
   else if(ATb==='reporte')rReporte();
   else if(ATb==='borrar')rBorrarImport();
   else if(ATb==='micartera')rMiCartera();
+}
+
+// ── HOME ADMIN ────────────────────────────────────────────────
+function rHome(){
+  const firstName=CU.name.split(' ')[0];
+  const hour=new Date().getHours();
+  const greeting=hour<13?'Buenos días':'hour<20'?'Buenas tardes':'Buenas noches';
+  const saludo=hour<13?'Buenos días':hour<20?'Buenas tardes':'Buenas noches';
+  const invs=Object.values(INV_CACHE).filter(i=>!i.is_admin);
+  const totalClientes=invs.length;
+  const totalAUM=invs.reduce((s,i)=>s+grand(i),0);
+
+  // Find my own investor record
+  const myInv=Object.values(INV_CACHE).find(i=>i.id===CU.id);
+
+  const card=(icon,title,sub,onclick,color='var(--blue)')=>`
+    <div onclick="${onclick}" style="background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);padding:20px 22px;cursor:pointer;transition:border .18s,background .18s;display:flex;gap:14px;align-items:flex-start;"
+      onmouseover="this.style.borderColor='${color}';this.style.background='var(--bg3)'" onmouseout="this.style.borderColor='var(--line2)';this.style.background='var(--bg2)'">
+      <div style="font-size:28px;line-height:1;">${icon}</div>
+      <div>
+        <div style="font-size:14px;font-weight:600;color:var(--txt);margin-bottom:3px;">${title}</div>
+        <div style="font-size:11px;color:var(--muted);">${sub}</div>
+      </div>
+    </div>`;
+
+  sc(`
+    <div style="max-width:680px;margin:0 auto;padding:8px 0 32px;">
+      <div style="margin-bottom:28px;">
+        <div style="font-size:22px;font-weight:700;color:var(--txt);">${saludo}, ${firstName} 👋</div>
+        <div style="font-size:12px;color:var(--muted);margin-top:4px;">${totalClientes} clientes · AUM total u$s ${fmt(totalAUM)}</div>
+      </div>
+
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Mi cuenta</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
+        ${card('👤','Mi Cartera','Lucas Olavarria · ver mis posiciones',myInv?`viewInv('${myInv.id}')`:`aTab('inversores')`,'var(--green)')}
+        ${card('📥','Importar datos','Cargar Tenencias, Flujo o Olas','openImport()','var(--blue)')}
+      </div>
+
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Panel admin</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
+        ${card('👥','Clientes','Ver y gestionar inversores',`aTab('inversores')`,'var(--blue)')}
+        ${card('📊','Consolidado','Visión global de todos los clientes',`aTab('consolidado')`,'#9b7ff4')}
+        ${card('📅','Calendario','Próximos cobros y vencimientos',`aTab('calendario')`,'var(--amber)')}
+        ${card('🗑','Borrar importaciones','Historial y limpieza por cliente',`aTab('borrar')`,'var(--red)')}
+      </div>
+    </div>
+  `);
 }
 
 // ── CONSOLIDADO ───────────────────────────────────────────────

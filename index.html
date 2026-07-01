@@ -1657,7 +1657,7 @@ function rHome(){
 
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Mi cuenta</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:24px;">
-        ${card('👤','Mi Cartera','Lucas Olavarria · ver mis posiciones',myInv?`viewInv('${myInv.id}')`:`aTab('inversores')`,'var(--green)')}
+        ${card('👤','Mi Cartera','Ver mis posiciones y rendimiento',myInv?`viewInv('${myInv.id}')`:`aTab('inversores')`,'var(--green)')}
         ${card('📥','Importar datos','Cargar Tenencias, Flujo o Olas','openImport()','var(--blue)')}
       </div>
 
@@ -1666,6 +1666,9 @@ function rHome(){
         ${card('👥','Clientes','Ver y gestionar inversores',`aTab('inversores')`,'var(--blue)')}
         ${card('📊','Consolidado','Visión global de todos los clientes',`aTab('consolidado')`,'#9b7ff4')}
         ${card('📅','Calendario','Próximos cobros y vencimientos',`aTab('calendario')`,'var(--amber)')}
+        ${card('📋','Reporte de cliente','Generar PDF y enviar por WhatsApp',`aTab('reporte')`,'var(--green)')}
+        ${card('📈','Historial','Rendimiento histórico por inversor',`aTab('historial')`,'#5b9cf6')}
+        ${card('📝','Notas de mercado','Análisis para reportes trimestrales',`aTab('notas')`,'var(--soft)')}
         ${card('🗑','Borrar importaciones','Historial y limpieza por cliente',`aTab('borrar')`,'var(--red)')}
       </div>
 

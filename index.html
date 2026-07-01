@@ -1400,8 +1400,10 @@ async function showApp(){
     ALL_INVESTORS=await loadAllInvestors();
     await loadSnapsCache();
     loadAdvisorData();
-    ATb='home'; aTab('home');
-    if(location.hash==='#import') setTimeout(openImport, 300);
+    const hash=location.hash;
+    if(hash==='#import'){ATb='home';aTab('home');setTimeout(openImport,300);}
+    else if(hash==='#micartera'){const me=INV_CACHE[CU.id];if(me)viewInv(me.id);else{ATb='home';aTab('home');}}
+    else{ATb='home';aTab('home');}
   } else {
     const inv=await loadInvestor(CU.id);
     CU_DATA=inv;
@@ -1662,8 +1664,47 @@ function rHome(){
         ${card('📅','Calendario','Próximos cobros y vencimientos',`aTab('calendario')`,'var(--amber)')}
         ${card('🗑','Borrar importaciones','Historial y limpieza por cliente',`aTab('borrar')`,'var(--red)')}
       </div>
+
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:10px;">Links directos (guardá en favoritos)</div>
+      <div id="home-links-section">
+        <div style="color:var(--muted);font-size:11px;">Cargando links...</div>
+      </div>
     </div>
   `);
+  rHomeLinks();
+}
+
+async function rHomeLinks(){
+  const el=document.getElementById('home-links-section');
+  if(!el)return;
+  // Get or generate admin token
+  let token=CU.access_token;
+  if(!token){
+    const arr=new Uint8Array(16);crypto.getRandomValues(arr);
+    token=Array.from(arr).map(b=>b.toString(16).padStart(2,'0')).join('');
+    const{error}=await sb.from('investors').update({access_token:token}).eq('id',CU.id);
+    if(error){el.innerHTML='<div style="color:var(--red);font-size:11px;">Error generando token</div>';return;}
+    CU.access_token=token;
+    localStorage.setItem('cu',JSON.stringify(CU));
+  }
+  const base=`${location.origin}${location.pathname}`;
+  const links=[
+    {label:'🏠 Panel Admin',url:`${base}?admin=${token}`,desc:'Entrás directo al home admin'},
+    {label:'👤 Mi Cartera',url:`${base}?admin=${token}#micartera`,desc:'Entrás directo a tus posiciones'},
+    {label:'📥 Importar',url:`${base}?admin=${token}#import`,desc:'Abre directo el modal de importación'},
+  ];
+  el.innerHTML=links.map(l=>`
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r);margin-bottom:8px;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${l.label}</div>
+        <div style="font-family:var(--mono);font-size:9px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${l.url}</div>
+        <div style="font-size:10px;color:var(--soft);margin-top:2px;">${l.desc}</div>
+      </div>
+      <button onclick="navigator.clipboard.writeText('${l.url}').then(()=>showToast('✓ Link copiado'))"
+        style="flex-shrink:0;background:rgba(91,156,246,.1);border:1px solid rgba(91,156,246,.25);color:var(--blue);border-radius:var(--r2);padding:6px 12px;cursor:pointer;font-size:11px;font-weight:600;">
+        Copiar
+      </button>
+    </div>`).join('');
 }
 
 // ── CONSOLIDADO ───────────────────────────────────────────────
@@ -8337,8 +8378,21 @@ async function delGasto(invId,gastoId){
 
 // ── AUTO-LOGIN ────────────────────────────────────────────────
 (async()=>{
-  // Token-based access: ?client=TOKEN in URL
-  const urlToken=new URLSearchParams(location.search).get('client');
+  const params=new URLSearchParams(location.search);
+  // ?admin=TOKEN → login directo al panel admin sin pantalla intermedia
+  const adminToken=params.get('admin');
+  if(adminToken){
+    const {data,error}=await sb.from('investors').select('*').eq('access_token',adminToken).single();
+    if(data&&!error&&data.is_admin){
+      CU=data;
+      localStorage.setItem('cu',JSON.stringify(data));
+      history.replaceState(null,'',location.pathname+(params.get('section')?'#'+params.get('section'):''));
+      await showApp();
+      return;
+    }
+  }
+  // ?client=TOKEN → pantalla de bienvenida para clientes
+  const urlToken=params.get('client');
   if(urlToken){
     const {data,error}=await sb.from('investors').select('*').eq('access_token',urlToken).single();
     if(data&&!error){

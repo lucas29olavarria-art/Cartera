@@ -4502,9 +4502,11 @@ function buildInvCharts(tab,inv,liq){
       capitalBase.push(+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0));
     }
     const hasCapitalData=allSnaps.some(function(s){return(s.positions||[]).some(function(p){return p.qty!=null;});});
-    // Total accumulated: first snap → last snap
-    const totalCapInvested=+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0);
-    const totalMktGain=+(allSnaps[allSnaps.length-1].totalValueUSD-totalCapInvested).toFixed(0);
+    // Total: only injections AFTER first snapshot vs portfolio change since then
+    const totalNewCap=+cumInjection.toFixed(0);
+    const totalPortfChange=+(allSnaps[allSnaps.length-1].totalValueUSD-allSnaps[0].totalValueUSD).toFixed(0);
+    const totalMktGain=+(totalPortfChange-totalNewCap).toFixed(0);
+    const firstSnapDate=new Date(allSnaps[0].date).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
     // Monthly: find snapshots closest to start of current month and start of previous month
     const now2=new Date();
     const startOfThisMonth=new Date(now2.getFullYear(),now2.getMonth(),1);
@@ -4531,7 +4533,7 @@ function buildInvCharts(tab,inv,liq){
         });
         monthCapInvested=+injM.toFixed(0);
         monthMktGain=+(snapThisMonthStart.totalValueUSD-snapPrevMonthStart.totalValueUSD-injM).toFixed(0);
-        monthLabel=startOfPrevMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
+        monthLabel=startOfThisMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
       }
     }
     // Inject stats row into card below canvas
@@ -4545,7 +4547,7 @@ function buildInvCharts(tab,inv,liq){
       const mk=(label,val,color)=>`<div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;"><div style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#5a6478;margin-bottom:4px;">${label}</div><div style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;color:${color};">${val}</div></div>`;
       const gc=totalMktGain>=0?'var(--green)':'var(--red)';
       const gs=totalMktGain>=0?'+':'−';
-      let html=mk('Capital total invertido','u$s '+fmt(totalCapInvested),'#e2e8f0')+mk('Ganancia total de mercado',gs+'u$s '+fmt(Math.abs(totalMktGain)),gc);
+      let html=mk('Capital nuevo desde '+firstSnapDate,'u$s '+fmt(totalNewCap),'#e2e8f0')+mk('Variación del mercado desde '+firstSnapDate,gs+'u$s '+fmt(Math.abs(totalMktGain)),gc);
       if(monthCapInvested!==null){
         const mc=monthMktGain>=0?'var(--green)':'var(--red)';
         const ms=monthMktGain>=0?'+':'−';

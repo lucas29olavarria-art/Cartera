@@ -4502,17 +4502,61 @@ function buildInvCharts(tab,inv,liq){
       capitalBase.push(+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0));
     }
     const hasCapitalData=allSnaps.some(function(s){return(s.positions||[]).some(function(p){return p.qty!=null;});});
-    const latestRend=allSnaps[allSnaps.length-1].totalValueUSD-capitalBase[capitalBase.length-1];
-    const rendSign=latestRend>=0?'+':'';
-    // Update chart title to show organic return
-    const ctEl=el.closest('.card')?.querySelector('.ct');
-    if(ctEl&&hasCapitalData){
-      ctEl.innerHTML='EVOLUCIÓN PATRIMONIAL · <span style="color:var(--amber);">●</span> cobro Olas / RF'+(latestRend!==0?' · <span style="color:'+(latestRend>=0?'var(--green)':'var(--red)')+'">'+rendSign+'u$s '+fmt(Math.abs(latestRend))+' rendimiento orgánico</span>':'');
+    // Total accumulated: first snap → last snap
+    const totalCapInvested=+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0);
+    const totalMktGain=+(allSnaps[allSnaps.length-1].totalValueUSD-totalCapInvested).toFixed(0);
+    // Monthly: find snapshots closest to start of current month and start of previous month
+    const now2=new Date();
+    const startOfThisMonth=new Date(now2.getFullYear(),now2.getMonth(),1);
+    const startOfPrevMonth=new Date(now2.getFullYear(),now2.getMonth()-1,1);
+    function snapClosestTo(date){
+      let best=null,bestDiff=Infinity;
+      allSnaps.forEach(function(s){const d=Math.abs(new Date(s.date)-date);if(d<bestDiff){bestDiff=d;best=s;}});
+      return best;
+    }
+    const snapThisMonthStart=snapClosestTo(startOfThisMonth);
+    const snapPrevMonthStart=snapClosestTo(startOfPrevMonth);
+    let monthCapInvested=null,monthMktGain=null,monthLabel='';
+    if(snapThisMonthStart&&snapPrevMonthStart&&snapThisMonthStart.id!==snapPrevMonthStart.id){
+      const prevMap2={};
+      (snapPrevMonthStart.positions||[]).forEach(function(p){if(p.ticker&&p.qty!=null)prevMap2[p.ticker]=p;});
+      const hasQtyM=Object.keys(prevMap2).length>0;
+      if(hasQtyM){
+        let injM=0;
+        (snapThisMonthStart.positions||[]).forEach(function(p){
+          if(!p.ticker||!p.qty||!p.valueUSD)return;
+          const pp=prevMap2[p.ticker];
+          if(!pp||!pp.qty){injM+=p.valueUSD;}
+          else if(p.qty>pp.qty){injM+=(p.qty-pp.qty)*(p.valueUSD/p.qty);}
+        });
+        monthCapInvested=+injM.toFixed(0);
+        monthMktGain=+(snapThisMonthStart.totalValueUSD-snapPrevMonthStart.totalValueUSD-injM).toFixed(0);
+        monthLabel=startOfPrevMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
+      }
+    }
+    // Inject stats row into card below canvas
+    const statsContainer=el.closest('.card');
+    if(statsContainer&&hasCapitalData){
+      const existing=statsContainer.querySelector('.cap-stats');
+      if(existing)existing.remove();
+      const sd=document.createElement('div');
+      sd.className='cap-stats';
+      sd.style.cssText='border-top:1px solid rgba(255,255,255,.07);margin-top:10px;padding:10px 0 2px;display:grid;grid-template-columns:1fr 1fr;gap:6px;';
+      const mk=(label,val,color)=>`<div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;"><div style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#5a6478;margin-bottom:4px;">${label}</div><div style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;color:${color};">${val}</div></div>`;
+      const gc=totalMktGain>=0?'var(--green)':'var(--red)';
+      const gs=totalMktGain>=0?'+':'−';
+      let html=mk('Capital total invertido','u$s '+fmt(totalCapInvested),'#e2e8f0')+mk('Ganancia total de mercado',gs+'u$s '+fmt(Math.abs(totalMktGain)),gc);
+      if(monthCapInvested!==null){
+        const mc=monthMktGain>=0?'var(--green)':'var(--red)';
+        const ms=monthMktGain>=0?'+':'−';
+        html+=mk('Capital invertido — '+monthLabel,'u$s '+fmt(monthCapInvested),'#94a3b8')+mk('Ganancia del mercado — '+monthLabel,ms+'u$s '+fmt(Math.abs(monthMktGain)),mc);
+      }
+      sd.innerHTML=html;
+      statsContainer.appendChild(sd);
     }
     if(CHS['rpt-evo'])CHS['rpt-evo'].destroy();
     CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[
-      {data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true,label:'Patrimonio'},
-      ...(hasCapitalData?[{data:capitalBase,borderColor:'rgba(255,255,255,0.25)',borderWidth:1.5,borderDash:[5,4],pointRadius:0,fill:false,tension:0.35,spanGaps:true,label:'Capital invertido'}]:[])
+      {data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true,label:'Patrimonio'}
     ]},options:{responsive:true,maintainAspectRatio:false,onClick:function(evt,els){
       if(!els||!els.length)return;
       const idx=els[0].index;

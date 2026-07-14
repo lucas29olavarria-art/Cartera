@@ -2345,6 +2345,40 @@ async function genReport(){
   const recom=await getRecom(id);
   const hasRF=(inv.rf||[]).length>0;
 
+  // Detect purchases: compare last two snapshots with qty data
+  const allSnapsForRep=snapForInv(id);
+  const snapsWithQty=allSnapsForRep.filter(s=>(s.positions||[]).some(p=>p.qty!=null));
+  const purchases=[];
+  if(snapsWithQty.length>=2){
+    const prevSnap=snapsWithQty[snapsWithQty.length-2];
+    const currSnap=snapsWithQty[snapsWithQty.length-1];
+    const prevMap={};
+    (prevSnap.positions||[]).forEach(p=>{if(p.ticker)prevMap[p.ticker]=p;});
+    const rvMap={};
+    (inv.rv||[]).forEach(p=>{rvMap[p.ticker]=p;});
+    (currSnap.positions||[]).forEach(p=>{
+      if(!p.ticker||!p.qty)return;
+      const pp=prevMap[p.ticker];
+      const rvPos=rvMap[p.ticker];
+      const ppc=rvPos?.precio_compra||rvPos?.ppc||null;
+      if(!pp||!pp.qty){
+        // New position
+        const monto=ppc?p.qty*ppc:p.valueUSD;
+        purchases.push({ticker:p.ticker,nombre:p.nombre||p.ticker,tipo:'nueva',qty:p.qty,monto:+monto.toFixed(0)});
+      } else if(p.qty>pp.qty+0.001){
+        // Increased position
+        const delta=p.qty-pp.qty;
+        const monto=ppc?delta*ppc:(p.valueUSD/p.qty)*delta;
+        purchases.push({ticker:p.ticker,nombre:p.nombre||p.ticker,tipo:'compra',qty:delta,monto:+monto.toFixed(0)});
+      }
+    });
+    purchases.sort((a,b)=>b.monto-a.monto);
+  }
+  const snapPeriodLabel=snapsWithQty.length>=2?(()=>{
+    const d=new Date(snapsWithQty[snapsWithQty.length-2].date);
+    return d.toLocaleDateString('es-AR',{day:'2-digit',month:'long'});
+  })():'período anterior';
+
   const S='style="';
   const base='font-family:Geist,sans-serif;font-size:13px;color:#111827;';
   const mono='font-family:\'Geist Mono\',monospace;';
@@ -2420,8 +2454,20 @@ async function genReport(){
         }).join('')}
       </div>`:''}
 
-      <!-- SECTION: RF (only if client has RF) -->
-      ${hasRF&&allFlows.length?''/* merged into cobros below */:''}
+      <!-- SECTION: COMPRAS DEL PERÍODO -->
+      ${purchases.length?`
+      <div style="margin-bottom:32px;">
+        <div style="${mono}font-size:9px;font-weight:600;color:#6b7280;letter-spacing:.1em;text-transform:uppercase;margin-bottom:14px;padding-bottom:8px;border-bottom:1px solid #f3f4f6;">Compras desde ${snapPeriodLabel}</div>
+        ${purchases.map(p=>`
+        <div style="display:flex;align-items:center;gap:12px;padding:7px 0;border-bottom:1px solid #f9fafb;">
+          <span style="background:#f3f4f6;border-radius:5px;padding:2px 7px;${mono}font-size:10px;font-weight:600;color:#374151;min-width:52px;text-align:center;">${p.ticker}</span>
+          <span style="flex:1;font-size:11px;color:#6b7280;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${p.nombre}</span>
+          <span style="${mono}font-size:10px;color:#9ca3af;min-width:60px;text-align:right;">${p.qty%1===0?p.qty:p.qty.toFixed(3)} acc.</span>
+          <span style="${mono}font-size:12px;font-weight:600;color:#2563eb;min-width:90px;text-align:right;">u$s ${fmt(p.monto)}</span>
+          <span style="font-size:9px;${mono}color:${p.tipo==='nueva'?'#0d9f6b':'#6b7280'};min-width:40px;text-align:right;">${p.tipo==='nueva'?'NUEVA':'+pos'}</span>
+        </div>`).join('')}
+        <div style="${mono}font-size:10px;color:#6b7280;padding-top:8px;text-align:right;">Total invertido: <strong style="color:#111827;">u$s ${fmt(purchases.reduce((s,p)=>s+p.monto,0))}</strong></div>
+      </div>`:''}
 
       <!-- SECTION: PRÓXIMOS COBROS -->
       ${shownFlows.length?`

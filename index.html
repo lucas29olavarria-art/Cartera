@@ -4436,7 +4436,15 @@ function buildInvCharts(tab,inv,liq){
     const ptRadii=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?7:2;});
     const labels=allSnaps.map(function(s){const d=new Date(s.date);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});});
     if(CHS['rpt-evo'])CHS['rpt-evo'].destroy();
-    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[{data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return 'u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:9},maxRotation:40,maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:10},maxTicksLimit:5,callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.06)'}}}}});
+    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[{data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,onClick:function(evt,els){
+      if(!els||!els.length)return;
+      const idx=els[0].index;
+      const snap=allSnaps[idx];
+      if(!snap||!snap.id)return;
+      const label=labels[idx]+' · u$s '+fmt(+snap.totalValueUSD.toFixed(0));
+      if(!confirm('¿Borrar el punto '+label+'?\n\nEsto elimina ese snapshot del historial.'))return;
+      snapDelAndRefresh(snap.id,inv.id);
+    },onHover:function(evt,els){evt.native.target.style.cursor=els&&els.length?'pointer':'default';},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return 'u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:9},maxRotation:40,maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:10},maxTicksLimit:5,callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.06)'}}}}});
   }
 }
 

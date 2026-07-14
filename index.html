@@ -4481,79 +4481,23 @@ function buildInvCharts(tab,inv,liq){
     const ptColors=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?'#f5a623':(inv.color||'#5b9cf6');});
     const ptRadii=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?7:2;});
     const labels=allSnaps.map(function(s){const d=new Date(s.date);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});});
-    // Capital base line: start value + cumulative capital injected (qty increases / new positions)
-    const capitalBase=[allSnaps[0].totalValueUSD];
-    let cumInjection=0;
-    for(let i=1;i<allSnaps.length;i++){
-      const prev=allSnaps[i-1];const curr=allSnaps[i];
-      const prevMap={};
-      (prev.positions||[]).forEach(function(p){if(p.ticker&&p.qty!=null)prevMap[p.ticker]=p;});
-      const hasQty=Object.keys(prevMap).length>0;
-      if(hasQty){
-        let injection=0;
-        (curr.positions||[]).forEach(function(p){
-          if(!p.ticker||!p.qty||!p.valueUSD)return;
-          const pp=prevMap[p.ticker];
-          if(!pp||!pp.qty){injection+=p.valueUSD;}// new position
-          else if(p.qty>pp.qty){injection+=(p.qty-pp.qty)*(p.valueUSD/p.qty);}// bought more
-        });
-        cumInjection+=injection;
-      }
-      capitalBase.push(+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0));
-    }
-    const hasCapitalData=allSnaps.some(function(s){return(s.positions||[]).some(function(p){return p.qty!=null;});});
-    // Total: only injections AFTER first snapshot vs portfolio change since then
-    const totalNewCap=+cumInjection.toFixed(0);
-    const totalPortfChange=+(allSnaps[allSnaps.length-1].totalValueUSD-allSnaps[0].totalValueUSD).toFixed(0);
-    const totalMktGain=+(totalPortfChange-totalNewCap).toFixed(0);
-    const firstSnapDate=new Date(allSnaps[0].date).toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
-    // Monthly: find snapshots closest to start of current month and start of previous month
-    const now2=new Date();
-    const startOfThisMonth=new Date(now2.getFullYear(),now2.getMonth(),1);
-    const startOfPrevMonth=new Date(now2.getFullYear(),now2.getMonth()-1,1);
-    function snapClosestTo(date){
-      let best=null,bestDiff=Infinity;
-      allSnaps.forEach(function(s){const d=Math.abs(new Date(s.date)-date);if(d<bestDiff){bestDiff=d;best=s;}});
-      return best;
-    }
-    const snapThisMonthStart=snapClosestTo(startOfThisMonth);
-    const snapPrevMonthStart=snapClosestTo(startOfPrevMonth);
-    let monthCapInvested=null,monthMktGain=null,monthLabel='';
-    if(snapThisMonthStart&&snapPrevMonthStart&&snapThisMonthStart.id!==snapPrevMonthStart.id){
-      const prevMap2={};
-      (snapPrevMonthStart.positions||[]).forEach(function(p){if(p.ticker&&p.qty!=null)prevMap2[p.ticker]=p;});
-      const hasQtyM=Object.keys(prevMap2).length>0;
-      if(hasQtyM){
-        let injM=0;
-        (snapThisMonthStart.positions||[]).forEach(function(p){
-          if(!p.ticker||!p.qty||!p.valueUSD)return;
-          const pp=prevMap2[p.ticker];
-          if(!pp||!pp.qty){injM+=p.valueUSD;}
-          else if(p.qty>pp.qty){injM+=(p.qty-pp.qty)*(p.valueUSD/p.qty);}
-        });
-        monthCapInvested=+injM.toFixed(0);
-        monthMktGain=+(snapThisMonthStart.totalValueUSD-snapPrevMonthStart.totalValueUSD-injM).toFixed(0);
-        monthLabel=startOfThisMonth.toLocaleDateString('es-AR',{month:'long',year:'numeric'});
-      }
-    }
-    // Inject stats row into card below canvas
+    // Capital invested = sum of (PPC × qty) per position — exact, no snapshot guessing
+    const allPosForStats=[...inv.rv||[],...inv.rf||[]];
+    const totalCapInvested=+allPosForStats.reduce(function(s,p){return s+(p.vinicial||0);},0).toFixed(0);
+    const totalMktGain=+totalRend(inv).toFixed(0);
+    const rendPctStat=totalCapInvested>0?(totalMktGain/totalCapInvested*100).toFixed(1):'0.0';
+    // Inject stats below canvas
     const statsContainer=el.closest('.card');
-    if(statsContainer&&hasCapitalData){
+    if(statsContainer){
       const existing=statsContainer.querySelector('.cap-stats');
       if(existing)existing.remove();
       const sd=document.createElement('div');
       sd.className='cap-stats';
       sd.style.cssText='border-top:1px solid rgba(255,255,255,.07);margin-top:10px;padding:10px 0 2px;display:grid;grid-template-columns:1fr 1fr;gap:6px;';
-      const mk=(label,val,color)=>`<div style="padding:8px 10px;background:rgba(255,255,255,.03);border-radius:6px;"><div style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#5a6478;margin-bottom:4px;">${label}</div><div style="font-family:'Geist Mono',monospace;font-size:14px;font-weight:600;color:${color};">${val}</div></div>`;
+      const mk=(label,val,color,sub)=>`<div style="padding:10px 12px;background:rgba(255,255,255,.03);border-radius:6px;"><div style="font-size:9px;letter-spacing:.06em;text-transform:uppercase;color:#5a6478;margin-bottom:5px;">${label}</div><div style="font-family:'Geist Mono',monospace;font-size:16px;font-weight:700;color:${color};">${val}</div>${sub?`<div style="font-size:10px;color:#5a6478;margin-top:2px;">${sub}</div>`:''}</div>`;
       const gc=totalMktGain>=0?'var(--green)':'var(--red)';
       const gs=totalMktGain>=0?'+':'−';
-      let html=mk('Capital nuevo desde '+firstSnapDate,'u$s '+fmt(totalNewCap),'#e2e8f0')+mk('Variación del mercado desde '+firstSnapDate,gs+'u$s '+fmt(Math.abs(totalMktGain)),gc);
-      if(monthCapInvested!==null){
-        const mc=monthMktGain>=0?'var(--green)':'var(--red)';
-        const ms=monthMktGain>=0?'+':'−';
-        html+=mk('Capital invertido — '+monthLabel,'u$s '+fmt(monthCapInvested),'#94a3b8')+mk('Ganancia del mercado — '+monthLabel,ms+'u$s '+fmt(Math.abs(monthMktGain)),mc);
-      }
-      sd.innerHTML=html;
+      sd.innerHTML=mk('Capital invertido','u$s '+fmt(totalCapInvested),'#e2e8f0','precio promedio de compra × cantidad')+mk('Ganancia real de mercado',gs+'u$s '+fmt(Math.abs(totalMktGain)),gc,(totalMktGain>=0?'+':'')+rendPctStat+'% sobre el capital');
       statsContainer.appendChild(sd);
     }
     if(CHS['rpt-evo'])CHS['rpt-evo'].destroy();

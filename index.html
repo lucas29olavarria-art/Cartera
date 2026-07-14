@@ -6387,15 +6387,28 @@ function rReporteMensual(inv){
       :'')+
     '</div>'+
     '</div>';
-  if(gainers.length){
-    html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Ganadores del mes</div>';
-    gainers.forEach(function(t){html+=tkRow(t);});
-    html+='</div>';
-  }
-  if(losers.length){
-    html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Perdedores del mes</div>';
-    losers.forEach(function(t){html+=tkRow(t);});
-    html+='</div>';
+  if(gainers.length||losers.length){
+    const totalGain=gainers.reduce(function(s,t){return s+t.delta;},0);
+    const totalLoss=losers.reduce(function(s,t){return s+t.delta;},0);
+    const totalAll=totalGain+totalLoss;
+    const totalC2=totalAll>=0?'var(--green)':'var(--red)';
+    const totalS2=totalAll>=0?'+':'−';
+    if(gainers.length){
+      html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Ganadores del mes</div>';
+      gainers.forEach(function(t){html+=tkRow(t);});
+      html+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px;"><span style="font-size:11px;color:var(--muted);">Subtotal ganadores</span><span style="font-family:var(--mono);font-size:11px;color:var(--green);">+ u$s '+fmt(Math.abs(totalGain))+'</span></div>';
+      html+='</div>';
+    }
+    if(losers.length){
+      html+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Perdedores del mes</div>';
+      losers.forEach(function(t){html+=tkRow(t);});
+      html+='<div style="display:flex;justify-content:space-between;border-top:1px solid rgba(255,255,255,.08);padding-top:8px;margin-top:4px;"><span style="font-size:11px;color:var(--muted);">Subtotal perdedores</span><span style="font-family:var(--mono);font-size:11px;color:var(--red);">− u$s '+fmt(Math.abs(totalLoss))+'</span></div>';
+      html+='</div>';
+    }
+    html+='<div class="card" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;padding:12px 14px;">'+
+      '<span style="font-size:12px;font-weight:600;color:var(--soft);">Movimiento neto de precios</span>'+
+      '<span style="font-family:var(--mono);font-size:15px;font-weight:700;color:'+totalC2+';">'+totalS2+' u$s '+fmt(Math.abs(totalAll))+'</span>'+
+      '</div>';
   }
   if(cobros.length){
     const cobrosHtml=cobros.map(function(f){

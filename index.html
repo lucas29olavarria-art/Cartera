@@ -4435,8 +4435,39 @@ function buildInvCharts(tab,inv,liq){
     const ptColors=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?'#f5a623':(inv.color||'#5b9cf6');});
     const ptRadii=allSnaps.map(function(s){return cobroDates.has(s.date.slice(0,7))?7:2;});
     const labels=allSnaps.map(function(s){const d=new Date(s.date);return d.toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit'});});
+    // Capital base line: start value + cumulative capital injected (qty increases / new positions)
+    const capitalBase=[allSnaps[0].totalValueUSD];
+    let cumInjection=0;
+    for(let i=1;i<allSnaps.length;i++){
+      const prev=allSnaps[i-1];const curr=allSnaps[i];
+      const prevMap={};
+      (prev.positions||[]).forEach(function(p){if(p.ticker&&p.qty!=null)prevMap[p.ticker]=p;});
+      const hasQty=Object.keys(prevMap).length>0;
+      if(hasQty){
+        let injection=0;
+        (curr.positions||[]).forEach(function(p){
+          if(!p.ticker||!p.qty||!p.valueUSD)return;
+          const pp=prevMap[p.ticker];
+          if(!pp||!pp.qty){injection+=p.valueUSD;}// new position
+          else if(p.qty>pp.qty){injection+=(p.qty-pp.qty)*(p.valueUSD/p.qty);}// bought more
+        });
+        cumInjection+=injection;
+      }
+      capitalBase.push(+(allSnaps[0].totalValueUSD+cumInjection).toFixed(0));
+    }
+    const hasCapitalData=allSnaps.some(function(s){return(s.positions||[]).some(function(p){return p.qty!=null;});});
+    const latestRend=allSnaps[allSnaps.length-1].totalValueUSD-capitalBase[capitalBase.length-1];
+    const rendSign=latestRend>=0?'+':'';
+    // Update chart title to show organic return
+    const ctEl=el.closest('.card')?.querySelector('.ct');
+    if(ctEl&&hasCapitalData){
+      ctEl.innerHTML='EVOLUCIÓN PATRIMONIAL · <span style="color:var(--amber);">●</span> cobro Olas / RF'+(latestRend!==0?' · <span style="color:'+(latestRend>=0?'var(--green)':'var(--red)')+'">'+rendSign+'u$s '+fmt(Math.abs(latestRend))+' rendimiento orgánico</span>':'');
+    }
     if(CHS['rpt-evo'])CHS['rpt-evo'].destroy();
-    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[{data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true}]},options:{responsive:true,maintainAspectRatio:false,onClick:function(evt,els){
+    CHS['rpt-evo']=new Chart(el,{type:'line',data:{labels,datasets:[
+      {data:allSnaps.map(function(s){return+s.totalValueUSD.toFixed(0);}),borderColor:inv.color||'#5b9cf6',backgroundColor:(inv.color||'#5b9cf6')+'15',borderWidth:2.5,pointRadius:ptRadii,pointBackgroundColor:ptColors,pointBorderColor:ptColors,fill:true,tension:0.35,spanGaps:true,label:'Patrimonio'},
+      ...(hasCapitalData?[{data:capitalBase,borderColor:'rgba(255,255,255,0.25)',borderWidth:1.5,borderDash:[5,4],pointRadius:0,fill:false,tension:0.35,spanGaps:true,label:'Capital invertido'}]:[])
+    ]},options:{responsive:true,maintainAspectRatio:false,onClick:function(evt,els){
       if(!els||!els.length)return;
       const idx=els[0].index;
       const snap=allSnaps[idx];
@@ -4444,7 +4475,7 @@ function buildInvCharts(tab,inv,liq){
       const label=labels[idx]+' · u$s '+fmt(+snap.totalValueUSD.toFixed(0));
       if(!confirm('¿Borrar el punto '+label+'?\n\nEsto elimina ese snapshot del historial.'))return;
       snapDelAndRefresh(snap.id,inv.id);
-    },onHover:function(evt,els){evt.native.target.style.cursor=els&&els.length?'pointer':'default';},plugins:{legend:{display:false},tooltip:{callbacks:{label:function(c){return 'u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:9},maxRotation:40,maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:10},maxTicksLimit:5,callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.06)'}}}}});
+    },onHover:function(evt,els){evt.native.target.style.cursor=els&&els.length?'pointer':'default';},plugins:{legend:{display:false},tooltip:{callbacks:{title:function(items){return labels[items[0].dataIndex];},label:function(c){const name=c.dataset.label||'';return name+': u$s '+fmt(c.parsed.y);}}}},scales:{x:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:9},maxRotation:40,maxTicksLimit:8},grid:{display:false}},y:{ticks:{color:'#5a6478',font:{family:'Geist Mono',size:10},maxTicksLimit:5,callback:function(v){return 'u$s '+fmt(v);}},grid:{color:'rgba(255,255,255,0.06)'}}}}});
   }
 }
 
@@ -6018,7 +6049,7 @@ function snapSanityOk(invId,newVal){
   if(!recent.length||newVal<=0)return true;
   const prev=recent[0].totalValueUSD;
   const ratio=newVal/prev;
-  if(ratio>3||ratio<0.25){console.warn('[snapAdd] Sanity FAIL: prev='+prev+' new='+newVal+' ratio='+ratio.toFixed(2)+' — snapshot NOT saved');return false;}
+  if(ratio>10||ratio<0.1){console.warn('[snapAdd] Sanity FAIL: prev='+prev+' new='+newVal+' ratio='+ratio.toFixed(2)+' — snapshot NOT saved');return false;}
   return true;
 }
 async function snapAdd(inv){

@@ -1,0 +1,763 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
+<title>Inviu CRM · Lucas Olavarria</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>I</text></svg>">
+<meta name="theme-color" content="#07080b">
+<style>
+:root{
+  --bg:#07080b;--bg2:#0d0f14;--bg3:#13161d;--bg4:#1a1e28;--bg5:#222736;
+  --line:rgba(255,255,255,0.055);--line2:rgba(255,255,255,0.1);
+  --text:#eceef3;--soft:#7d8799;--muted:#424b5c;
+  --green:#2dd4a0;--red:#f06c6c;--blue:#5b9cf6;--amber:#f5a623;
+  --purple:#9b7ff4;
+  --font:'Geist',sans-serif;--mono:'Geist Mono',monospace;--serif:'Fraunces',serif;
+  --r:8px;--r2:12px;--r3:18px;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0;}
+html{font-size:14px;-webkit-font-smoothing:antialiased;touch-action:manipulation;}
+body{background:var(--bg);color:var(--text);font-family:var(--font);min-height:100vh;overflow-x:hidden;}
+a{color:inherit;}
+.hidden{display:none !important;}
+
+/* ── Lock screen ── */
+#lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:18px;}
+.lk-box{width:280px;text-align:center;}
+.lk-title{font-family:var(--serif);font-size:26px;font-style:italic;font-weight:300;margin-bottom:6px;}
+.lk-sub{font-size:12px;color:var(--soft);margin-bottom:22px;}
+.lk-dots{display:flex;justify-content:center;gap:12px;margin-bottom:22px;}
+.lk-dot{width:11px;height:11px;border-radius:50%;background:var(--bg4);border:1.5px solid var(--line2);transition:all .15s;}
+.lk-dot.on{background:var(--blue);border-color:var(--blue);}
+.lk-dot.err{background:var(--red);border-color:var(--red);}
+.lk-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.lk-btn{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);color:var(--text);font-size:19px;padding:16px 8px;cursor:pointer;}
+.lk-btn:active{transform:scale(.93);}
+.lk-btn.z{grid-column:2;}
+.lk-err{font-family:var(--mono);font-size:11px;color:var(--red);min-height:16px;margin-top:10px;}
+
+/* ── Layout ── */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:12px 20px;border-bottom:1px solid var(--line);position:sticky;top:0;background:rgba(7,8,11,.94);backdrop-filter:blur(14px);z-index:100;}
+.tlogo{display:flex;align-items:center;gap:8px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;color:var(--blue);}
+.tlogo svg{flex-shrink:0;}
+.ib{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r);color:var(--soft);font-family:var(--font);font-size:11px;font-weight:500;padding:6px 12px;cursor:pointer;white-space:nowrap;}
+.ib:hover{border-color:var(--line2);color:var(--text);}
+.ib.pri{background:var(--blue);border-color:var(--blue);color:#04070d;font-weight:600;}
+.ib.grn{background:var(--green);border-color:var(--green);color:#04070d;font-weight:600;}
+.ib.red{color:var(--red);border-color:rgba(240,108,108,.3);}
+.tabbar{display:flex;gap:1px;padding:0 20px;border-bottom:1px solid var(--line);background:var(--bg2);overflow-x:auto;}
+.tb{background:none;border:none;border-bottom:2px solid transparent;color:var(--muted);font-family:var(--font);font-size:11px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;padding:10px 14px 11px;cursor:pointer;white-space:nowrap;}
+.tb.active{color:var(--text);border-bottom-color:var(--blue);}
+.tb:hover:not(.active){color:var(--soft);}
+.content{flex:1;padding:20px;max-width:920px;width:100%;margin:0 auto;}
+
+/* ── Components ── */
+.card{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:16px;margin-bottom:12px;}
+.ct{font-size:12px;font-weight:600;color:var(--soft);margin-bottom:10px;text-transform:uppercase;letter-spacing:.04em;font-family:var(--mono);font-size:10px;}
+.krow{display:grid;gap:10px;margin-bottom:14px;}
+.kpi{background:var(--bg3);border:1px solid var(--line);border-radius:var(--r2);padding:14px;}
+.kl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;}
+.kv{font-size:20px;font-weight:600;}
+.kv.g{color:var(--green);}.kv.r{color:var(--red);}.kv.b{color:var(--blue);}
+.ks{font-size:10px;color:var(--soft);margin-top:2px;}
+.fi{background:var(--bg4);border:1px solid var(--line);border-radius:var(--r);color:var(--text);font-family:var(--font);font-size:12px;padding:8px 10px;width:100%;}
+.fi:focus{outline:none;border-color:var(--blue);}
+select.fi{cursor:pointer;}
+.frow{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px;}
+.flbl{font-family:var(--mono);font-size:9px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin-bottom:4px;display:block;}
+.empty{text-align:center;padding:36px 12px;color:var(--muted);font-size:12px;}
+.row{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.row:last-child{border-bottom:none;}
+.dot{width:7px;height:7px;border-radius:50%;flex-shrink:0;}
+.chip{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:20px;border:1px solid;white-space:nowrap;}
+.chip.g{color:var(--green);border-color:rgba(45,212,160,.3);background:rgba(45,212,160,.07);}
+.chip.a{color:var(--amber);border-color:rgba(245,166,35,.3);background:rgba(245,166,35,.07);}
+.chip.r{color:var(--red);border-color:rgba(240,108,108,.3);background:rgba(240,108,108,.07);}
+.chip.m{color:var(--muted);border-color:var(--line);}
+.bar-outer{background:var(--bg4);border-radius:4px;height:6px;overflow:hidden;}
+.bar-fill{height:100%;border-radius:4px;background:var(--blue);}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.6);display:flex;align-items:flex-end;justify-content:center;z-index:300;backdrop-filter:blur(2px);}
+@media(min-width:640px){.modal-bg{align-items:center;}}
+.modal{background:var(--bg2);border:1px solid var(--line2);border-radius:var(--r3) var(--r3) 0 0;padding:20px;width:100%;max-width:480px;max-height:88vh;overflow-y:auto;}
+@media(min-width:640px){.modal{border-radius:var(--r3);}}
+.modal h3{font-size:15px;margin-bottom:14px;font-weight:600;}
+.mclose{float:right;background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;}
+#toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:var(--bg5);border:1px solid var(--line2);border-radius:var(--r2);padding:10px 18px;font-size:12px;z-index:500;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(-6px);}
+.upl{border:1.5px dashed var(--line2);border-radius:var(--r2);padding:24px 14px;text-align:center;cursor:pointer;color:var(--soft);font-size:12px;}
+.upl:hover{border-color:var(--blue);color:var(--text);}
+.todo-item{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);}
+.todo-item:last-child{border-bottom:none;}
+.todo-item.done .todo-text{text-decoration:line-through;color:var(--muted);}
+.cb{width:18px;height:18px;border-radius:5px;border:1.5px solid var(--line2);flex-shrink:0;cursor:pointer;display:flex;align-items:center;justify-content:center;margin-top:1px;background:var(--bg4);}
+.cb.on{background:var(--green);border-color:var(--green);color:#04070d;font-size:12px;font-weight:700;}
+.del-x{background:none;border:none;color:var(--muted);cursor:pointer;font-size:15px;padding:2px 6px;flex-shrink:0;}
+.del-x:hover{color:var(--red);}
+.quick-add{display:flex;gap:8px;margin-bottom:14px;}
+.fab-add{background:var(--blue);border:none;color:#04070d;border-radius:var(--r);padding:0 16px;font-weight:700;font-size:16px;cursor:pointer;}
+.sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
+.sec-hdr h2{font-size:16px;font-weight:600;}
+.foot-note{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;padding:20px 0 10px;line-height:1.6;}
+</style>
+</head>
+<body>
+
+<div id="lock" class="hidden">
+  <div class="lk-box">
+    <div class="lk-title">Inviu CRM</div>
+    <div class="lk-sub" id="lk-sub">Ingresá tu PIN</div>
+    <div class="lk-dots" id="lk-dots"></div>
+    <div class="lk-grid" id="lk-grid"></div>
+    <div class="lk-err" id="lk-err"></div>
+  </div>
+</div>
+
+<div id="app" class="hidden">
+  <div class="topbar">
+    <div class="tlogo">
+      <svg width="20" height="20" viewBox="0 0 42 40" fill="none"><circle cx="21" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/><line x1="12" y1="6" x2="12" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/><line x1="12" y1="34" x2="25" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/></svg>
+      INVIU CRM
+    </div>
+    <button class="ib" onclick="openSettings()">⚙ Ajustes</button>
+  </div>
+  <div class="tabbar">
+    <button class="tb" id="tb-cal" onclick="nav('cal')">📅 Calendario</button>
+    <button class="tb" id="tb-cli" onclick="nav('cli')">👥 Clientes</button>
+    <button class="tb" id="tb-imp" onclick="nav('imp')">⬆ Importar</button>
+    <button class="tb" id="tb-age" onclick="nav('age')">📝 Agenda</button>
+  </div>
+  <div class="content" id="view"></div>
+  <div class="foot-note">inviu crm · datos guardados solo en este navegador</div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ══════════════════════════ STORAGE ══════════════════════════
+const DB_KEY='inviuCRM:data:v1';
+const PIN_KEY='inviuCRM:pin:v1';
+function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
+function loadDB(){
+  try{
+    const raw=localStorage.getItem(DB_KEY);
+    if(raw)return JSON.parse(raw);
+  }catch(e){}
+  return {clients:[],flows:[],agenda:[]};
+}
+let DB=loadDB();
+function save(){localStorage.setItem(DB_KEY,JSON.stringify(DB));}
+function toast(msg){
+  const t=document.getElementById('toast');
+  t.textContent=msg;t.classList.add('show');
+  clearTimeout(toast._t);
+  toast._t=setTimeout(()=>t.classList.remove('show'),2200);
+}
+
+// ══════════════════════════ FORMAT HELPERS ══════════════════════════
+function fmtMoney(n,moneda){
+  const v=(+n||0).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+  return (moneda==='ARS'?'$':'u$s')+' '+v;
+}
+function todayStr(){return new Date().toISOString().slice(0,10);}
+function fmtDate(d){
+  if(!d)return'—';
+  const dt=new Date(d+'T00:00:00');
+  if(isNaN(dt))return d;
+  return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'short',year:'numeric'});
+}
+function daysUntil(d){
+  const dt=new Date(d+'T00:00:00'),now=new Date();now.setHours(0,0,0,0);
+  return Math.round((dt-now)/86400000);
+}
+function initials(name){return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
+function colorFor(id){
+  const palette=['#5b9cf6','#2dd4a0','#f5a623','#9b7ff4','#f06c6c','#1ecbe1','#e879c9'];
+  let h=0;for(const c of id)h=(h*31+c.charCodeAt(0))>>>0;
+  return palette[h%palette.length];
+}
+
+// ══════════════════════════ PARSING (Inviu export) ══════════════════════════
+// Expected columns: Instrumento | Tipo de pago | Moneda | Fecha (D/M/YYYY) | Monto
+function parseAmount(raw){
+  if(raw==null)return NaN;
+  if(typeof raw==='number')return raw;
+  let s=String(raw).trim().replace(/[^\d.,-]/g,'');
+  if(!s)return NaN;
+  const hasDot=s.includes('.'),hasComma=s.includes(',');
+  if(hasDot&&hasComma){
+    if(s.lastIndexOf(',')>s.lastIndexOf('.')) s=s.replace(/\./g,'').replace(',','.');
+    else s=s.replace(/,/g,'');
+  }else if(hasComma){
+    s=s.replace(/\./g,'').replace(',','.');
+  }
+  return parseFloat(s);
+}
+function parseDateCell(raw){
+  if(raw==null)return null;
+  if(typeof raw==='number'){ // excel serial date
+    const d=XLSX.SSF.parse_date_code(raw);
+    if(d)return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
+    return null;
+  }
+  const s=String(raw).trim();
+  let m=s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+  if(m)return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+  m=s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if(m)return `${m[1]}-${m[2].padStart(2,'0')}-${m[3].padStart(2,'0')}`;
+  return null;
+}
+function parseCSVText(text){
+  const delim=(text.split('\n')[0].match(/;/g)||[]).length>(text.split('\n')[0].match(/,/g)||[]).length?';':',';
+  const rows=[];
+  text.split(/\r?\n/).forEach(line=>{
+    if(!line.trim())return;
+    const cells=[];let cur='',inQ=false;
+    for(let i=0;i<line.length;i++){
+      const c=line[i];
+      if(c==='"'){inQ=!inQ;continue;}
+      if(c===delim&&!inQ){cells.push(cur);cur='';continue;}
+      cur+=c;
+    }
+    cells.push(cur);
+    rows.push(cells.map(c=>c.trim()));
+  });
+  return rows;
+}
+function rowsFromWorkbook(buf){
+  const wb=XLSX.read(buf,{type:'array'});
+  const ws=wb.Sheets[wb.SheetNames[0]];
+  return XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+}
+function parseFlowRows(rows){
+  const data=rows.slice(1).filter(r=>r&&r[0]&&r[3]!=null&&r[3]!==''&&r[4]!=null&&r[4]!=='');
+  return data.map(r=>{
+    const ticker=String(r[0]).trim().toUpperCase();
+    const tipoRaw=String(r[1]||'Renta').trim();
+    const tipo=/amort/i.test(tipoRaw)?'Amortización':'Renta';
+    const moneda=String(r[2]||'USD').trim().toUpperCase();
+    const fecha=parseDateCell(r[3]);
+    const monto=parseAmount(r[4]);
+    return{ticker,tipo,moneda,fecha,monto};
+  }).filter(f=>f.fecha&&isFinite(f.monto)&&f.monto>0);
+}
+
+// ══════════════════════════ NAV ══════════════════════════
+let ATb='cal';
+const NAV_ORDER=['cal','cli','imp','age'];
+function nav(tab){
+  ATb=tab;
+  NAV_ORDER.forEach(t=>document.getElementById('tb-'+t).classList.toggle('active',t===tab));
+  if(tab==='cal')renderCalendario();
+  else if(tab==='cli')renderClientes();
+  else if(tab==='imp')renderImportar();
+  else if(tab==='age')renderAgenda();
+}
+function sc(html){document.getElementById('view').innerHTML=html;}
+
+// ══════════════════════════ CALENDARIO ══════════════════════════
+let calFilterCli='all',calRange='30';
+function allFlowsEnriched(){
+  return DB.flows.map(f=>{
+    const cli=DB.clients.find(c=>c.id===f.clientId);
+    return {...f,clientName:cli?cli.name:'(cliente borrado)',color:cli?colorFor(cli.id):'#424b5c'};
+  });
+}
+function renderCalendario(){
+  let flows=allFlowsEnriched().filter(f=>!f.cobrado);
+  if(calFilterCli!=='all')flows=flows.filter(f=>f.clientId===calFilterCli);
+  const today=todayStr();
+  if(calRange!=='all'){
+    const lim=new Date();lim.setDate(lim.getDate()+(+calRange));
+    const limStr=lim.toISOString().slice(0,10);
+    flows=flows.filter(f=>f.fecha<=limStr);
+  }
+  flows.sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const overdue=flows.filter(f=>f.fecha<today);
+  const upcoming=flows.filter(f=>f.fecha>=today);
+  const totByMoneda={};
+  flows.forEach(f=>{totByMoneda[f.moneda]=(totByMoneda[f.moneda]||0)+f.monto;});
+  const totStr=Object.entries(totByMoneda).map(([m,v])=>fmtMoney(v,m)).join(' + ')||'—';
+
+  sc(`
+  <div class="sec-hdr"><h2>Calendario de cobros</h2></div>
+  <div class="frow">
+    <div style="flex:1;min-width:140px;">
+      <label class="flbl">Cliente</label>
+      <select class="fi" onchange="calFilterCli=this.value;renderCalendario()">
+        <option value="all">Todos</option>
+        ${DB.clients.map(c=>`<option value="${c.id}" ${calFilterCli===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+      </select>
+    </div>
+    <div style="flex:1;min-width:140px;">
+      <label class="flbl">Rango</label>
+      <select class="fi" onchange="calRange=this.value;renderCalendario()">
+        <option value="7" ${calRange==='7'?'selected':''}>Próx. 7 días</option>
+        <option value="30" ${calRange==='30'?'selected':''}>Próx. 30 días</option>
+        <option value="90" ${calRange==='90'?'selected':''}>Próx. 90 días</option>
+        <option value="all" ${calRange==='all'?'selected':''}>Todos</option>
+      </select>
+    </div>
+  </div>
+  <div class="krow" style="grid-template-columns:repeat(2,1fr);">
+    <div class="kpi"><div class="kl">Total pendiente (rango)</div><div class="kv b">${totStr}</div><div class="ks">${flows.length} evento${flows.length!==1?'s':''}</div></div>
+    <div class="kpi"><div class="kl">Próximo cobro</div><div class="kv g">${upcoming[0]?fmtDate(upcoming[0].fecha):'—'}</div><div class="ks">${upcoming[0]?esc(upcoming[0].clientName):''}</div></div>
+  </div>
+  ${overdue.length?`<div class="card" style="border-color:rgba(240,108,108,.3);">
+    <div class="ct" style="color:var(--red);">⚠ Vencidos sin marcar (${overdue.length})</div>
+    ${overdue.map(f=>flowRow(f,true)).join('')}
+  </div>`:''}
+  <div class="card">
+    <div class="ct">Próximos cobros</div>
+    ${upcoming.length?upcoming.map(f=>flowRow(f,false)).join(''):'<div class="empty">No hay cobros próximos en este rango.</div>'}
+  </div>
+  <button class="ib pri" style="width:100%;padding:10px;" onclick="openManualFlow()">+ Agregar cobro manual</button>
+  `);
+}
+function flowRow(f,isOverdue){
+  const d=daysUntil(f.fecha);
+  const dLabel=isOverdue?`hace ${-d}d`:(d===0?'hoy':d===1?'mañana':`en ${d}d`);
+  return `<div class="row">
+    <span class="dot" style="background:${f.color};"></span>
+    <div style="flex:1;min-width:0;">
+      <div style="font-size:12px;font-weight:500;">${esc(f.clientName)} <span style="color:var(--muted);">·</span> <span style="color:var(--soft);">${esc(f.ticker)}</span></div>
+      <div style="font-size:10px;color:var(--muted);font-family:var(--mono);">${fmtDate(f.fecha)} · ${dLabel} · ${f.tipo}</div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-family:var(--mono);font-size:12px;color:${isOverdue?'var(--red)':'var(--green)'};">${fmtMoney(f.monto,f.moneda)}</div>
+    </div>
+    <button class="ib" style="padding:4px 8px;font-size:10px;" onclick="toggleCobrado('${f.id}')" title="Marcar como cobrado">✓</button>
+    <button class="del-x" onclick="deleteFlow('${f.id}')">×</button>
+  </div>`;
+}
+function toggleCobrado(id){
+  const f=DB.flows.find(x=>x.id===id);if(!f)return;
+  f.cobrado=true;save();
+  render();toast('✓ Marcado como cobrado');
+}
+function deleteFlow(id){
+  if(!confirm('¿Borrar este cobro?'))return;
+  DB.flows=DB.flows.filter(f=>f.id!==id);save();render();toast('Cobro borrado');
+}
+function openManualFlow(){
+  if(!DB.clients.length){toast('Primero agregá un cliente');nav('cli');return;}
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Agregar cobro manual</h3>
+    <label class="flbl">Cliente</label>
+    <select class="fi" id="mf-cli" style="margin-bottom:10px;">${DB.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    <label class="flbl">Instrumento / descripción</label>
+    <input class="fi" id="mf-ticker" placeholder="Ej: AL30, PF, honorarios..." style="margin-bottom:10px;">
+    <div class="frow">
+      <div style="flex:1;"><label class="flbl">Tipo</label>
+        <select class="fi" id="mf-tipo"><option>Renta</option><option>Amortización</option></select>
+      </div>
+      <div style="flex:1;"><label class="flbl">Moneda</label>
+        <select class="fi" id="mf-moneda"><option>USD</option><option>ARS</option></select>
+      </div>
+    </div>
+    <div class="frow">
+      <div style="flex:1;"><label class="flbl">Fecha</label>
+        <input class="fi" type="date" id="mf-fecha" value="${todayStr()}">
+      </div>
+      <div style="flex:1;"><label class="flbl">Monto</label>
+        <input class="fi" type="number" step="0.01" id="mf-monto" placeholder="0.00">
+      </div>
+    </div>
+    <button class="ib pri" style="width:100%;padding:10px;margin-top:12px;" onclick="saveManualFlow()">Guardar</button>
+  `);
+}
+function saveManualFlow(){
+  const clientId=document.getElementById('mf-cli').value;
+  const ticker=document.getElementById('mf-ticker').value.trim()||'—';
+  const tipo=document.getElementById('mf-tipo').value;
+  const moneda=document.getElementById('mf-moneda').value;
+  const fecha=document.getElementById('mf-fecha').value;
+  const monto=parseFloat(document.getElementById('mf-monto').value);
+  if(!fecha||!isFinite(monto)||monto<=0){toast('Completá fecha y monto');return;}
+  DB.flows.push({id:uid(),clientId,ticker,tipo,moneda,fecha,monto,cobrado:false,source:'manual'});
+  save();closeModal();nav('cal');toast('✓ Cobro agregado');
+}
+
+// ══════════════════════════ CLIENTES ══════════════════════════
+function renderClientes(){
+  const list=DB.clients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  sc(`
+  <div class="sec-hdr"><h2>Clientes</h2><button class="ib pri" onclick="openClientModal()">+ Nuevo cliente</button></div>
+  ${list.length?list.map(c=>{
+    const flows=DB.flows.filter(f=>f.clientId===c.id&&!f.cobrado);
+    const next=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
+    return `<div class="card" style="cursor:pointer;" onclick="openClientDetail('${c.id}')">
+      <div style="display:flex;align-items:center;gap:12px;">
+        <div style="width:38px;height:38px;border-radius:50%;background:${colorFor(c.id)}22;color:${colorFor(c.id)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">${initials(c.name)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-size:13px;font-weight:600;">${esc(c.name)}</div>
+          <div style="font-size:11px;color:var(--soft);">${flows.length} cobro${flows.length!==1?'s':''} pendiente${flows.length!==1?'s':''}${next?' · próx. '+fmtDate(next.fecha):''}</div>
+        </div>
+        <div style="color:var(--muted);">›</div>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty">Todavía no cargaste clientes.<br>Tocá "+ Nuevo cliente" para empezar.</div>'}
+  `);
+}
+function openClientModal(existing){
+  const c=existing||{};
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>${existing?'Editar cliente':'Nuevo cliente'}</h3>
+    <label class="flbl">Nombre</label>
+    <input class="fi" id="cl-name" value="${c.name?esc(c.name):''}" placeholder="Nombre y apellido" style="margin-bottom:10px;">
+    <label class="flbl">Contacto (tel / email, opcional)</label>
+    <input class="fi" id="cl-contact" value="${c.contact?esc(c.contact):''}" placeholder="" style="margin-bottom:10px;">
+    <label class="flbl">Notas</label>
+    <textarea class="fi" id="cl-notes" rows="3" style="resize:vertical;margin-bottom:12px;">${c.notes?esc(c.notes):''}</textarea>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="saveClient('${c.id||''}')">Guardar</button>
+  `);
+}
+function saveClient(id){
+  const name=document.getElementById('cl-name').value.trim();
+  if(!name){toast('Ingresá un nombre');return;}
+  const contact=document.getElementById('cl-contact').value.trim();
+  const notes=document.getElementById('cl-notes').value.trim();
+  if(id){
+    const c=DB.clients.find(x=>x.id===id);
+    Object.assign(c,{name,contact,notes});
+  }else{
+    DB.clients.push({id:uid(),name,contact,notes,createdAt:Date.now()});
+  }
+  save();closeModal();renderClientes();toast('✓ Cliente guardado');
+}
+function flowLine(f,green){
+  return `<div class="row" style="padding:8px 0;${green?'':'opacity:.6;'}">
+      <div style="flex:1;font-size:12px;">${esc(f.ticker)} <span style="color:var(--muted);">·</span> <span style="color:var(--soft);font-family:var(--mono);font-size:10px;">${fmtDate(f.fecha)}</span></div>
+      <div style="font-family:var(--mono);font-size:12px;${green?'color:var(--green);':''}">${fmtMoney(f.monto,f.moneda)}</div>
+    </div>`;
+}
+function openClientDetail(id){
+  const c=DB.clients.find(x=>x.id===id);if(!c)return;
+  const flows=DB.flows.filter(f=>f.clientId===id).sort((a,b)=>a.fecha<b.fecha?-1:1);
+  const pending=flows.filter(f=>!f.cobrado);
+  const collected=flows.filter(f=>f.cobrado);
+  const pendingHtml=pending.length?pending.map(f=>flowLine(f,true)).join(''):'<div class="empty">Sin cobros pendientes.</div>';
+  const collectedHtml=collected.length?`<div class="ct" style="margin-top:14px;">Cobrados (${collected.length})</div>${collected.slice(0,10).map(f=>flowLine(f,false)).join('')}`:'';
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>${esc(c.name)}</h3>
+    ${c.contact?`<div style="font-size:12px;color:var(--soft);margin-bottom:6px;">${esc(c.contact)}</div>`:''}
+    ${c.notes?`<div style="font-size:12px;color:var(--soft);background:var(--bg4);border-radius:var(--r);padding:8px 10px;margin-bottom:10px;">${esc(c.notes)}</div>`:''}
+    <div class="frow" style="margin-top:8px;">
+      <button class="ib" onclick="closeModal();openClientModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">✎ Editar</button>
+      <button class="ib red" onclick="deleteClient('${c.id}')">🗑 Borrar cliente</button>
+    </div>
+    <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
+    ${pendingHtml}
+    ${collectedHtml}
+  `);
+}
+function deleteClient(id){
+  if(!confirm('¿Borrar este cliente y todos sus cobros cargados? Esta acción no se puede deshacer.'))return;
+  DB.clients=DB.clients.filter(c=>c.id!==id);
+  DB.flows=DB.flows.filter(f=>f.clientId!==id);
+  save();closeModal();renderClientes();toast('Cliente borrado');
+}
+
+// ══════════════════════════ IMPORTAR ══════════════════════════
+let impParsed=[];
+function renderImportar(){
+  sc(`
+  <div class="sec-hdr"><h2>Importar flujo de cobros</h2></div>
+  ${!DB.clients.length?`<div class="card" style="border-color:rgba(245,166,35,.3);"><div style="font-size:12px;color:var(--amber);">⚠ Primero cargá al menos un cliente en la pestaña Clientes.</div></div>`:`
+  <div class="card">
+    <label class="flbl">Cliente</label>
+    <select class="fi" id="imp-cli" style="margin-bottom:12px;">${DB.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
+    <label class="flbl">Archivo de flujo de cobros (.xlsx o .csv de Inviu)</label>
+    <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleImportFile(this.files[0])">
+    <div class="upl" onclick="document.getElementById('imp-file').click()">📄 Tocá para elegir el archivo</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Formato esperado: Instrumento · Tipo de pago · Moneda · Fecha · Monto (el mismo export de "Flujo de Cobros" de Inviu).</div>
+  </div>
+  <div id="imp-preview"></div>
+  `}
+  `);
+}
+function handleImportFile(file){
+  if(!file)return;
+  const el=document.getElementById('imp-preview');
+  el.innerHTML='<div class="card"><div style="font-size:12px;color:var(--blue);">Leyendo archivo…</div></div>';
+  const isCsv=/\.csv$/i.test(file.name);
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      let rows;
+      if(isCsv)rows=parseCSVText(e.target.result);
+      else rows=rowsFromWorkbook(e.target.result);
+      impParsed=parseFlowRows(rows);
+      showImportPreview();
+    }catch(err){
+      el.innerHTML=`<div class="card" style="border-color:rgba(240,108,108,.3);"><div style="font-size:12px;color:var(--red);">Error leyendo archivo: ${esc(err.message)}</div></div>`;
+    }
+  };
+  if(isCsv)reader.readAsText(file,'utf-8');
+  else reader.readAsArrayBuffer(file);
+}
+function showImportPreview(){
+  const el=document.getElementById('imp-preview');
+  if(!impParsed.length){
+    el.innerHTML='<div class="card" style="border-color:rgba(240,108,108,.3);"><div style="font-size:12px;color:var(--red);">No se encontraron filas válidas. Verificá el formato del archivo.</div></div>';
+    return;
+  }
+  const byTicker={};
+  impParsed.forEach(f=>{
+    if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0,nr:0,na:0,moneda:f.moneda};
+    if(f.tipo==='Amortización'){byTicker[f.ticker].amort+=f.monto;byTicker[f.ticker].na++;}
+    else{byTicker[f.ticker].renta+=f.monto;byTicker[f.ticker].nr++;}
+  });
+  const rows=Object.entries(byTicker).map(([tk,d])=>`
+    <div class="row">
+      <div style="flex:1;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(tk)}</div>
+      <div style="font-size:11px;color:var(--green);">${d.nr?d.nr+' cupón(es) · '+fmtMoney(d.renta,d.moneda):''}</div>
+      <div style="font-size:11px;color:var(--amber);">${d.na?d.na+' amort. · '+fmtMoney(d.amort,d.moneda):''}</div>
+    </div>`).join('');
+  el.innerHTML=`
+    <div class="card">
+      <div class="ct">${impParsed.length} flujos · ${Object.keys(byTicker).length} instrumento(s)</div>
+      ${rows}
+    </div>
+    <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--soft);margin-bottom:10px;">
+      <input type="checkbox" id="imp-replace" checked> Reemplazar flujos existentes de este cliente (evita duplicados)
+    </label>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmImport()">📥 Importar ${impParsed.length} flujos</button>
+  `;
+}
+function confirmImport(){
+  const clientId=document.getElementById('imp-cli').value;
+  const replace=document.getElementById('imp-replace').checked;
+  if(!clientId||!impParsed.length)return;
+  if(replace)DB.flows=DB.flows.filter(f=>f.clientId!==clientId);
+  const existingKeys=new Set(DB.flows.filter(f=>f.clientId===clientId).map(f=>`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`));
+  let added=0;
+  impParsed.forEach(f=>{
+    const key=`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`;
+    if(existingKeys.has(key))return;
+    DB.flows.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
+    existingKeys.add(key);
+    added++;
+  });
+  save();impParsed=[];
+  toast(`✓ ${added} flujos importados`);
+  nav('cal');
+}
+
+// ══════════════════════════ AGENDA PERSONAL ══════════════════════════
+let ageShowDone=false;
+function renderAgenda(){
+  const items=DB.agenda.slice().sort((a,b)=>{
+    if(a.done!==b.done)return a.done?1:-1;
+    const ad=a.due||'9999',bd=b.due||'9999';
+    if(ad!==bd)return ad<bd?-1:1;
+    return b.createdAt-a.createdAt;
+  }).filter(i=>ageShowDone||!i.done);
+  sc(`
+  <div class="sec-hdr"><h2>Agenda personal</h2>
+    <label style="font-size:11px;color:var(--soft);display:flex;align-items:center;gap:6px;">
+      <input type="checkbox" ${ageShowDone?'checked':''} onchange="ageShowDone=this.checked;renderAgenda()"> ver completadas
+    </label>
+  </div>
+  <div class="quick-add">
+    <input class="fi" id="age-text" placeholder="Agregar tarea o recordatorio… (Enter)" onkeydown="if(event.key==='Enter')quickAddAgenda()">
+    <input class="fi" id="age-due" type="date" style="max-width:150px;">
+    <button class="fab-add" onclick="quickAddAgenda()">+</button>
+  </div>
+  <div class="card">
+    ${items.length?items.map(i=>`
+      <div class="todo-item ${i.done?'done':''}">
+        <div class="cb ${i.done?'on':''}" onclick="toggleAgenda('${i.id}')">${i.done?'✓':''}</div>
+        <div style="flex:1;min-width:0;">
+          <div class="todo-text" style="font-size:12px;">${esc(i.text)}</div>
+          ${i.due?`<div style="font-size:10px;color:${!i.done&&i.due<todayStr()?'var(--red)':'var(--muted)'};font-family:var(--mono);margin-top:2px;">${fmtDate(i.due)}</div>`:''}
+        </div>
+        <button class="del-x" onclick="deleteAgenda('${i.id}')">×</button>
+      </div>
+    `).join(''):'<div class="empty">Sin pendientes. Agregá algo arriba ↑</div>'}
+  </div>
+  `);
+}
+function quickAddAgenda(){
+  const textEl=document.getElementById('age-text');
+  const dueEl=document.getElementById('age-due');
+  const text=textEl.value.trim();
+  if(!text)return;
+  DB.agenda.push({id:uid(),text,due:dueEl.value||null,done:false,createdAt:Date.now()});
+  save();textEl.value='';dueEl.value='';renderAgenda();
+}
+function toggleAgenda(id){
+  const i=DB.agenda.find(x=>x.id===id);if(!i)return;
+  i.done=!i.done;save();renderAgenda();
+}
+function deleteAgenda(id){
+  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();renderAgenda();
+}
+
+// ══════════════════════════ MODAL ══════════════════════════
+function showModal(html){
+  let bg=document.getElementById('modal-bg');
+  if(!bg){
+    bg=document.createElement('div');
+    bg.id='modal-bg';bg.className='modal-bg';
+    bg.onclick=e=>{if(e.target===bg)closeModal();};
+    document.body.appendChild(bg);
+  }
+  bg.innerHTML=`<div class="modal">${html}</div>`;
+  bg.style.display='flex';
+}
+function closeModal(){
+  const bg=document.getElementById('modal-bg');
+  if(bg)bg.style.display='none';
+}
+function esc(s){
+  return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+// ══════════════════════════ SETTINGS (PIN + backup) ══════════════════════════
+function openSettings(){
+  const hasPin=!!localStorage.getItem(PIN_KEY);
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Ajustes</h3>
+    <div class="ct" style="margin-top:6px;">Seguridad</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Los datos se guardan solo en este navegador (no hay servidor). El PIN evita que alguien abra la app si toma tu dispositivo.</div>
+    ${hasPin?`<button class="ib red" style="width:100%;padding:9px;margin-bottom:10px;" onclick="removePin()">Quitar PIN</button>`
+             :`<button class="ib pri" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();setupPin()">Configurar PIN</button>`}
+    <div class="ct" style="margin-top:14px;">Backup</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos (clientes, flujos, agenda) o restaurá desde un backup anterior.</div>
+    <div class="frow">
+      <button class="ib" style="flex:1;" onclick="exportBackup()">⬇ Exportar backup</button>
+      <button class="ib" style="flex:1;" onclick="document.getElementById('restore-file').click()">⬆ Restaurar</button>
+    </div>
+    <input type="file" id="restore-file" accept=".json" style="display:none;" onchange="importBackup(this.files[0])">
+    <div class="ct" style="margin-top:14px;color:var(--red);">Zona de riesgo</div>
+    <button class="ib red" style="width:100%;padding:9px;" onclick="wipeAll()">Borrar todos los datos</button>
+  `);
+}
+function exportBackup(){
+  const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(blob);
+  a.download=`inviu-crm-backup-${todayStr()}.json`;
+  a.click();
+  toast('✓ Backup descargado');
+}
+function importBackup(file){
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(!Array.isArray(data.clients)||!Array.isArray(data.flows)||!Array.isArray(data.agenda))throw new Error('Formato inválido');
+      if(!confirm('Esto reemplaza todos los datos actuales por los del backup. ¿Continuar?'))return;
+      DB=data;save();closeModal();nav('cal');toast('✓ Backup restaurado');
+    }catch(err){toast('Error: '+err.message);}
+  };
+  reader.readAsText(file);
+}
+function wipeAll(){
+  if(!confirm('¿Borrar TODOS los clientes, cobros y tareas de la agenda? No se puede deshacer.'))return;
+  if(!confirm('Confirmá de nuevo: esto borra todo permanentemente.'))return;
+  DB={clients:[],flows:[],agenda:[]};save();closeModal();nav('cal');toast('Datos borrados');
+}
+
+// ══════════════════════════ PIN LOCK ══════════════════════════
+async function sha256(text){
+  const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(text));
+  return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
+}
+let pinEntry='';
+function renderLockPad(mode){
+  const grid=document.getElementById('lk-grid');
+  const nums=['1','2','3','4','5','6','7','8','9','','0','del'];
+  grid.innerHTML=nums.map(n=>{
+    if(n==='')return '<div></div>';
+    if(n==='del')return `<button class="lk-btn" onclick="pinBackspace()">⌫</button>`;
+    return `<button class="lk-btn" onclick="pinPress('${n}')">${n}</button>`;
+  }).join('');
+  renderLockDots();
+}
+function renderLockDots(){
+  const dots=document.getElementById('lk-dots');
+  dots.innerHTML=Array.from({length:4}).map((_,i)=>`<div class="lk-dot ${i<pinEntry.length?'on':''}"></div>`).join('');
+}
+function pinPress(n){
+  if(pinEntry.length>=4)return;
+  pinEntry+=n;
+  renderLockDots();
+  if(pinEntry.length===4)handlePinComplete();
+}
+function pinBackspace(){pinEntry=pinEntry.slice(0,-1);renderLockDots();}
+let _pinFirstStep=null;
+async function handlePinComplete(){
+  if(_pinSetupMode){
+    if(_pinFirstStep===null){
+      _pinFirstStep=pinEntry;pinEntry='';
+      document.getElementById('lk-sub').textContent='Confirmá el PIN';
+      renderLockDots();
+    }else{
+      if(pinEntry!==_pinFirstStep){
+        document.getElementById('lk-err').textContent='No coincide, intentá de nuevo';
+        pinEntry='';_pinFirstStep=null;
+        document.getElementById('lk-sub').textContent='Elegí un PIN de 4 dígitos';
+        renderLockDots();
+        return;
+      }
+      const hash=await sha256(pinEntry);
+      localStorage.setItem(PIN_KEY,hash);
+      _pinSetupMode=false;pinEntry='';_pinFirstStep=null;
+      document.getElementById('lock').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+      toast('✓ PIN configurado');
+    }
+    return;
+  }
+  const hash=await sha256(pinEntry);
+  const stored=localStorage.getItem(PIN_KEY);
+  if(hash===stored){
+    document.getElementById('lock').classList.add('hidden');
+    document.getElementById('app').classList.remove('hidden');
+    pinEntry='';
+  }else{
+    document.getElementById('lk-err').textContent='PIN incorrecto';
+    document.querySelectorAll('.lk-dot').forEach(d=>d.classList.add('err'));
+    setTimeout(()=>{pinEntry='';renderLockDots();document.getElementById('lk-err').textContent='';},450);
+  }
+}
+let _pinSetupMode=false;
+function setupPin(){
+  _pinSetupMode=true;_pinFirstStep=null;pinEntry='';
+  document.getElementById('lk-sub').textContent='Elegí un PIN de 4 dígitos';
+  document.getElementById('lk-err').textContent='';
+  document.getElementById('lock').classList.remove('hidden');
+  renderLockPad();
+}
+function removePin(){
+  if(!confirm('¿Quitar el PIN de acceso?'))return;
+  localStorage.removeItem(PIN_KEY);
+  closeModal();toast('PIN eliminado');
+}
+
+// ══════════════════════════ BOOT ══════════════════════════
+function render(){nav(ATb);}
+function boot(){
+  const stored=localStorage.getItem(PIN_KEY);
+  if(stored){
+    document.getElementById('lock').classList.remove('hidden');
+    document.getElementById('lk-sub').textContent='Ingresá tu PIN';
+    renderLockPad();
+  }else{
+    document.getElementById('app').classList.remove('hidden');
+  }
+  nav('cal');
+}
+boot();
+</script>
+</body>
+</html>

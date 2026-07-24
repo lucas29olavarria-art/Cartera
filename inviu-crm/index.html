@@ -100,6 +100,21 @@ select.fi{cursor:pointer;}
 .fab-add{background:var(--blue);border:none;color:#04070d;border-radius:var(--r);padding:0 16px;font-weight:700;font-size:16px;cursor:pointer;}
 .sec-hdr{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;}
 .sec-hdr h2{font-size:16px;font-weight:600;}
+.cal-nav{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.cal-nav-title{font-size:14px;font-weight:600;}
+.cal-nav-btns{display:flex;gap:6px;}
+.cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px;margin-bottom:16px;}
+.cal-dow{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;padding-bottom:4px;text-transform:uppercase;}
+.cal-day{position:relative;aspect-ratio:1/1;background:var(--bg3);border:1px solid var(--line);border-radius:8px;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;padding:4px 2px;cursor:pointer;}
+.cal-day:hover{border-color:var(--line2);}
+.cal-day.empty{background:transparent;border-color:transparent;cursor:default;}
+.cal-day.today{border-color:var(--blue);border-width:1.5px;}
+.cal-day.past{opacity:.5;}
+.cal-day.overdue{border-color:rgba(240,108,108,.55);}
+.cal-day-num{font-weight:600;font-size:11px;}
+.cal-day-dots{display:flex;gap:2px;margin-top:3px;flex-wrap:wrap;justify-content:center;max-width:100%;}
+.cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
+.cal-day-note{position:absolute;top:2px;right:3px;font-size:8px;}
 .foot-note{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;padding:20px 0 10px;line-height:1.6;}
 </style>
 </head>
@@ -259,6 +274,93 @@ function sc(html){document.getElementById('view').innerHTML=html;}
 
 // ══════════════════════════ CALENDARIO ══════════════════════════
 let calFilterCli='all',calRange='30';
+let calMonth=(()=>{const d=new Date();d.setDate(1);d.setHours(0,0,0,0);return d;})();
+function monthLabel(d){const s=d.toLocaleDateString('es-AR',{month:'long',year:'numeric'});return s[0].toUpperCase()+s.slice(1);}
+function changeCalMonth(delta){calMonth=new Date(calMonth.getFullYear(),calMonth.getMonth()+delta,1);renderCalendario();}
+function goToday(){const d=new Date();calMonth=new Date(d.getFullYear(),d.getMonth(),1);renderCalendario();}
+function renderMonthGrid(){
+  const year=calMonth.getFullYear(),month=calMonth.getMonth();
+  const firstDow=(new Date(year,month,1).getDay()+6)%7; // Monday=0
+  const daysInMonth=new Date(year,month+1,0).getDate();
+  const today=todayStr();
+  const dows=['L','M','X','J','V','S','D'];
+  let cells='';
+  for(let i=0;i<firstDow;i++)cells+='<div class="cal-day empty"></div>';
+  for(let day=1;day<=daysInMonth;day++){
+    const dateStr=`${year}-${String(month+1).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    let flows=DB.flows.filter(f=>f.fecha===dateStr);
+    if(calFilterCli!=='all')flows=flows.filter(f=>f.clientId===calFilterCli);
+    const pendingFlows=flows.filter(f=>!f.cobrado);
+    const hasOverdue=pendingFlows.length>0&&dateStr<today;
+    const hasNotes=DB.agenda.some(a=>a.due===dateStr);
+    const dotsHtml=pendingFlows.slice(0,4).map(f=>{
+      const cli=DB.clients.find(c=>c.id===f.clientId);
+      return `<span class="cal-dot" style="background:${cli?colorFor(cli.id):'#424b5c'};"></span>`;
+    }).join('');
+    const classes=['cal-day'];
+    if(dateStr===today)classes.push('today');
+    if(dateStr<today)classes.push('past');
+    if(hasOverdue)classes.push('overdue');
+    cells+=`<div class="${classes.join(' ')}" onclick="openDayDetail('${dateStr}')">
+      <div class="cal-day-num">${day}</div>
+      <div class="cal-day-dots">${dotsHtml}${pendingFlows.length>4?'<span style="font-size:7px;color:var(--muted);">+'+(pendingFlows.length-4)+'</span>':''}</div>
+      ${hasNotes?'<div class="cal-day-note">📝</div>':''}
+    </div>`;
+  }
+  return `
+  <div class="cal-nav">
+    <button class="ib" onclick="changeCalMonth(-1)">‹</button>
+    <div class="cal-nav-title">${monthLabel(calMonth)}</div>
+    <div class="cal-nav-btns">
+      <button class="ib" onclick="goToday()">Hoy</button>
+      <button class="ib" onclick="changeCalMonth(1)">›</button>
+    </div>
+  </div>
+  <div class="cal-grid">
+    ${dows.map(d=>`<div class="cal-dow">${d}</div>`).join('')}
+    ${cells}
+  </div>`;
+}
+function openDayDetail(dateStr){
+  const flows=DB.flows.filter(f=>f.fecha===dateStr).map(f=>{
+    const cli=DB.clients.find(c=>c.id===f.clientId);
+    return {...f,clientName:cli?cli.name:'(cliente borrado)',color:cli?colorFor(cli.id):'#424b5c'};
+  }).sort((a,b)=>a.clientName.localeCompare(b.clientName));
+  const notes=DB.agenda.filter(a=>a.due===dateStr).sort((a,b)=>(a.done?1:0)-(b.done?1:0));
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>${fmtDate(dateStr)}</h3>
+    <div class="ct" style="margin-top:10px;">Cobros</div>
+    ${flows.length?flows.map(f=>`<div class="row" style="padding:8px 0;">
+      <span class="dot" style="background:${f.color};"></span>
+      <div style="flex:1;min-width:0;font-size:12px;">${esc(f.clientName)} <span style="color:var(--muted);">·</span> <span style="color:var(--soft);">${esc(f.ticker)}</span></div>
+      <div style="font-family:var(--mono);font-size:12px;color:${f.cobrado?'var(--muted)':'var(--green)'};">${fmtMoney(f.monto,f.moneda)}</div>
+      ${!f.cobrado?`<button class="ib" style="padding:4px 8px;font-size:10px;" onclick="toggleCobrado('${f.id}');closeModal();openDayDetail('${dateStr}')">✓</button>`:''}
+      <button class="del-x" onclick="deleteFlow('${f.id}');closeModal();openDayDetail('${dateStr}')">×</button>
+    </div>`).join(''):'<div class="empty" style="padding:14px 0;">Sin cobros este día.</div>'}
+    <button class="ib" style="width:100%;padding:8px;margin-top:4px;" onclick="closeModal();openManualFlow('${dateStr}')">+ Agregar cobro este día</button>
+
+    <div class="ct" style="margin-top:16px;">Notas</div>
+    <div class="quick-add" style="margin-bottom:8px;">
+      <input class="fi" id="day-note-text" placeholder="Agregar nota… (Enter)" onkeydown="if(event.key==='Enter')addDayNote('${dateStr}')">
+      <button class="fab-add" onclick="addDayNote('${dateStr}')">+</button>
+    </div>
+    ${notes.length?notes.map(i=>`
+      <div class="todo-item ${i.done?'done':''}">
+        <div class="cb ${i.done?'on':''}" onclick="toggleAgenda('${i.id}');closeModal();openDayDetail('${dateStr}')">${i.done?'✓':''}</div>
+        <div style="flex:1;min-width:0;"><div class="todo-text" style="font-size:12px;">${esc(i.text)}</div></div>
+        <button class="del-x" onclick="deleteAgenda('${i.id}');closeModal();openDayDetail('${dateStr}')">×</button>
+      </div>`).join(''):'<div class="empty" style="padding:10px 0;">Sin notas este día.</div>'}
+  `);
+}
+function addDayNote(dateStr){
+  const el=document.getElementById('day-note-text');
+  const text=el.value.trim();
+  if(!text)return;
+  DB.agenda.push({id:uid(),text,due:dateStr,done:false,createdAt:Date.now()});
+  save();
+  closeModal();openDayDetail(dateStr);
+}
 function allFlowsEnriched(){
   return DB.flows.map(f=>{
     const cli=DB.clients.find(c=>c.id===f.clientId);
@@ -283,6 +385,10 @@ function renderCalendario(){
 
   sc(`
   <div class="sec-hdr"><h2>Calendario de cobros</h2></div>
+  <div class="card" style="padding:14px 10px;">
+    ${renderMonthGrid()}
+    <div style="font-size:9px;color:var(--muted);text-align:center;font-family:var(--mono);">Tocá un día para ver el detalle y anotar algo · 📝 = tenés notas ese día</div>
+  </div>
   <div class="frow">
     <div style="flex:1;min-width:140px;">
       <label class="flbl">Cliente</label>
@@ -341,7 +447,7 @@ function deleteFlow(id){
   if(!confirm('¿Borrar este cobro?'))return;
   DB.flows=DB.flows.filter(f=>f.id!==id);save();render();toast('Cobro borrado');
 }
-function openManualFlow(){
+function openManualFlow(presetDate){
   if(!DB.clients.length){toast('Primero agregá un cliente');nav('cli');return;}
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
@@ -360,7 +466,7 @@ function openManualFlow(){
     </div>
     <div class="frow">
       <div style="flex:1;"><label class="flbl">Fecha</label>
-        <input class="fi" type="date" id="mf-fecha" value="${todayStr()}">
+        <input class="fi" type="date" id="mf-fecha" value="${presetDate||todayStr()}">
       </div>
       <div style="flex:1;"><label class="flbl">Monto</label>
         <input class="fi" type="number" step="0.01" id="mf-monto" placeholder="0.00">
@@ -614,6 +720,7 @@ function showModal(html){
 function closeModal(){
   const bg=document.getElementById('modal-bg');
   if(bg)bg.style.display='none';
+  render();
 }
 function esc(s){
   return String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));

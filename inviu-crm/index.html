@@ -142,7 +142,7 @@ select.fi{cursor:pointer;}
     <button class="tb" id="tb-cal" onclick="nav('cal')">📅 Calendario</button>
     <button class="tb" id="tb-cli" onclick="nav('cli')">👥 Clientes</button>
     <button class="tb" id="tb-imp" onclick="nav('imp')">⬆ Importar</button>
-    <button class="tb" id="tb-age" onclick="nav('age')">📝 Agenda</button>
+    <button class="tb" id="tb-stat" onclick="nav('stat')">📊 Estadísticas</button>
   </div>
   <div class="content" id="view"></div>
   <div class="foot-note">inviu crm · datos guardados solo en este navegador</div>
@@ -261,14 +261,14 @@ function parseFlowRows(rows){
 
 // ══════════════════════════ NAV ══════════════════════════
 let ATb='cal';
-const NAV_ORDER=['cal','cli','imp','age'];
+const NAV_ORDER=['cal','cli','imp','stat'];
 function nav(tab){
   ATb=tab;
   NAV_ORDER.forEach(t=>document.getElementById('tb-'+t).classList.toggle('active',t===tab));
   if(tab==='cal')renderCalendario();
   else if(tab==='cli')renderClientes();
   else if(tab==='imp')renderImportar();
-  else if(tab==='age')renderAgenda();
+  else if(tab==='stat')renderStats();
 }
 function sc(html){document.getElementById('view').innerHTML=html;}
 
@@ -367,6 +367,22 @@ function allFlowsEnriched(){
     return {...f,clientName:cli?cli.name:'(cliente borrado)',color:cli?colorFor(cli.id):'#424b5c'};
   });
 }
+function renderTodayCard(){
+  const today=todayStr();
+  const todays=allFlowsEnriched().filter(f=>f.fecha===today&&!f.cobrado);
+  const totByMoneda={};
+  todays.forEach(f=>totByMoneda[f.moneda]=(totByMoneda[f.moneda]||0)+f.monto);
+  const totStr=Object.entries(totByMoneda).map(([m,v])=>fmtMoney(v,m)).join(' + ');
+  return `<div class="card" style="border-color:${todays.length?'rgba(45,212,160,.35)':'var(--line)'};">
+    <div class="ct" style="color:${todays.length?'var(--green)':'var(--soft)'};">📌 Hoy${totStr?' · '+totStr:''}</div>
+    ${todays.length?todays.map(f=>`
+      <div class="row" style="padding:7px 0;">
+        <span class="dot" style="background:${f.color};"></span>
+        <div style="flex:1;min-width:0;font-size:12px;">${esc(f.clientName)} <span style="color:var(--muted);">·</span> <span style="color:var(--soft);">${esc(f.ticker)}</span></div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--green);">${fmtMoney(f.monto,f.moneda)}</div>
+      </div>`).join(''):'<div class="empty" style="padding:8px 0;">Nadie cobra hoy.</div>'}
+  </div>`;
+}
 function renderCalendario(){
   let flows=allFlowsEnriched().filter(f=>!f.cobrado);
   if(calFilterCli!=='all')flows=flows.filter(f=>f.clientId===calFilterCli);
@@ -385,6 +401,7 @@ function renderCalendario(){
 
   sc(`
   <div class="sec-hdr"><h2>Calendario de cobros</h2></div>
+  ${renderTodayCard()}
   <div class="card" style="padding:14px 10px;">
     ${renderMonthGrid()}
     <div style="font-size:9px;color:var(--muted);text-align:center;font-family:var(--mono);">Tocá un día para ver el detalle y anotar algo · 📝 = tenés notas ese día</div>
@@ -655,54 +672,93 @@ function confirmImport(){
   nav('cal');
 }
 
-// ══════════════════════════ AGENDA PERSONAL ══════════════════════════
-let ageShowDone=false;
-function renderAgenda(){
-  const items=DB.agenda.slice().sort((a,b)=>{
-    if(a.done!==b.done)return a.done?1:-1;
-    const ad=a.due||'9999',bd=b.due||'9999';
-    if(ad!==bd)return ad<bd?-1:1;
-    return b.createdAt-a.createdAt;
-  }).filter(i=>ageShowDone||!i.done);
+// ══════════════════════════ ESTADÍSTICAS ══════════════════════════
+function monthShortLabel(k){
+  const [y,m]=k.split('-');
+  const s=new Date(+y,+m-1,1).toLocaleDateString('es-AR',{month:'short',year:'numeric'});
+  return s[0].toUpperCase()+s.slice(1);
+}
+function renderStats(){
+  const flows=allFlowsEnriched();
+  const cobrados=flows.filter(f=>f.cobrado);
+  const pendientes=flows.filter(f=>!f.cobrado);
+  const sumByMoneda=arr=>{const o={};arr.forEach(f=>o[f.moneda]=(o[f.moneda]||0)+f.monto);return o;};
+  const fmtTotals=o=>Object.entries(o).map(([m,v])=>fmtMoney(v,m)).join(' + ');
+
+  const byClient={};
+  flows.forEach(f=>{
+    if(!byClient[f.clientId])byClient[f.clientId]={name:f.clientName,color:f.color,cobrado:{},pendiente:{},sortKey:0};
+    const b=byClient[f.clientId];
+    (f.cobrado?b.cobrado:b.pendiente)[f.moneda]=((f.cobrado?b.cobrado:b.pendiente)[f.moneda]||0)+f.monto;
+    b.sortKey+=f.monto;
+  });
+  const clientRows=Object.values(byClient).sort((a,b)=>b.sortKey-a.sortKey);
+
+  const byTicker={};
+  flows.forEach(f=>{
+    if(!byTicker[f.ticker])byTicker[f.ticker]={monedas:{},sortKey:0};
+    byTicker[f.ticker].monedas[f.moneda]=(byTicker[f.ticker].monedas[f.moneda]||0)+f.monto;
+    byTicker[f.ticker].sortKey+=f.monto;
+  });
+  const tickerRows=Object.entries(byTicker).map(([tk,d])=>({ticker:tk,...d})).sort((a,b)=>b.sortKey-a.sortKey).slice(0,8);
+
+  const byMonthMoneda={};
+  pendientes.forEach(f=>{
+    const k=f.fecha.slice(0,7);
+    if(!byMonthMoneda[f.moneda])byMonthMoneda[f.moneda]={};
+    byMonthMoneda[f.moneda][k]=(byMonthMoneda[f.moneda][k]||0)+f.monto;
+  });
+
   sc(`
-  <div class="sec-hdr"><h2>Agenda personal</h2>
-    <label style="font-size:11px;color:var(--soft);display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" ${ageShowDone?'checked':''} onchange="ageShowDone=this.checked;renderAgenda()"> ver completadas
-    </label>
-  </div>
-  <div class="quick-add">
-    <input class="fi" id="age-text" placeholder="Agregar tarea o recordatorio… (Enter)" onkeydown="if(event.key==='Enter')quickAddAgenda()">
-    <input class="fi" id="age-due" type="date" style="max-width:150px;">
-    <button class="fab-add" onclick="quickAddAgenda()">+</button>
+  <div class="sec-hdr"><h2>Estadísticas</h2></div>
+  <div class="krow" style="grid-template-columns:repeat(2,1fr);">
+    <div class="kpi"><div class="kl">Total cobrado (histórico)</div><div class="kv g">${fmtTotals(sumByMoneda(cobrados))||'—'}</div><div class="ks">${cobrados.length} cobro${cobrados.length!==1?'s':''}</div></div>
+    <div class="kpi"><div class="kl">Total pendiente</div><div class="kv b">${fmtTotals(sumByMoneda(pendientes))||'—'}</div><div class="ks">${pendientes.length} evento${pendientes.length!==1?'s':''}</div></div>
   </div>
   <div class="card">
-    ${items.length?items.map(i=>`
-      <div class="todo-item ${i.done?'done':''}">
-        <div class="cb ${i.done?'on':''}" onclick="toggleAgenda('${i.id}')">${i.done?'✓':''}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="todo-text" style="font-size:12px;">${esc(i.text)}</div>
-          ${i.due?`<div style="font-size:10px;color:${!i.done&&i.due<todayStr()?'var(--red)':'var(--muted)'};font-family:var(--mono);margin-top:2px;">${fmtDate(i.due)}</div>`:''}
+    <div class="ct">Por cliente</div>
+    ${clientRows.length?clientRows.map(c=>`
+      <div class="row">
+        <span class="dot" style="background:${c.color};"></span>
+        <div style="flex:1;min-width:0;font-size:12px;font-weight:500;">${esc(c.name)}</div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--green);">${fmtTotals(c.cobrado)||'—'}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--blue);">${fmtTotals(c.pendiente)||'—'}</div>
         </div>
-        <button class="del-x" onclick="deleteAgenda('${i.id}')">×</button>
-      </div>
-    `).join(''):'<div class="empty">Sin pendientes. Agregá algo arriba ↑</div>'}
+      </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
+    <div style="font-size:9px;color:var(--muted);margin-top:6px;font-family:var(--mono);">verde = cobrado · azul = pendiente</div>
   </div>
+  <div class="card">
+    <div class="ct">Por instrumento</div>
+    ${tickerRows.length?tickerRows.map(t=>`
+      <div class="row">
+        <div style="flex:1;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${fmtTotals(t.monedas)}</div>
+      </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
+  </div>
+  ${Object.entries(byMonthMoneda).map(([moneda,months])=>{
+    const entries=Object.entries(months).sort((a,b)=>a[0]<b[0]?-1:1).slice(0,12);
+    const max=Math.max(...entries.map(e=>e[1]),1);
+    return `<div class="card">
+      <div class="ct">Pendiente por mes (${moneda})</div>
+      ${entries.map(([m,v])=>`
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:3px;">
+            <span style="font-family:var(--mono);">${monthShortLabel(m)}</span>
+            <span style="font-family:var(--mono);">${fmtMoney(v,moneda)}</span>
+          </div>
+          <div class="bar-outer"><div class="bar-fill" style="width:${Math.max(4,v/max*100)}%;"></div></div>
+        </div>`).join('')}
+    </div>`;
+  }).join('')||''}
   `);
-}
-function quickAddAgenda(){
-  const textEl=document.getElementById('age-text');
-  const dueEl=document.getElementById('age-due');
-  const text=textEl.value.trim();
-  if(!text)return;
-  DB.agenda.push({id:uid(),text,due:dueEl.value||null,done:false,createdAt:Date.now()});
-  save();textEl.value='';dueEl.value='';renderAgenda();
 }
 function toggleAgenda(id){
   const i=DB.agenda.find(x=>x.id===id);if(!i)return;
-  i.done=!i.done;save();renderAgenda();
+  i.done=!i.done;save();render();
 }
 function deleteAgenda(id){
-  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();renderAgenda();
+  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();render();
 }
 
 // ══════════════════════════ MODAL ══════════════════════════

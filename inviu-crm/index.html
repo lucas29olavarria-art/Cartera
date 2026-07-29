@@ -150,12 +150,29 @@ select.fi{cursor:pointer;}
 .rp-bar-year{font-size:9px;color:#6b7280;margin-top:6px;}
 .rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
 .rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
+
+/* ── On-screen preview (editable, before printing) ── */
+#report-toolbar{display:none;}
+body.previewing-report{background:#4b5563;}
+body.previewing-report>*:not(#report-print):not(#report-toolbar){display:none!important;}
+body.previewing-report #report-toolbar{
+  display:flex;position:fixed;top:0;left:0;right:0;z-index:700;
+  background:#13161d;border-bottom:1px solid rgba(255,255,255,.1);
+  padding:10px 16px;align-items:center;justify-content:space-between;gap:10px;
+}
+body.previewing-report #report-print{
+  display:block;margin:66px auto 40px;box-shadow:0 6px 30px rgba(0,0,0,.35);
+}
+.rp-page[contenteditable="true"]{cursor:text;}
+.rp-page[contenteditable="true"]:focus{outline:2px dashed #5b9cf6;outline-offset:6px;}
+
 @media print{
   *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
   body.printing{background:#fff!important;}
   body.printing>*:not(#report-print){display:none!important;}
-  #report-print{display:block!important;}
+  #report-print{display:block!important;margin:0!important;box-shadow:none!important;}
   .rp-page{max-width:100%;}
+  #report-toolbar{display:none!important;}
 }
 </style>
 </head>
@@ -190,6 +207,11 @@ select.fi{cursor:pointer;}
 </div>
 
 <div id="toast"></div>
+<div id="report-toolbar">
+  <button class="ib" onclick="closeReportPreview()">‹ Volver</button>
+  <div style="font-size:11px;color:var(--soft);text-align:center;flex:1;">Tocá el texto para editarlo antes de generar el PDF</div>
+  <button class="ib pri" onclick="printReportNow()">🖨 Generar PDF</button>
+</div>
 <div id="report-print"></div>
 
 <script>
@@ -647,8 +669,8 @@ function openReportOptions(clientId){
     <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:10px 0 16px;">
       <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
     </label>
-    <button class="ib pri" style="width:100%;padding:10px;" onclick="generateClientReport('${clientId}')">📄 Generar PDF</button>
-    <div style="font-size:10px;color:var(--muted);margin-top:10px;">Se abre el diálogo de impresión de tu navegador — elegí "Guardar como PDF" como destino.</div>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="previewClientReport('${clientId}')">👁 Vista previa y edición</button>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;">Vas a poder tocar y editar el texto antes de generar el PDF. Los cambios no se guardan, son solo para esa copia.</div>
   `);
 }
 function buildYearChartHTML(byYear){
@@ -765,11 +787,22 @@ function buildReportHTML(clientId,includeCollected){
     <div class="rp-footer">Flujo de Cobros · Lucas Olavarría</div>
   </div>`;
 }
-function generateClientReport(clientId){
+function previewClientReport(clientId){
   const includeCollected=document.getElementById('rp-include-collected').checked;
   const html=buildReportHTML(clientId,includeCollected);
-  document.getElementById('report-print').innerHTML=html;
+  const el=document.getElementById('report-print');
+  el.innerHTML=html;
+  el.setAttribute('contenteditable','true');
   closeModal();
+  document.body.classList.add('previewing-report');
+}
+function closeReportPreview(){
+  document.body.classList.remove('previewing-report');
+  const el=document.getElementById('report-print');
+  el.removeAttribute('contenteditable');
+  el.innerHTML='';
+}
+function printReportNow(){
   document.body.classList.add('printing');
   setTimeout(()=>window.print(),50);
 }

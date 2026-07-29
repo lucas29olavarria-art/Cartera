@@ -665,13 +665,41 @@ function fmtDateLong(d){
 function openReportOptions(clientId){
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
-    <h3>Reporte de flujo de cobros</h3>
-    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:10px 0 16px;">
-      <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
-    </label>
-    <button class="ib pri" style="width:100%;padding:10px;" onclick="previewClientReport('${clientId}')">👁 Vista previa y edición</button>
+    <h3>Reporte para el cliente</h3>
+    <label class="flbl">Tipo de reporte</label>
+    <select class="fi" id="rp-mode" onchange="toggleReportModeFields()" style="margin-bottom:12px;">
+      <option value="flujo">Flujo de cobros (próximos pagos)</option>
+      <option value="rendimiento">Resumen de rendimiento (cuánto cobró)</option>
+    </select>
+    <div id="rp-flujo-fields">
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:6px 0 16px;">
+        <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
+      </label>
+    </div>
+    <div id="rp-rendimiento-fields" class="hidden">
+      <label class="flbl">Período</label>
+      <select class="fi" id="rp-period" onchange="toggleCustomPeriod()" style="margin-bottom:10px;">
+        <option value="6">Últimos 6 meses</option>
+        <option value="12" selected>Últimos 12 meses</option>
+        <option value="all">Todo el historial</option>
+        <option value="custom">Personalizado</option>
+      </select>
+      <div id="rp-custom-period" class="hidden frow">
+        <div style="flex:1;"><label class="flbl">Desde</label><input class="fi" type="date" id="rp-desde"></div>
+        <div style="flex:1;"><label class="flbl">Hasta</label><input class="fi" type="date" id="rp-hasta" value="${todayStr()}"></div>
+      </div>
+    </div>
+    <button class="ib pri" style="width:100%;padding:10px;margin-top:6px;" onclick="previewClientReport('${clientId}')">👁 Vista previa y edición</button>
     <div style="font-size:10px;color:var(--muted);margin-top:10px;">Vas a poder tocar y editar el texto antes de generar el PDF. Los cambios no se guardan, son solo para esa copia.</div>
   `);
+}
+function toggleReportModeFields(){
+  const mode=document.getElementById('rp-mode').value;
+  document.getElementById('rp-flujo-fields').classList.toggle('hidden',mode!=='flujo');
+  document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
+}
+function toggleCustomPeriod(){
+  document.getElementById('rp-custom-period').classList.toggle('hidden',document.getElementById('rp-period').value!=='custom');
 }
 function buildYearChartHTML(byYear){
   const years=Object.keys(byYear).sort();
@@ -787,9 +815,123 @@ function buildReportHTML(clientId,includeCollected){
     <div class="rp-footer">Flujo de Cobros · Lucas Olavarría</div>
   </div>`;
 }
+function buildMonthChartHTML(byMonth){
+  const months=Object.keys(byMonth).sort();
+  if(months.length<2)return'';
+  const totals=months.map(m=>byMonth[m].renta+byMonth[m].amort);
+  const max=Math.max(...totals,1);
+  const H=110;
+  const cols=months.map((m,i)=>{
+    const d=byMonth[m];
+    const rentaH=Math.max(d.renta>0?2:0,Math.round(d.renta/max*H));
+    const amortH=Math.max(d.amort>0?2:0,Math.round(d.amort/max*H));
+    return `<div class="rp-chart-col">
+      <div class="rp-bar-value">${fmt2(totals[i]).replace(/\.00$/,'')}</div>
+      <div class="rp-bar" style="height:${H}px;">
+        <div class="rp-bar-amort" style="height:${amortH}px;"></div>
+        <div class="rp-bar-renta" style="height:${rentaH}px;"></div>
+      </div>
+      <div class="rp-bar-year">${monthShortLabel(m)}</div>
+    </div>`;
+  }).join('');
+  return `
+  <h3 class="rp-h3">Distribución mensual</h3>
+  <div class="rp-chart-legend">
+    <span><i class="rp-sw rp-sw-renta"></i>Renta (intereses)</span>
+    <span><i class="rp-sw rp-sw-amort"></i>Amortización (capital)</span>
+  </div>
+  <div class="rp-chart-bars">${cols}</div>`;
+}
+function buildPerformanceReportHTML(clientId,desde,hasta){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  // Un cupón se paga en su fecha pactada, sin necesidad de que quede tildado "cobrado" a mano.
+  let flows=DB.flows.filter(f=>f.clientId===clientId&&f.fecha<=hasta&&(!desde||f.fecha>=desde));
+  flows=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const periodLabel=desde?`${fmtDateLong(desde)} – ${fmtDateLong(hasta)}`:`hasta el ${fmtDateLong(hasta)}`;
+  if(!flows.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Resumen de Rendimiento</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">No hay cobros registrados para ${esc(client.name)} en el período ${periodLabel}.</p></div>
+    </div>`;
+  }
+  const monedas=[...new Set(flows.map(f=>f.moneda))];
+  const tickers=[...new Set(flows.map(f=>f.ticker))];
+
+  const blocksHtml=monedas.map(moneda=>{
+    const mf=flows.filter(f=>f.moneda===moneda);
+    const totalRenta=mf.filter(f=>f.tipo==='Renta').reduce((s,f)=>s+f.monto,0);
+    const totalAmort=mf.filter(f=>f.tipo==='Amortización').reduce((s,f)=>s+f.monto,0);
+    const totalGeneral=totalRenta+totalAmort;
+
+    const byTicker={};
+    mf.forEach(f=>{
+      if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0};
+      byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const tickerRows=Object.entries(byTicker).map(([tk,d])=>{
+      const iss=issuerFor(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
+    }).join('');
+
+    const flowRows=mf.map(f=>{
+      const iss=issuerFor(f.ticker);
+      return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?` <span style="color:#9ca3af;font-size:9px;">(${esc(iss)})</span>`:''}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
+    }).join('');
+
+    const byMonth={};
+    mf.forEach(f=>{
+      const k=f.fecha.slice(0,7);
+      if(!byMonth[k])byMonth[k]={renta:0,amort:0};
+      byMonth[k][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalGeneral)}</div><div class="rp-kpi-l">Total cobrado en el período</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalRenta)}</div><div class="rp-kpi-l">En renta (intereses)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalAmort)}</div><div class="rp-kpi-l">En amortización (capital)</div></div>
+      </div>
+      <h3 class="rp-h3">Por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Renta</th><th>Amortización</th><th>Total</th></tr></thead>
+      <tbody>${tickerRows}<tr class="rp-total-row"><td>Total</td><td class="num">${fmt2(totalRenta)}</td><td class="num">${fmt2(totalAmort)}</td><td class="num">${fmt2(totalGeneral)}</td></tr></tbody></table>
+      ${buildMonthChartHTML(byMonth)}
+      <h3 class="rp-h3">Detalle de cobros del período</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Tipo de pago</th><th>Monto (${moneda})</th></tr></thead>
+      <tbody>${flowRows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Resumen de Rendimiento</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div>
+    </div>
+    <div class="rp-body">
+      <p class="rp-p">Resumen de lo cobrado en tus instrumentos de renta fija (${tickers.map(tk=>{const iss=issuerFor(tk);return esc(tk)+(iss?' — '+esc(iss):'');}).join(', ')}) durante el período <strong>${periodLabel}</strong>.</p>
+      ${blocksHtml}
+      <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Refleja los pagos con fecha dentro del período indicado, según las condiciones de emisión de cada instrumento.</div>
+    </div>
+    <div class="rp-footer">Resumen de Rendimiento · Lucas Olavarría</div>
+  </div>`;
+}
 function previewClientReport(clientId){
-  const includeCollected=document.getElementById('rp-include-collected').checked;
-  const html=buildReportHTML(clientId,includeCollected);
+  const mode=document.getElementById('rp-mode').value;
+  let html;
+  if(mode==='rendimiento'){
+    const period=document.getElementById('rp-period').value;
+    let desde=null,hasta=document.getElementById('rp-hasta').value||todayStr();
+    if(period==='6'){const d=new Date();d.setMonth(d.getMonth()-6);desde=d.toISOString().slice(0,10);}
+    else if(period==='12'){const d=new Date();d.setMonth(d.getMonth()-12);desde=d.toISOString().slice(0,10);}
+    else if(period==='custom'){desde=document.getElementById('rp-desde').value||null;hasta=document.getElementById('rp-hasta').value||todayStr();}
+    html=buildPerformanceReportHTML(clientId,desde,hasta);
+  }else{
+    const includeCollected=document.getElementById('rp-include-collected').checked;
+    html=buildReportHTML(clientId,includeCollected);
+  }
   const el=document.getElementById('report-print');
   el.innerHTML=html;
   el.setAttribute('contenteditable','true');
@@ -1176,4 +1318,3 @@ boot();
 </script>
 </body>
 </html>
-

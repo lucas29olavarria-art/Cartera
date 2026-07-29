@@ -137,6 +137,17 @@ select.fi{cursor:pointer;}
 .rp-table tr:nth-child(even) td{background:#eef5f1;}
 .rp-table .rp-total-row td{font-weight:700;background:#dcebe3!important;border-top:1.5px solid #1a4d3d;}
 .rp-table td.num,.rp-table th:last-child{text-align:right;}
+.rp-chart-legend{display:flex;gap:18px;font-size:10px;color:#374151;margin-bottom:10px;}
+.rp-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+.rp-sw-renta{background:#1a4d3d;}
+.rp-sw-amort{background:#8fc4ac;}
+.rp-chart-bars{display:flex;align-items:flex-end;gap:10px;padding:10px 4px 0;border-bottom:1px solid #e5e7eb;margin-bottom:16px;}
+.rp-chart-col{flex:1;display:flex;flex-direction:column;align-items:center;}
+.rp-bar-value{font-size:9px;color:#374151;margin-bottom:4px;font-weight:600;white-space:nowrap;}
+.rp-bar{width:100%;max-width:46px;display:flex;flex-direction:column;justify-content:flex-end;}
+.rp-bar-amort{background:#8fc4ac;width:100%;}
+.rp-bar-renta{background:#1a4d3d;width:100%;}
+.rp-bar-year{font-size:9px;color:#6b7280;margin-top:6px;}
 .rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
 .rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
 @media print{
@@ -632,6 +643,33 @@ function openReportOptions(clientId){
     <div style="font-size:10px;color:var(--muted);margin-top:10px;">Se abre el diálogo de impresión de tu navegador — elegí "Guardar como PDF" como destino.</div>
   `);
 }
+function buildYearChartHTML(byYear){
+  const years=Object.keys(byYear).sort();
+  if(years.length<2)return'';
+  const totals=years.map(y=>byYear[y].renta+byYear[y].amort);
+  const max=Math.max(...totals,1);
+  const H=110;
+  const cols=years.map((y,i)=>{
+    const d=byYear[y];
+    const rentaH=Math.max(d.renta>0?2:0,Math.round(d.renta/max*H));
+    const amortH=Math.max(d.amort>0?2:0,Math.round(d.amort/max*H));
+    return `<div class="rp-chart-col">
+      <div class="rp-bar-value">${fmt2(totals[i]).replace(/\.00$/,'')}</div>
+      <div class="rp-bar" style="height:${H}px;">
+        <div class="rp-bar-amort" style="height:${amortH}px;"></div>
+        <div class="rp-bar-renta" style="height:${rentaH}px;"></div>
+      </div>
+      <div class="rp-bar-year">${y}</div>
+    </div>`;
+  }).join('');
+  return `
+  <h3 class="rp-h3">Distribución en el tiempo</h3>
+  <div class="rp-chart-legend">
+    <span><i class="rp-sw rp-sw-renta"></i>Renta (intereses)</span>
+    <span><i class="rp-sw rp-sw-amort"></i>Amortización (capital)</span>
+  </div>
+  <div class="rp-chart-bars">${cols}</div>`;
+}
 function buildReportHTML(clientId,includeCollected){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
@@ -691,6 +729,7 @@ function buildReportHTML(clientId,includeCollected){
       <h3 class="rp-h3">Cronograma de pagos</h3>
       <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Tipo de pago</th><th>Monto (${moneda})</th></tr></thead>
       <tbody>${flowRows}</tbody></table>
+      ${buildYearChartHTML(byYear)}
       <h3 class="rp-h3">Cobros por año</h3>
       <table class="rp-table"><thead><tr><th>Año</th><th>Renta</th><th>Amortización</th><th>Total del año</th><th>Acumulado</th></tr></thead>
       <tbody>${yearRows}</tbody></table>

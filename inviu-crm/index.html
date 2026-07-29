@@ -116,6 +116,47 @@ select.fi{cursor:pointer;}
 .cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 .cal-day-note{position:absolute;top:2px;right:3px;font-size:8px;}
 .foot-note{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;padding:20px 0 10px;line-height:1.6;}
+
+/* ── Client report (print / PDF) ── */
+#report-print{display:none;}
+.rp-page{background:#fff;color:#1f2937;font-family:'Geist',Arial,sans-serif;max-width:800px;margin:0 auto;}
+.rp-header{background:#1a4d3d;color:#fff;padding:28px 32px;margin-bottom:24px;}
+.rp-header h1{font-size:24px;font-weight:700;margin-bottom:4px;}
+.rp-sub{font-size:13px;color:#cfe3da;}
+.rp-body{padding:0 32px;}
+.rp-h2{font-size:16px;font-weight:700;color:#1a4d3d;margin:22px 0 8px;}
+.rp-h3{font-size:13px;font-weight:700;color:#1a4d3d;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.03em;}
+.rp-p{font-size:12px;line-height:1.6;color:#374151;}
+.rp-kpis{display:flex;gap:14px;margin:14px 0;}
+.rp-kpi{flex:1;text-align:center;background:#eef5f1;border-radius:6px;padding:14px 8px;}
+.rp-kpi-v{font-size:16px;font-weight:700;color:#1a4d3d;}
+.rp-kpi-l{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:.03em;}
+.rp-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;}
+.rp-table th{background:#1a4d3d;color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
+.rp-table td{padding:6px 10px;border-bottom:1px solid #e5e7eb;}
+.rp-table tr:nth-child(even) td{background:#eef5f1;}
+.rp-table .rp-total-row td{font-weight:700;background:#dcebe3!important;border-top:1.5px solid #1a4d3d;}
+.rp-table td.num,.rp-table th:last-child{text-align:right;}
+.rp-chart-legend{display:flex;gap:18px;font-size:10px;color:#374151;margin-bottom:10px;}
+.rp-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
+.rp-sw-renta{background:#1a4d3d;}
+.rp-sw-amort{background:#8fc4ac;}
+.rp-chart-bars{display:flex;align-items:flex-end;gap:10px;padding:10px 4px 0;border-bottom:1px solid #e5e7eb;margin-bottom:16px;}
+.rp-chart-col{flex:1;display:flex;flex-direction:column;align-items:center;}
+.rp-bar-value{font-size:9px;color:#374151;margin-bottom:4px;font-weight:600;white-space:nowrap;}
+.rp-bar{width:100%;max-width:46px;display:flex;flex-direction:column;justify-content:flex-end;}
+.rp-bar-amort{background:#8fc4ac;width:100%;}
+.rp-bar-renta{background:#1a4d3d;width:100%;}
+.rp-bar-year{font-size:9px;color:#6b7280;margin-top:6px;}
+.rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
+.rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body.printing{background:#fff!important;}
+  body.printing>*:not(#report-print){display:none!important;}
+  #report-print{display:block!important;}
+  .rp-page{max-width:100%;}
+}
 </style>
 </head>
 <body>
@@ -142,13 +183,14 @@ select.fi{cursor:pointer;}
     <button class="tb" id="tb-cal" onclick="nav('cal')">📅 Calendario</button>
     <button class="tb" id="tb-cli" onclick="nav('cli')">👥 Clientes</button>
     <button class="tb" id="tb-imp" onclick="nav('imp')">⬆ Importar</button>
-    <button class="tb" id="tb-age" onclick="nav('age')">📝 Agenda</button>
+    <button class="tb" id="tb-stat" onclick="nav('stat')">📊 Estadísticas</button>
   </div>
   <div class="content" id="view"></div>
   <div class="foot-note">inviu crm · datos guardados solo en este navegador</div>
 </div>
 
 <div id="toast"></div>
+<div id="report-print"></div>
 
 <script>
 // ══════════════════════════ STORAGE ══════════════════════════
@@ -158,11 +200,19 @@ function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'
 function loadDB(){
   try{
     const raw=localStorage.getItem(DB_KEY);
-    if(raw)return JSON.parse(raw);
+    if(raw){const d=JSON.parse(raw);if(!d.issuers)d.issuers={};return d;}
   }catch(e){}
-  return {clients:[],flows:[],agenda:[]};
+  return {clients:[],flows:[],agenda:[],issuers:{}};
 }
 let DB=loadDB();
+const SOVEREIGN_GUESS={
+  AL29:'República Argentina',AL30:'República Argentina',AL35:'República Argentina',AL38:'República Argentina',AL41:'República Argentina',
+  AE38:'República Argentina',GD29:'República Argentina',GD30:'República Argentina',GD35:'República Argentina',GD38:'República Argentina',
+  GD41:'República Argentina',GD46:'República Argentina',PARP:'República Argentina',PARY:'República Argentina',DICP:'República Argentina',DICY:'República Argentina'
+};
+function issuerFor(ticker){
+  return (DB.issuers&&DB.issuers[ticker])||SOVEREIGN_GUESS[ticker]||'';
+}
 function save(){localStorage.setItem(DB_KEY,JSON.stringify(DB));}
 function toast(msg){
   const t=document.getElementById('toast');
@@ -261,14 +311,14 @@ function parseFlowRows(rows){
 
 // ══════════════════════════ NAV ══════════════════════════
 let ATb='cal';
-const NAV_ORDER=['cal','cli','imp','age'];
+const NAV_ORDER=['cal','cli','imp','stat'];
 function nav(tab){
   ATb=tab;
   NAV_ORDER.forEach(t=>document.getElementById('tb-'+t).classList.toggle('active',t===tab));
   if(tab==='cal')renderCalendario();
   else if(tab==='cli')renderClientes();
   else if(tab==='imp')renderImportar();
-  else if(tab==='age')renderAgenda();
+  else if(tab==='stat')renderStats();
 }
 function sc(html){document.getElementById('view').innerHTML=html;}
 
@@ -367,6 +417,22 @@ function allFlowsEnriched(){
     return {...f,clientName:cli?cli.name:'(cliente borrado)',color:cli?colorFor(cli.id):'#424b5c'};
   });
 }
+function renderTodayCard(){
+  const today=todayStr();
+  const todays=allFlowsEnriched().filter(f=>f.fecha===today&&!f.cobrado);
+  const totByMoneda={};
+  todays.forEach(f=>totByMoneda[f.moneda]=(totByMoneda[f.moneda]||0)+f.monto);
+  const totStr=Object.entries(totByMoneda).map(([m,v])=>fmtMoney(v,m)).join(' + ');
+  return `<div class="card" style="border-color:${todays.length?'rgba(45,212,160,.35)':'var(--line)'};">
+    <div class="ct" style="color:${todays.length?'var(--green)':'var(--soft)'};">📌 Hoy${totStr?' · '+totStr:''}</div>
+    ${todays.length?todays.map(f=>`
+      <div class="row" style="padding:7px 0;">
+        <span class="dot" style="background:${f.color};"></span>
+        <div style="flex:1;min-width:0;font-size:12px;">${esc(f.clientName)} <span style="color:var(--muted);">·</span> <span style="color:var(--soft);">${esc(f.ticker)}</span></div>
+        <div style="font-family:var(--mono);font-size:12px;color:var(--green);">${fmtMoney(f.monto,f.moneda)}</div>
+      </div>`).join(''):'<div class="empty" style="padding:8px 0;">Nadie cobra hoy.</div>'}
+  </div>`;
+}
 function renderCalendario(){
   let flows=allFlowsEnriched().filter(f=>!f.cobrado);
   if(calFilterCli!=='all')flows=flows.filter(f=>f.clientId===calFilterCli);
@@ -385,6 +451,7 @@ function renderCalendario(){
 
   sc(`
   <div class="sec-hdr"><h2>Calendario de cobros</h2></div>
+  ${renderTodayCard()}
   <div class="card" style="padding:14px 10px;">
     ${renderMonthGrid()}
     <div style="font-size:9px;color:var(--muted);text-align:center;font-family:var(--mono);">Tocá un día para ver el detalle y anotar algo · 📝 = tenés notas ese día</div>
@@ -557,11 +624,157 @@ function openClientDetail(id){
       <button class="ib" onclick="closeModal();openClientModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">✎ Editar</button>
       <button class="ib red" onclick="deleteClient('${c.id}')">🗑 Borrar cliente</button>
     </div>
+    <button class="ib pri" style="width:100%;padding:9px;margin-top:8px;" onclick="openReportOptions('${c.id}')">📄 Generar reporte PDF</button>
     <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
     ${pendingHtml}
     ${collectedHtml}
   `);
 }
+// ══════════════════════════ REPORTE PDF (por cliente) ══════════════════════════
+function fmt2(n){return (+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtDateShort(d){
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+}
+function fmtDateLong(d){
+  const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
+}
+function openReportOptions(clientId){
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Reporte de flujo de cobros</h3>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:10px 0 16px;">
+      <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
+    </label>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="generateClientReport('${clientId}')">📄 Generar PDF</button>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;">Se abre el diálogo de impresión de tu navegador — elegí "Guardar como PDF" como destino.</div>
+  `);
+}
+function buildYearChartHTML(byYear){
+  const years=Object.keys(byYear).sort();
+  if(years.length<2)return'';
+  const totals=years.map(y=>byYear[y].renta+byYear[y].amort);
+  const max=Math.max(...totals,1);
+  const H=110;
+  const cols=years.map((y,i)=>{
+    const d=byYear[y];
+    const rentaH=Math.max(d.renta>0?2:0,Math.round(d.renta/max*H));
+    const amortH=Math.max(d.amort>0?2:0,Math.round(d.amort/max*H));
+    return `<div class="rp-chart-col">
+      <div class="rp-bar-value">${fmt2(totals[i]).replace(/\.00$/,'')}</div>
+      <div class="rp-bar" style="height:${H}px;">
+        <div class="rp-bar-amort" style="height:${amortH}px;"></div>
+        <div class="rp-bar-renta" style="height:${rentaH}px;"></div>
+      </div>
+      <div class="rp-bar-year">${y}</div>
+    </div>`;
+  }).join('');
+  return `
+  <h3 class="rp-h3">Distribución en el tiempo</h3>
+  <div class="rp-chart-legend">
+    <span><i class="rp-sw rp-sw-renta"></i>Renta (intereses)</span>
+    <span><i class="rp-sw rp-sw-amort"></i>Amortización (capital)</span>
+  </div>
+  <div class="rp-chart-bars">${cols}</div>`;
+}
+function buildReportHTML(clientId,includeCollected){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  let flows=DB.flows.filter(f=>f.clientId===clientId);
+  if(!includeCollected)flows=flows.filter(f=>!f.cobrado);
+  flows=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  if(!flows.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Flujo de Cobros</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">Todavía no hay cobros ${includeCollected?'':'pendientes '}cargados para este cliente.</p></div>
+    </div>`;
+  }
+  const monedas=[...new Set(flows.map(f=>f.moneda))];
+  const tickers=[...new Set(flows.map(f=>f.ticker))];
+  const fechaIni=flows[0].fecha,fechaFin=flows[flows.length-1].fecha;
+
+  const blocksHtml=monedas.map(moneda=>{
+    const mf=flows.filter(f=>f.moneda===moneda);
+    const totalRenta=mf.filter(f=>f.tipo==='Renta').reduce((s,f)=>s+f.monto,0);
+    const totalAmort=mf.filter(f=>f.tipo==='Amortización').reduce((s,f)=>s+f.monto,0);
+    const totalGeneral=totalRenta+totalAmort;
+
+    const byTicker={};
+    mf.forEach(f=>{
+      if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0};
+      byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const tickerRows=Object.entries(byTicker).map(([tk,d])=>{
+      const iss=issuerFor(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
+    }).join('');
+
+    const flowRows=mf.map(f=>{
+      const iss=issuerFor(f.ticker);
+      return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?` <span style="color:#9ca3af;font-size:9px;">(${esc(iss)})</span>`:''}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
+    }).join('');
+
+    const byYear={};
+    mf.forEach(f=>{
+      const y=f.fecha.slice(0,4);
+      if(!byYear[y])byYear[y]={renta:0,amort:0};
+      byYear[y][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    let acumulado=0;
+    const yearRows=Object.keys(byYear).sort().map(y=>{
+      const d=byYear[y],tot=d.renta+d.amort;acumulado+=tot;
+      return `<tr><td>${y}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(tot)}</td><td class="num">${fmt2(acumulado)}</td></tr>`;
+    }).join('');
+
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalGeneral)}</div><div class="rp-kpi-l">Total a cobrar (renta + capital)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalRenta)}</div><div class="rp-kpi-l">Total en renta (intereses)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalAmort)}</div><div class="rp-kpi-l">Total en amortización (capital)</div></div>
+      </div>
+      <h3 class="rp-h3">Resumen por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Renta</th><th>Amortización</th><th>Total</th></tr></thead>
+      <tbody>${tickerRows}<tr class="rp-total-row"><td>Total</td><td class="num">${fmt2(totalRenta)}</td><td class="num">${fmt2(totalAmort)}</td><td class="num">${fmt2(totalGeneral)}</td></tr></tbody></table>
+      <h3 class="rp-h3">Cronograma de pagos</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Tipo de pago</th><th>Monto (${moneda})</th></tr></thead>
+      <tbody>${flowRows}</tbody></table>
+      ${buildYearChartHTML(byYear)}
+      <h3 class="rp-h3">Cobros por año</h3>
+      <table class="rp-table"><thead><tr><th>Año</th><th>Renta</th><th>Amortización</th><th>Total del año</th><th>Acumulado</th></tr></thead>
+      <tbody>${yearRows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Flujo de Cobros</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div>
+    </div>
+    <div class="rp-body">
+      <h3 class="rp-h3">¿Qué es este documento?</h3>
+      <p class="rp-p">Detalle de los cobros ${includeCollected?'':'pendientes '}de tus instrumentos de renta fija (${tickers.map(tk=>{const iss=issuerFor(tk);return esc(tk)+(iss?' — '+esc(iss):'');}).join(', ')}). La <strong>renta</strong> es el interés que paga el bono de forma periódica y no reduce el capital invertido. La <strong>amortización</strong> es la devolución del capital originalmente invertido.</p>
+      <h3 class="rp-h3">Resumen general</h3>
+      <p class="rp-p"><strong>${flows.length} pago${flows.length!==1?'s':''}</strong> entre el <strong>${fmtDateLong(fechaIni)}</strong> y el <strong>${fmtDateLong(fechaFin)}</strong>.</p>
+      ${blocksHtml}
+      <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Los montos son proyectados según las condiciones de cada instrumento y no constituyen garantía de cobro. No reemplaza el asesoramiento personalizado.</div>
+    </div>
+    <div class="rp-footer">Flujo de Cobros · Lucas Olavarría</div>
+  </div>`;
+}
+function generateClientReport(clientId){
+  const includeCollected=document.getElementById('rp-include-collected').checked;
+  const html=buildReportHTML(clientId,includeCollected);
+  document.getElementById('report-print').innerHTML=html;
+  closeModal();
+  document.body.classList.add('printing');
+  setTimeout(()=>window.print(),50);
+}
+window.onafterprint=()=>{document.body.classList.remove('printing');};
+
 function deleteClient(id){
   if(!confirm('¿Borrar este cliente y todos sus cobros cargados? Esta acción no se puede deshacer.'))return;
   DB.clients=DB.clients.filter(c=>c.id!==id);
@@ -655,54 +868,96 @@ function confirmImport(){
   nav('cal');
 }
 
-// ══════════════════════════ AGENDA PERSONAL ══════════════════════════
-let ageShowDone=false;
-function renderAgenda(){
-  const items=DB.agenda.slice().sort((a,b)=>{
-    if(a.done!==b.done)return a.done?1:-1;
-    const ad=a.due||'9999',bd=b.due||'9999';
-    if(ad!==bd)return ad<bd?-1:1;
-    return b.createdAt-a.createdAt;
-  }).filter(i=>ageShowDone||!i.done);
+// ══════════════════════════ ESTADÍSTICAS ══════════════════════════
+function monthShortLabel(k){
+  const [y,m]=k.split('-');
+  const s=new Date(+y,+m-1,1).toLocaleDateString('es-AR',{month:'short',year:'numeric'});
+  return s[0].toUpperCase()+s.slice(1);
+}
+function renderStats(){
+  const flows=allFlowsEnriched();
+  const cobrados=flows.filter(f=>f.cobrado);
+  const pendientes=flows.filter(f=>!f.cobrado);
+  const sumByMoneda=arr=>{const o={};arr.forEach(f=>o[f.moneda]=(o[f.moneda]||0)+f.monto);return o;};
+  const fmtTotals=o=>Object.entries(o).map(([m,v])=>fmtMoney(v,m)).join(' + ');
+
+  const byClient={};
+  flows.forEach(f=>{
+    if(!byClient[f.clientId])byClient[f.clientId]={name:f.clientName,color:f.color,cobrado:{},pendiente:{},sortKey:0};
+    const b=byClient[f.clientId];
+    (f.cobrado?b.cobrado:b.pendiente)[f.moneda]=((f.cobrado?b.cobrado:b.pendiente)[f.moneda]||0)+f.monto;
+    b.sortKey+=f.monto;
+  });
+  const clientRows=Object.values(byClient).sort((a,b)=>b.sortKey-a.sortKey);
+
+  const byTicker={};
+  flows.forEach(f=>{
+    if(!byTicker[f.ticker])byTicker[f.ticker]={monedas:{},sortKey:0};
+    byTicker[f.ticker].monedas[f.moneda]=(byTicker[f.ticker].monedas[f.moneda]||0)+f.monto;
+    byTicker[f.ticker].sortKey+=f.monto;
+  });
+  const tickerRows=Object.entries(byTicker).map(([tk,d])=>({ticker:tk,...d})).sort((a,b)=>b.sortKey-a.sortKey).slice(0,8);
+
+  const byMonthMoneda={};
+  pendientes.forEach(f=>{
+    const k=f.fecha.slice(0,7);
+    if(!byMonthMoneda[f.moneda])byMonthMoneda[f.moneda]={};
+    byMonthMoneda[f.moneda][k]=(byMonthMoneda[f.moneda][k]||0)+f.monto;
+  });
+
   sc(`
-  <div class="sec-hdr"><h2>Agenda personal</h2>
-    <label style="font-size:11px;color:var(--soft);display:flex;align-items:center;gap:6px;">
-      <input type="checkbox" ${ageShowDone?'checked':''} onchange="ageShowDone=this.checked;renderAgenda()"> ver completadas
-    </label>
-  </div>
-  <div class="quick-add">
-    <input class="fi" id="age-text" placeholder="Agregar tarea o recordatorio… (Enter)" onkeydown="if(event.key==='Enter')quickAddAgenda()">
-    <input class="fi" id="age-due" type="date" style="max-width:150px;">
-    <button class="fab-add" onclick="quickAddAgenda()">+</button>
+  <div class="sec-hdr"><h2>Estadísticas</h2></div>
+  <div class="krow" style="grid-template-columns:repeat(2,1fr);">
+    <div class="kpi"><div class="kl">Total cobrado (histórico)</div><div class="kv g">${fmtTotals(sumByMoneda(cobrados))||'—'}</div><div class="ks">${cobrados.length} cobro${cobrados.length!==1?'s':''}</div></div>
+    <div class="kpi"><div class="kl">Total pendiente</div><div class="kv b">${fmtTotals(sumByMoneda(pendientes))||'—'}</div><div class="ks">${pendientes.length} evento${pendientes.length!==1?'s':''}</div></div>
   </div>
   <div class="card">
-    ${items.length?items.map(i=>`
-      <div class="todo-item ${i.done?'done':''}">
-        <div class="cb ${i.done?'on':''}" onclick="toggleAgenda('${i.id}')">${i.done?'✓':''}</div>
-        <div style="flex:1;min-width:0;">
-          <div class="todo-text" style="font-size:12px;">${esc(i.text)}</div>
-          ${i.due?`<div style="font-size:10px;color:${!i.done&&i.due<todayStr()?'var(--red)':'var(--muted)'};font-family:var(--mono);margin-top:2px;">${fmtDate(i.due)}</div>`:''}
+    <div class="ct">Por cliente</div>
+    ${clientRows.length?clientRows.map(c=>`
+      <div class="row">
+        <span class="dot" style="background:${c.color};"></span>
+        <div style="flex:1;min-width:0;font-size:12px;font-weight:500;">${esc(c.name)}</div>
+        <div style="text-align:right;">
+          <div style="font-family:var(--mono);font-size:11px;color:var(--green);">${fmtTotals(c.cobrado)||'—'}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:var(--blue);">${fmtTotals(c.pendiente)||'—'}</div>
         </div>
-        <button class="del-x" onclick="deleteAgenda('${i.id}')">×</button>
-      </div>
-    `).join(''):'<div class="empty">Sin pendientes. Agregá algo arriba ↑</div>'}
+      </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
+    <div style="font-size:9px;color:var(--muted);margin-top:6px;font-family:var(--mono);">verde = cobrado · azul = pendiente</div>
   </div>
+  <div class="card">
+    <div class="ct">Por instrumento</div>
+    ${tickerRows.length?tickerRows.map(t=>`
+      <div class="row">
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
+          ${issuerFor(t.ticker)?`<div style="font-size:10px;color:var(--muted);">${esc(issuerFor(t.ticker))}</div>`:''}
+        </div>
+        <div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${fmtTotals(t.monedas)}</div>
+      </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
+  </div>
+  ${Object.entries(byMonthMoneda).map(([moneda,months])=>{
+    const entries=Object.entries(months).sort((a,b)=>a[0]<b[0]?-1:1).slice(0,12);
+    const max=Math.max(...entries.map(e=>e[1]),1);
+    return `<div class="card">
+      <div class="ct">Pendiente por mes (${moneda})</div>
+      ${entries.map(([m,v])=>`
+        <div style="margin-bottom:8px;">
+          <div style="display:flex;justify-content:space-between;font-size:10px;color:var(--soft);margin-bottom:3px;">
+            <span style="font-family:var(--mono);">${monthShortLabel(m)}</span>
+            <span style="font-family:var(--mono);">${fmtMoney(v,moneda)}</span>
+          </div>
+          <div class="bar-outer"><div class="bar-fill" style="width:${Math.max(4,v/max*100)}%;"></div></div>
+        </div>`).join('')}
+    </div>`;
+  }).join('')||''}
   `);
-}
-function quickAddAgenda(){
-  const textEl=document.getElementById('age-text');
-  const dueEl=document.getElementById('age-due');
-  const text=textEl.value.trim();
-  if(!text)return;
-  DB.agenda.push({id:uid(),text,due:dueEl.value||null,done:false,createdAt:Date.now()});
-  save();textEl.value='';dueEl.value='';renderAgenda();
 }
 function toggleAgenda(id){
   const i=DB.agenda.find(x=>x.id===id);if(!i)return;
-  i.done=!i.done;save();renderAgenda();
+  i.done=!i.done;save();render();
 }
 function deleteAgenda(id){
-  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();renderAgenda();
+  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();render();
 }
 
 // ══════════════════════════ MODAL ══════════════════════════
@@ -736,6 +991,9 @@ function openSettings(){
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Los datos se guardan solo en este navegador (no hay servidor). El PIN evita que alguien abra la app si toma tu dispositivo.</div>
     ${hasPin?`<button class="ib red" style="width:100%;padding:9px;margin-bottom:10px;" onclick="removePin()">Quitar PIN</button>`
              :`<button class="ib pri" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();setupPin()">Configurar PIN</button>`}
+    <div class="ct" style="margin-top:14px;">Emisores</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Nombre de la empresa/entidad de cada instrumento (aparece en los reportes PDF). Los bonos soberanos argentinos ya vienen completados.</div>
+    <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();openIssuersEditor()">🏢 Editar emisores</button>
     <div class="ct" style="margin-top:14px;">Backup</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos (clientes, flujos, agenda) o restaurá desde un backup anterior.</div>
     <div class="frow">
@@ -746,6 +1004,23 @@ function openSettings(){
     <div class="ct" style="margin-top:14px;color:var(--red);">Zona de riesgo</div>
     <button class="ib red" style="width:100%;padding:9px;" onclick="wipeAll()">Borrar todos los datos</button>
   `);
+}
+function openIssuersEditor(){
+  const tickers=[...new Set(DB.flows.map(f=>f.ticker))].sort();
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Emisores</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:12px;">Se completa una sola vez por instrumento y queda para todos los clientes y reportes.</div>
+    ${tickers.length?tickers.map(tk=>`
+      <div class="frow" style="align-items:center;">
+        <div style="width:64px;flex-shrink:0;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(tk)}</div>
+        <input class="fi" style="flex:1;" placeholder="Nombre del emisor" value="${esc(issuerFor(tk))}" onchange="setIssuer('${tk}',this.value)">
+      </div>`).join(''):'<div class="empty">Todavía no importaste ningún instrumento.</div>'}
+  `);
+}
+function setIssuer(ticker,value){
+  DB.issuers[ticker]=value.trim();
+  save();
 }
 function exportBackup(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});

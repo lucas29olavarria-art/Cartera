@@ -116,6 +116,36 @@ select.fi{cursor:pointer;}
 .cal-dot{width:5px;height:5px;border-radius:50%;flex-shrink:0;}
 .cal-day-note{position:absolute;top:2px;right:3px;font-size:8px;}
 .foot-note{font-family:var(--mono);font-size:9px;color:var(--muted);text-align:center;padding:20px 0 10px;line-height:1.6;}
+
+/* ── Client report (print / PDF) ── */
+#report-print{display:none;}
+.rp-page{background:#fff;color:#1f2937;font-family:'Geist',Arial,sans-serif;max-width:800px;margin:0 auto;}
+.rp-header{background:#1a4d3d;color:#fff;padding:28px 32px;margin-bottom:24px;}
+.rp-header h1{font-size:24px;font-weight:700;margin-bottom:4px;}
+.rp-sub{font-size:13px;color:#cfe3da;}
+.rp-body{padding:0 32px;}
+.rp-h2{font-size:16px;font-weight:700;color:#1a4d3d;margin:22px 0 8px;}
+.rp-h3{font-size:13px;font-weight:700;color:#1a4d3d;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.03em;}
+.rp-p{font-size:12px;line-height:1.6;color:#374151;}
+.rp-kpis{display:flex;gap:14px;margin:14px 0;}
+.rp-kpi{flex:1;text-align:center;background:#eef5f1;border-radius:6px;padding:14px 8px;}
+.rp-kpi-v{font-size:16px;font-weight:700;color:#1a4d3d;}
+.rp-kpi-l{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:.03em;}
+.rp-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;}
+.rp-table th{background:#1a4d3d;color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
+.rp-table td{padding:6px 10px;border-bottom:1px solid #e5e7eb;}
+.rp-table tr:nth-child(even) td{background:#eef5f1;}
+.rp-table .rp-total-row td{font-weight:700;background:#dcebe3!important;border-top:1.5px solid #1a4d3d;}
+.rp-table td.num,.rp-table th:last-child{text-align:right;}
+.rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
+.rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
+@media print{
+  *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important;}
+  body.printing{background:#fff!important;}
+  body.printing>*:not(#report-print){display:none!important;}
+  #report-print{display:block!important;}
+  .rp-page{max-width:100%;}
+}
 </style>
 </head>
 <body>
@@ -149,6 +179,7 @@ select.fi{cursor:pointer;}
 </div>
 
 <div id="toast"></div>
+<div id="report-print"></div>
 
 <script>
 // ══════════════════════════ STORAGE ══════════════════════════
@@ -574,11 +605,125 @@ function openClientDetail(id){
       <button class="ib" onclick="closeModal();openClientModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">✎ Editar</button>
       <button class="ib red" onclick="deleteClient('${c.id}')">🗑 Borrar cliente</button>
     </div>
+    <button class="ib pri" style="width:100%;padding:9px;margin-top:8px;" onclick="openReportOptions('${c.id}')">📄 Generar reporte PDF</button>
     <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
     ${pendingHtml}
     ${collectedHtml}
   `);
 }
+// ══════════════════════════ REPORTE PDF (por cliente) ══════════════════════════
+function fmt2(n){return (+n||0).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});}
+function fmtDateShort(d){
+  const dt=new Date(d+'T00:00:00');
+  return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0')+'/'+dt.getFullYear();
+}
+function fmtDateLong(d){
+  const dt=new Date(d+'T00:00:00');
+  return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
+}
+function openReportOptions(clientId){
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Reporte de flujo de cobros</h3>
+    <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:10px 0 16px;">
+      <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
+    </label>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="generateClientReport('${clientId}')">📄 Generar PDF</button>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px;">Se abre el diálogo de impresión de tu navegador — elegí "Guardar como PDF" como destino.</div>
+  `);
+}
+function buildReportHTML(clientId,includeCollected){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  let flows=DB.flows.filter(f=>f.clientId===clientId);
+  if(!includeCollected)flows=flows.filter(f=>!f.cobrado);
+  flows=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  if(!flows.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Flujo de Cobros</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">Todavía no hay cobros ${includeCollected?'':'pendientes '}cargados para este cliente.</p></div>
+    </div>`;
+  }
+  const monedas=[...new Set(flows.map(f=>f.moneda))];
+  const tickers=[...new Set(flows.map(f=>f.ticker))];
+  const fechaIni=flows[0].fecha,fechaFin=flows[flows.length-1].fecha;
+
+  const blocksHtml=monedas.map(moneda=>{
+    const mf=flows.filter(f=>f.moneda===moneda);
+    const totalRenta=mf.filter(f=>f.tipo==='Renta').reduce((s,f)=>s+f.monto,0);
+    const totalAmort=mf.filter(f=>f.tipo==='Amortización').reduce((s,f)=>s+f.monto,0);
+    const totalGeneral=totalRenta+totalAmort;
+
+    const byTicker={};
+    mf.forEach(f=>{
+      if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0};
+      byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const tickerRows=Object.entries(byTicker).map(([tk,d])=>`
+      <tr><td>${esc(tk)}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`).join('');
+
+    const flowRows=mf.map(f=>`
+      <tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`).join('');
+
+    const byYear={};
+    mf.forEach(f=>{
+      const y=f.fecha.slice(0,4);
+      if(!byYear[y])byYear[y]={renta:0,amort:0};
+      byYear[y][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    let acumulado=0;
+    const yearRows=Object.keys(byYear).sort().map(y=>{
+      const d=byYear[y],tot=d.renta+d.amort;acumulado+=tot;
+      return `<tr><td>${y}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(tot)}</td><td class="num">${fmt2(acumulado)}</td></tr>`;
+    }).join('');
+
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalGeneral)}</div><div class="rp-kpi-l">Total a cobrar (renta + capital)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalRenta)}</div><div class="rp-kpi-l">Total en renta (intereses)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalAmort)}</div><div class="rp-kpi-l">Total en amortización (capital)</div></div>
+      </div>
+      <h3 class="rp-h3">Resumen por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Renta</th><th>Amortización</th><th>Total</th></tr></thead>
+      <tbody>${tickerRows}<tr class="rp-total-row"><td>Total</td><td class="num">${fmt2(totalRenta)}</td><td class="num">${fmt2(totalAmort)}</td><td class="num">${fmt2(totalGeneral)}</td></tr></tbody></table>
+      <h3 class="rp-h3">Cronograma de pagos</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Tipo de pago</th><th>Monto (${moneda})</th></tr></thead>
+      <tbody>${flowRows}</tbody></table>
+      <h3 class="rp-h3">Cobros por año</h3>
+      <table class="rp-table"><thead><tr><th>Año</th><th>Renta</th><th>Amortización</th><th>Total del año</th><th>Acumulado</th></tr></thead>
+      <tbody>${yearRows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Flujo de Cobros</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div>
+    </div>
+    <div class="rp-body">
+      <h3 class="rp-h3">¿Qué es este documento?</h3>
+      <p class="rp-p">Detalle de los cobros ${includeCollected?'':'pendientes '}de tus instrumentos de renta fija (${tickers.map(esc).join(', ')}). La <strong>renta</strong> es el interés que paga el bono de forma periódica y no reduce el capital invertido. La <strong>amortización</strong> es la devolución del capital originalmente invertido.</p>
+      <h3 class="rp-h3">Resumen general</h3>
+      <p class="rp-p"><strong>${flows.length} pago${flows.length!==1?'s':''}</strong> entre el <strong>${fmtDateLong(fechaIni)}</strong> y el <strong>${fmtDateLong(fechaFin)}</strong>.</p>
+      ${blocksHtml}
+      <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Los montos son proyectados según las condiciones de cada instrumento y no constituyen garantía de cobro. No reemplaza el asesoramiento personalizado.</div>
+    </div>
+    <div class="rp-footer">Flujo de Cobros · Lucas Olavarría</div>
+  </div>`;
+}
+function generateClientReport(clientId){
+  const includeCollected=document.getElementById('rp-include-collected').checked;
+  const html=buildReportHTML(clientId,includeCollected);
+  document.getElementById('report-print').innerHTML=html;
+  closeModal();
+  document.body.classList.add('printing');
+  setTimeout(()=>window.print(),50);
+}
+window.onafterprint=()=>{document.body.classList.remove('printing');};
+
 function deleteClient(id){
   if(!confirm('¿Borrar este cliente y todos sus cobros cargados? Esta acción no se puede deshacer.'))return;
   DB.clients=DB.clients.filter(c=>c.id!==id);

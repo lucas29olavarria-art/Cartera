@@ -200,11 +200,19 @@ function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'
 function loadDB(){
   try{
     const raw=localStorage.getItem(DB_KEY);
-    if(raw)return JSON.parse(raw);
+    if(raw){const d=JSON.parse(raw);if(!d.issuers)d.issuers={};return d;}
   }catch(e){}
-  return {clients:[],flows:[],agenda:[]};
+  return {clients:[],flows:[],agenda:[],issuers:{}};
 }
 let DB=loadDB();
+const SOVEREIGN_GUESS={
+  AL29:'República Argentina',AL30:'República Argentina',AL35:'República Argentina',AL38:'República Argentina',AL41:'República Argentina',
+  AE38:'República Argentina',GD29:'República Argentina',GD30:'República Argentina',GD35:'República Argentina',GD38:'República Argentina',
+  GD41:'República Argentina',GD46:'República Argentina',PARP:'República Argentina',PARY:'República Argentina',DICP:'República Argentina',DICY:'República Argentina'
+};
+function issuerFor(ticker){
+  return (DB.issuers&&DB.issuers[ticker])||SOVEREIGN_GUESS[ticker]||'';
+}
 function save(){localStorage.setItem(DB_KEY,JSON.stringify(DB));}
 function toast(msg){
   const t=document.getElementById('toast');
@@ -697,11 +705,15 @@ function buildReportHTML(clientId,includeCollected){
       if(!byTicker[f.ticker])byTicker[f.ticker]={renta:0,amort:0};
       byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
     });
-    const tickerRows=Object.entries(byTicker).map(([tk,d])=>`
-      <tr><td>${esc(tk)}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`).join('');
+    const tickerRows=Object.entries(byTicker).map(([tk,d])=>{
+      const iss=issuerFor(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
+    }).join('');
 
-    const flowRows=mf.map(f=>`
-      <tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`).join('');
+    const flowRows=mf.map(f=>{
+      const iss=issuerFor(f.ticker);
+      return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?` <span style="color:#9ca3af;font-size:9px;">(${esc(iss)})</span>`:''}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
+    }).join('');
 
     const byYear={};
     mf.forEach(f=>{
@@ -744,7 +756,7 @@ function buildReportHTML(clientId,includeCollected){
     </div>
     <div class="rp-body">
       <h3 class="rp-h3">¿Qué es este documento?</h3>
-      <p class="rp-p">Detalle de los cobros ${includeCollected?'':'pendientes '}de tus instrumentos de renta fija (${tickers.map(esc).join(', ')}). La <strong>renta</strong> es el interés que paga el bono de forma periódica y no reduce el capital invertido. La <strong>amortización</strong> es la devolución del capital originalmente invertido.</p>
+      <p class="rp-p">Detalle de los cobros ${includeCollected?'':'pendientes '}de tus instrumentos de renta fija (${tickers.map(tk=>{const iss=issuerFor(tk);return esc(tk)+(iss?' — '+esc(iss):'');}).join(', ')}). La <strong>renta</strong> es el interés que paga el bono de forma periódica y no reduce el capital invertido. La <strong>amortización</strong> es la devolución del capital originalmente invertido.</p>
       <h3 class="rp-h3">Resumen general</h3>
       <p class="rp-p"><strong>${flows.length} pago${flows.length!==1?'s':''}</strong> entre el <strong>${fmtDateLong(fechaIni)}</strong> y el <strong>${fmtDateLong(fechaFin)}</strong>.</p>
       ${blocksHtml}
@@ -916,7 +928,10 @@ function renderStats(){
     <div class="ct">Por instrumento</div>
     ${tickerRows.length?tickerRows.map(t=>`
       <div class="row">
-        <div style="flex:1;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
+        <div style="flex:1;min-width:0;">
+          <div style="font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
+          ${issuerFor(t.ticker)?`<div style="font-size:10px;color:var(--muted);">${esc(issuerFor(t.ticker))}</div>`:''}
+        </div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${fmtTotals(t.monedas)}</div>
       </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
   </div>
@@ -976,6 +991,9 @@ function openSettings(){
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Los datos se guardan solo en este navegador (no hay servidor). El PIN evita que alguien abra la app si toma tu dispositivo.</div>
     ${hasPin?`<button class="ib red" style="width:100%;padding:9px;margin-bottom:10px;" onclick="removePin()">Quitar PIN</button>`
              :`<button class="ib pri" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();setupPin()">Configurar PIN</button>`}
+    <div class="ct" style="margin-top:14px;">Emisores</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Nombre de la empresa/entidad de cada instrumento (aparece en los reportes PDF). Los bonos soberanos argentinos ya vienen completados.</div>
+    <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();openIssuersEditor()">🏢 Editar emisores</button>
     <div class="ct" style="margin-top:14px;">Backup</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos (clientes, flujos, agenda) o restaurá desde un backup anterior.</div>
     <div class="frow">
@@ -986,6 +1004,23 @@ function openSettings(){
     <div class="ct" style="margin-top:14px;color:var(--red);">Zona de riesgo</div>
     <button class="ib red" style="width:100%;padding:9px;" onclick="wipeAll()">Borrar todos los datos</button>
   `);
+}
+function openIssuersEditor(){
+  const tickers=[...new Set(DB.flows.map(f=>f.ticker))].sort();
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Emisores</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:12px;">Se completa una sola vez por instrumento y queda para todos los clientes y reportes.</div>
+    ${tickers.length?tickers.map(tk=>`
+      <div class="frow" style="align-items:center;">
+        <div style="width:64px;flex-shrink:0;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(tk)}</div>
+        <input class="fi" style="flex:1;" placeholder="Nombre del emisor" value="${esc(issuerFor(tk))}" onchange="setIssuer('${tk}',this.value)">
+      </div>`).join(''):'<div class="empty">Todavía no importaste ningún instrumento.</div>'}
+  `);
+}
+function setIssuer(ticker,value){
+  DB.issuers[ticker]=value.trim();
+  save();
 }
 function exportBackup(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});

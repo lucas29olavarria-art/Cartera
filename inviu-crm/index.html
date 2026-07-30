@@ -222,9 +222,14 @@ function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'
 function loadDB(){
   try{
     const raw=localStorage.getItem(DB_KEY);
-    if(raw){const d=JSON.parse(raw);if(!d.issuers)d.issuers={};return d;}
+    if(raw){
+      const d=JSON.parse(raw);
+      if(!d.issuers)d.issuers={};
+      if(!d.advisor)d.advisor={cnv:'',phone:'',email:''};
+      return d;
+    }
   }catch(e){}
-  return {clients:[],flows:[],agenda:[],issuers:{}};
+  return {clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
 }
 let DB=loadDB();
 const SOVEREIGN_GUESS={
@@ -234,6 +239,14 @@ const SOVEREIGN_GUESS={
 };
 function issuerFor(ticker){
   return (DB.issuers&&DB.issuers[ticker])||SOVEREIGN_GUESS[ticker]||'';
+}
+function advisorFooterHTML(title){
+  const a=DB.advisor||{};
+  const parts=[];
+  if(a.cnv)parts.push('CNV '+a.cnv);
+  if(a.phone)parts.push(a.phone);
+  if(a.email)parts.push(a.email);
+  return `<div class="rp-footer">${esc(title)} · Lucas Olavarría${parts.length?' · '+parts.map(esc).join(' · '):''}</div>`;
 }
 function save(){localStorage.setItem(DB_KEY,JSON.stringify(DB));}
 function toast(msg){
@@ -812,7 +825,7 @@ function buildReportHTML(clientId,includeCollected){
       ${blocksHtml}
       <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Los montos son proyectados según las condiciones de cada instrumento y no constituyen garantía de cobro. No reemplaza el asesoramiento personalizado.</div>
     </div>
-    <div class="rp-footer">Flujo de Cobros · Lucas Olavarría</div>
+    ${advisorFooterHTML('Flujo de Cobros')}
   </div>`;
 }
 function buildMonthChartHTML(byMonth){
@@ -915,8 +928,15 @@ function buildPerformanceReportHTML(clientId,desde,hasta){
       ${blocksHtml}
       <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Refleja los pagos con fecha dentro del período indicado, según las condiciones de emisión de cada instrumento.</div>
     </div>
-    <div class="rp-footer">Resumen de Rendimiento · Lucas Olavarría</div>
+    ${advisorFooterHTML('Resumen de Rendimiento')}
   </div>`;
+}
+function showReportPreview(html){
+  const el=document.getElementById('report-print');
+  el.innerHTML=html;
+  el.setAttribute('contenteditable','true');
+  closeModal();
+  document.body.classList.add('previewing-report');
 }
 function previewClientReport(clientId){
   const mode=document.getElementById('rp-mode').value;
@@ -932,11 +952,62 @@ function previewClientReport(clientId){
     const includeCollected=document.getElementById('rp-include-collected').checked;
     html=buildReportHTML(clientId,includeCollected);
   }
-  const el=document.getElementById('report-print');
-  el.innerHTML=html;
-  el.setAttribute('contenteditable','true');
-  closeModal();
-  document.body.classList.add('previewing-report');
+  showReportPreview(html);
+}
+function previewBusinessBook(){
+  showReportPreview(buildBusinessBookHTML());
+}
+function buildBusinessBookHTML(){
+  const flows=allFlowsEnriched();
+  const cobrados=flows.filter(f=>f.cobrado);
+  const pendientes=flows.filter(f=>!f.cobrado);
+  const sumByMoneda=arr=>{const o={};arr.forEach(f=>o[f.moneda]=(o[f.moneda]||0)+f.monto);return o;};
+  const fmtTotals=o=>Object.entries(o).map(([m,v])=>`${m} ${fmt2(v)}`).join(' + ')||'—';
+
+  const byClient={};
+  flows.forEach(f=>{
+    if(!byClient[f.clientId])byClient[f.clientId]={name:f.clientName,cobrado:{},pendiente:{},sortKey:0};
+    const b=byClient[f.clientId];
+    (f.cobrado?b.cobrado:b.pendiente)[f.moneda]=((f.cobrado?b.cobrado:b.pendiente)[f.moneda]||0)+f.monto;
+    b.sortKey+=f.monto;
+  });
+  const clientRows=Object.values(byClient).sort((a,b)=>b.sortKey-a.sortKey).map(c=>`
+    <tr><td>${esc(c.name)}</td><td class="num">${fmtTotals(c.cobrado)}</td><td class="num">${fmtTotals(c.pendiente)}</td></tr>`).join('');
+
+  const byTicker={};
+  flows.forEach(f=>{
+    if(!byTicker[f.ticker])byTicker[f.ticker]={monedas:{},vence:f.fecha,sortKey:0};
+    byTicker[f.ticker].monedas[f.moneda]=(byTicker[f.ticker].monedas[f.moneda]||0)+f.monto;
+    byTicker[f.ticker].sortKey+=f.monto;
+    if(f.fecha>byTicker[f.ticker].vence)byTicker[f.ticker].vence=f.fecha;
+  });
+  const tickerRows=Object.entries(byTicker).sort((a,b)=>b[1].sortKey-a[1].sortKey).map(([tk,d])=>{
+    const iss=issuerFor(tk);
+    return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmtTotals(d.monedas)}</td><td>${fmtDateShort(d.vence)}</td></tr>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Libro de Negocio</h1>
+      <div class="rp-sub">Resumen consolidado · Lucas Olavarría · ${fmtDateLong(todayStr())}</div>
+    </div>
+    <div class="rp-body">
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${DB.clients.length}</div><div class="rp-kpi-l">Clientes</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${fmtTotals(sumByMoneda(cobrados))}</div><div class="rp-kpi-l">Total cobrado histórico</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${fmtTotals(sumByMoneda(pendientes))}</div><div class="rp-kpi-l">Total pendiente</div></div>
+      </div>
+      <h3 class="rp-h3">Por cliente</h3>
+      <table class="rp-table"><thead><tr><th>Cliente</th><th>Cobrado</th><th>Pendiente</th></tr></thead>
+      <tbody>${clientRows||'<tr><td colspan="3">Sin datos todavía.</td></tr>'}</tbody></table>
+      <h3 class="rp-h3">Por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total</th><th>Vence</th></tr></thead>
+      <tbody>${tickerRows||'<tr><td colspan="3">Sin datos todavía.</td></tr>'}</tbody></table>
+      <div class="rp-note">Documento de uso interno generado el ${fmtDateLong(todayStr())}. Incluye cobros históricos y pendientes de todos los clientes cargados.</div>
+    </div>
+    ${advisorFooterHTML('Libro de Negocio')}
+  </div>`;
 }
 function closeReportPreview(){
   document.body.classList.remove('previewing-report');
@@ -1067,9 +1138,10 @@ function renderStats(){
 
   const byTicker={};
   flows.forEach(f=>{
-    if(!byTicker[f.ticker])byTicker[f.ticker]={monedas:{},sortKey:0};
+    if(!byTicker[f.ticker])byTicker[f.ticker]={monedas:{},sortKey:0,vence:f.fecha};
     byTicker[f.ticker].monedas[f.moneda]=(byTicker[f.ticker].monedas[f.moneda]||0)+f.monto;
     byTicker[f.ticker].sortKey+=f.monto;
+    if(f.fecha>byTicker[f.ticker].vence)byTicker[f.ticker].vence=f.fecha;
   });
   const tickerRows=Object.entries(byTicker).map(([tk,d])=>({ticker:tk,...d})).sort((a,b)=>b.sortKey-a.sortKey).slice(0,8);
 
@@ -1080,8 +1152,19 @@ function renderStats(){
     byMonthMoneda[f.moneda][k]=(byMonthMoneda[f.moneda][k]||0)+f.monto;
   });
 
+  const overdueUnmarked=flows.filter(f=>!f.cobrado&&f.fecha<todayStr());
+  const allTickers=[...new Set(flows.map(f=>f.ticker))];
+  const tickersNoIssuer=allTickers.filter(tk=>!issuerFor(tk));
+  const alertsHtml=(overdueUnmarked.length||tickersNoIssuer.length)?`
+  <div class="card" style="border-color:rgba(245,166,35,.3);">
+    <div class="ct" style="color:var(--amber);">⚠ Para revisar</div>
+    ${overdueUnmarked.length?`<div class="row"><div style="flex:1;font-size:12px;">Cobros vencidos sin marcar</div><span class="chip a">${overdueUnmarked.length}</span></div>`:''}
+    ${tickersNoIssuer.length?`<div class="row"><div style="flex:1;font-size:12px;">Instrumentos sin emisor cargado</div><span class="chip a">${tickersNoIssuer.length}</span></div>`:''}
+  </div>`:'';
+
   sc(`
-  <div class="sec-hdr"><h2>Estadísticas</h2></div>
+  <div class="sec-hdr"><h2>Estadísticas</h2><button class="ib" onclick="previewBusinessBook()">📄 Libro de negocio</button></div>
+  ${alertsHtml}
   <div class="krow" style="grid-template-columns:repeat(2,1fr);">
     <div class="kpi"><div class="kl">Total cobrado (histórico)</div><div class="kv g">${fmtTotals(sumByMoneda(cobrados))||'—'}</div><div class="ks">${cobrados.length} cobro${cobrados.length!==1?'s':''}</div></div>
     <div class="kpi"><div class="kl">Total pendiente</div><div class="kv b">${fmtTotals(sumByMoneda(pendientes))||'—'}</div><div class="ks">${pendientes.length} evento${pendientes.length!==1?'s':''}</div></div>
@@ -1106,6 +1189,7 @@ function renderStats(){
         <div style="flex:1;min-width:0;">
           <div style="font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
           ${issuerFor(t.ticker)?`<div style="font-size:10px;color:var(--muted);">${esc(issuerFor(t.ticker))}</div>`:''}
+          <div style="font-size:9px;color:var(--muted);font-family:var(--mono);">vence ${fmtDate(t.vence)}</div>
         </div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${fmtTotals(t.monedas)}</div>
       </div>`).join(''):'<div class="empty">Sin datos todavía.</div>'}
@@ -1162,6 +1246,13 @@ function openSettings(){
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>Ajustes</h3>
+    <div class="ct" style="margin-top:6px;">Mis datos (aparecen en los reportes)</div>
+    <div class="frow">
+      <div style="flex:1;"><label class="flbl">N° CNV</label><input class="fi" value="${esc(DB.advisor.cnv||'')}" onchange="setAdvisorField('cnv',this.value)"></div>
+      <div style="flex:1;"><label class="flbl">Teléfono</label><input class="fi" value="${esc(DB.advisor.phone||'')}" onchange="setAdvisorField('phone',this.value)"></div>
+    </div>
+    <label class="flbl">Email</label>
+    <input class="fi" style="margin-bottom:14px;" value="${esc(DB.advisor.email||'')}" onchange="setAdvisorField('email',this.value)">
     <div class="ct" style="margin-top:6px;">Seguridad</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Los datos se guardan solo en este navegador (no hay servidor). El PIN evita que alguien abra la app si toma tu dispositivo.</div>
     ${hasPin?`<button class="ib red" style="width:100%;padding:9px;margin-bottom:10px;" onclick="removePin()">Quitar PIN</button>`
@@ -1195,6 +1286,10 @@ function openIssuersEditor(){
 }
 function setIssuer(ticker,value){
   DB.issuers[ticker]=value.trim();
+  save();
+}
+function setAdvisorField(field,value){
+  DB.advisor[field]=value.trim();
   save();
 }
 function exportBackup(){

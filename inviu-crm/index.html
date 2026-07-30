@@ -720,6 +720,7 @@ function openReportOptions(clientId){
       <input type="file" id="rp-tenencias-file" accept=".xlsx,.xls" style="display:none;" onchange="handleTenenciasFile(this.files[0])">
       <div class="upl" onclick="document.getElementById('rp-tenencias-file').click()">📄 Tocá para elegir el archivo</div>
       <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se sube solo para calcular este reporte — no se guarda en ningún lado.</div>
+      <div id="rp-tenencias-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
     </div>
     <div id="rp-flujo-fields" class="hidden">
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:6px 0 16px;">
@@ -750,11 +751,20 @@ function toggleReportModeFields(){
   document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
 }
 let pendingTenencias=null;
+function setTenenciasResult(msg,ok){
+  const box=document.getElementById('rp-tenencias-result');
+  box.style.display='block';
+  box.textContent=msg;
+  box.style.background=ok?'rgba(45,212,160,.12)':'rgba(240,108,108,.12)';
+  box.style.border='1px solid '+(ok?'rgba(45,212,160,.4)':'rgba(240,108,108,.4)');
+  box.style.color=ok?'var(--green)':'var(--red)';
+}
 function handleTenenciasFile(file){
   pendingTenencias=null;
-  const st=document.getElementById('rp-tenencias-status');
+  const box=document.getElementById('rp-tenencias-result');
+  box.style.display='none';
   if(!file)return;
-  st.textContent='Leyendo archivo…';
+  setTenenciasResult('Leyendo archivo…',true);
   const reader=new FileReader();
   reader.onload=e=>{
     try{
@@ -763,9 +773,14 @@ function handleTenenciasFile(file){
       const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
       pendingTenencias=parseTenenciasXLSX(rows);
       const n=pendingTenencias.positions.length;
-      st.textContent=n?`✓ ${n} posiciones leídas · TC MEP ${pendingTenencias.tcMep||'?'}`:'No se encontraron posiciones. Verificá que sea el archivo de Tenencias correcto.';
+      if(n){
+        setTenenciasResult(`✓ Listo — ${n} posiciones leídas · TC MEP ${pendingTenencias.tcMep||'?'}`,true);
+        toast(`✓ ${n} posiciones leídas del archivo`);
+      }else{
+        setTenenciasResult('⚠ No se encontraron posiciones. Verificá que sea el archivo de Tenencias correcto.',false);
+      }
     }catch(err){
-      st.textContent='Error leyendo el archivo: '+err.message;
+      setTenenciasResult('⚠ Error leyendo el archivo: '+err.message,false);
     }
   };
   reader.readAsArrayBuffer(file);

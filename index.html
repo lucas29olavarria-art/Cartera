@@ -1643,7 +1643,11 @@ async function refreshPrices(){
       const chg=+r.changePercent.toFixed(2);
       // Apply % change to THIS row's own valor (not the merged sum)
       const oldValor=p.valor;
-      const newValor=p.valor>0?+(p.valor*(1+chg/100)).toFixed(2):p.valor;
+      // Use last_price as reference to avoid compounding on repeated clicks:
+      // newValor = oldValor * (currentPrice / lastPrice) — ratio-agnostic
+      const newValor=p.valor>0
+        ?(p.last_price>0&&r.price>0?+(p.valor*r.price/p.last_price).toFixed(2):+(p.valor*(1+chg/100)).toFixed(2))
+        :p.valor;
       await sb.from('positions_rv').update({
         valor:newValor,
         last_price:r.price,

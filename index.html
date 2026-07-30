@@ -2613,7 +2613,8 @@ function renderInv(inv){
       <button class="ib" onclick="editNotes('${inv.id}')">📝 Notas</button>
       <button class="ib" onclick="resetPPC('${inv.id}')" style="background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);" title="Iguala el costo base (PPC) al valor actual de cada posición RV">🔄 Reset PPC</button>
       <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`
-      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>`}
+      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>
+      ${CU.olas_enabled?`<button class="ib" onclick="openImport();setTimeout(()=>impTab('flujo'),50)" style="background:rgba(245,166,35,.12);border-color:rgba(245,166,35,.35);color:var(--amber);">🌊 Agregar Ola</button>`:''}`}
     </div>
   </div>`;
 

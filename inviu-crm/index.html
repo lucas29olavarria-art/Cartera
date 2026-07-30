@@ -249,13 +249,15 @@ const SEED_ISSUERS={
 };
 function issuerFor(ticker){
   const custom=DB.issuers&&DB.issuers[ticker];
-  if(custom)return typeof custom==='string'?custom:(custom.name||'');
+  const customName=custom?(typeof custom==='string'?custom:custom.name):'';
+  if(customName)return customName;
   const seed=SEED_ISSUERS[ticker];
   return seed?seed.name:'';
 }
 function sectorFor(ticker){
   const custom=DB.issuers&&DB.issuers[ticker];
-  if(custom&&typeof custom==='object'&&custom.sector)return custom.sector;
+  const customSector=(custom&&typeof custom==='object')?custom.sector:'';
+  if(customSector)return customSector;
   const seed=SEED_ISSUERS[ticker];
   return seed?seed.sector:'';
 }

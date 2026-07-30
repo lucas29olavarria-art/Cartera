@@ -2610,10 +2610,10 @@ function renderInv(inv){
     <div class="ihdr-r">
       ${isA?`<button class="ib" onclick="aTab('inversores')">← Volver</button>
       <button class="ib" onclick="openRV('${inv.id}')">+ RV</button>
-      <button class="ib" onclick="openRF('${inv.id}')">+ RF</button>
       <button class="ib" onclick="editNotes('${inv.id}')">📝 Notas</button>
       <button class="ib" onclick="resetPPC('${inv.id}')" style="background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);" title="Iguala el costo base (PPC) al valor actual de cada posición RV">🔄 Reset PPC</button>
-      <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`:''}
+      <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`
+      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>`}
     </div>
   </div>`;
 

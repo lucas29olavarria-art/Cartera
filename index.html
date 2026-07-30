@@ -1,4 +1,6 @@
 <!-- SQL: create table if not exists app_settings (key text primary key, value text, updated_at timestamptz default now()); -->
+<!-- SQL: alter table investors add column if not exists olas_enabled boolean default false; alter table investors add column if not exists avatar text; -->
+<!-- SQL: update investors set olas_enabled=true where name in ('Pedro del Rio','Blas Rocha'); -->
 <!-- SQL: alter table investors add column if not exists last_import_date date; alter table investors add column if not exists last_import_source text; -->
 <!-- SQL: alter table olas_flows add column if not exists cobrado boolean default false; alter table olas_flows add column if not exists tc_cobro numeric; alter table olas_flows add column if not exists monto_real_ars numeric; alter table olas_flows add column if not exists tc_inicio numeric; alter table olas_flows add column if not exists capital_usd numeric; alter table olas_flows add column if not exists capital_ars numeric; -->
 <!-- SQL: alter table positions_rv add column if not exists broker text default 'Balanz'; alter table positions_rv add column if not exists imported_at timestamptz default now(); -->
@@ -354,31 +356,80 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 <!-- LOGIN -->
 <div id="s-login" class="screen active">
   <div class="lw">
-    <div style="margin-bottom:28px;display:flex;align-items:center;gap:11px;">
-      <svg height="36" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <div style="margin-bottom:24px;display:flex;align-items:center;gap:11px;">
+      <svg height="32" viewBox="0 0 42 40" fill="none" xmlns="http://www.w3.org/2000/svg">
         <circle cx="25" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/>
         <line x1="16" y1="6" x2="16" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
         <line x1="16" y1="34" x2="29" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/>
       </svg>
       <div style="line-height:1;">
-        <div style="font-family:var(--mono);font-size:14px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
-        <div style="width:28px;height:1px;background:#5b9cf6;margin:5px 0;"></div>
+        <div style="font-family:var(--mono);font-size:13px;letter-spacing:.05em;color:#fff;">Lucas Olavarria</div>
+        <div style="width:24px;height:1px;background:#5b9cf6;margin:4px 0;"></div>
         <div style="font-family:var(--mono);font-size:8px;letter-spacing:.06em;color:#5b9cf6;">Asesor Financiero · Mat. CNV 2062</div>
       </div>
     </div>
-    <div class="ltitle">Bienvenido</div>
-    <div class="lsub">Ingresá tu PIN para acceder<br>a tu dashboard</div>
-    <div class="pips" id="pips">
-      <div class="pip" id="p0"></div><div class="pip" id="p1"></div>
-      <div class="pip" id="p2"></div><div class="pip" id="p3"></div>
+
+    <!-- PROFILE SELECTION -->
+    <div id="s-login-profiles">
+      <div class="ltitle" style="font-size:20px;margin-bottom:6px;">¿Quién sos?</div>
+      <div class="lsub" style="margin-bottom:20px;">Seleccioná tu perfil para continuar</div>
+      <div id="login-profiles-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:18px;min-height:80px;">
+        <div style="color:var(--muted);font-size:12px;grid-column:1/-1;text-align:center;padding:20px 0;"><span class="spinner"></span> Cargando...</div>
+      </div>
+      <div style="text-align:center;padding-top:14px;border-top:1px solid var(--line);">
+        <button onclick="openRegister()" style="background:none;border:1px solid var(--line2);color:var(--soft);border-radius:8px;font-size:12px;padding:8px 18px;cursor:pointer;transition:border .15s,color .15s;" onmouseover="this.style.borderColor='var(--blue)';this.style.color='var(--blue)'" onmouseout="this.style.borderColor='var(--line2)';this.style.color='var(--soft)'">+ Crear mi cuenta</button>
+      </div>
     </div>
-    <div class="np-grid">
-      <button class="npb" onclick="np('1')">1</button><button class="npb" onclick="np('2')">2</button><button class="npb" onclick="np('3')">3</button>
-      <button class="npb" onclick="np('4')">4</button><button class="npb" onclick="np('5')">5</button><button class="npb" onclick="np('6')">6</button>
-      <button class="npb" onclick="np('7')">7</button><button class="npb" onclick="np('8')">8</button><button class="npb" onclick="np('9')">9</button>
-      <button class="npb z" onclick="np('0')">0</button><button class="npb del" onclick="nd()">⌫</button>
+
+    <!-- PIN ENTRY (after profile selected) -->
+    <div id="s-login-pin" style="display:none;">
+      <div id="login-selected-user" style="display:flex;flex-direction:column;align-items:center;margin-bottom:18px;"></div>
+      <div class="pips" id="pips">
+        <div class="pip" id="p0"></div><div class="pip" id="p1"></div>
+        <div class="pip" id="p2"></div><div class="pip" id="p3"></div>
+      </div>
+      <div class="np-grid">
+        <button class="npb" onclick="np('1')">1</button><button class="npb" onclick="np('2')">2</button><button class="npb" onclick="np('3')">3</button>
+        <button class="npb" onclick="np('4')">4</button><button class="npb" onclick="np('5')">5</button><button class="npb" onclick="np('6')">6</button>
+        <button class="npb" onclick="np('7')">7</button><button class="npb" onclick="np('8')">8</button><button class="npb" onclick="np('9')">9</button>
+        <button class="npb z" onclick="np('0')">0</button><button class="npb del" onclick="nd()">⌫</button>
+      </div>
+      <div class="lerr" id="lerr"></div>
+      <div style="text-align:center;margin-top:12px;">
+        <button onclick="backToProfiles()" style="background:none;border:none;color:var(--muted);font-size:12px;cursor:pointer;padding:4px 8px;">← Volver</button>
+      </div>
     </div>
-    <div class="lerr" id="lerr"></div>
+  </div>
+</div>
+
+<!-- REGISTER MODAL -->
+<div class="ov" id="m-register" style="display:none;">
+  <div class="modal" style="max-width:420px;">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
+      <div class="mt" style="margin-bottom:0;">Crear mi cuenta</div>
+      <button onclick="co('m-register')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">✕</button>
+    </div>
+    <div class="fr">
+      <label class="fl">Nombre de usuario</label>
+      <input class="fi" id="reg-name" placeholder="ej: Juan García" style="font-size:13px;">
+    </div>
+    <div class="fr">
+      <label class="fl">Avatar</label>
+      <div id="reg-avatars" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:4px;"></div>
+    </div>
+    <div class="fr">
+      <label class="fl">Color</label>
+      <div id="reg-cp" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:4px;"></div>
+    </div>
+    <div class="fr">
+      <label class="fl">PIN (4 dígitos)</label>
+      <input class="fi" id="reg-pin" type="password" inputmode="numeric" maxlength="4" placeholder="····" style="font-size:20px;letter-spacing:8px;text-align:center;width:120px;">
+    </div>
+    <div class="macts" style="margin-top:16px;">
+      <button class="bno" onclick="co('m-register')">Cancelar</button>
+      <button class="bok" id="reg-save-btn" onclick="registerUser()" style="background:var(--green);border-color:var(--green);">✓ Crear cuenta</button>
+    </div>
+    <div id="reg-msg" style="margin-top:8px;font-size:11px;"></div>
   </div>
 </div>
 
@@ -614,42 +665,14 @@ input[type=range]{flex:1;accent-color:var(--blue);}
 <div class="ov" id="m-import" style="align-items:flex-start;padding-top:40px;">
   <div class="modal" style="width:640px;max-width:100%;">
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:18px;">
-      <div class="mt" style="margin-bottom:0;">Importar datos de cliente</div>
+      <div class="mt" style="margin-bottom:0;">Importar mi cartera</div>
       <button onclick="co('m-import')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;">✕</button>
-    </div>
-
-    <!-- PASO 1: SELECCIONAR / CREAR INVERSOR -->
-    <div style="background:var(--bg3);border-radius:var(--r);padding:12px 14px;margin-bottom:14px;">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div class="fl" style="margin-bottom:0;">Inversor</div>
-        <button id="imp-new-inv-btn" onclick="impToggleNewInv()" style="background:rgba(45,212,160,.1);border:1px solid rgba(45,212,160,.25);color:var(--green);border-radius:6px;font-size:11px;padding:3px 10px;cursor:pointer;">+ Nuevo cliente</button>
-      </div>
-      <select class="fi" id="imp-inv" style="max-width:300px;"></select>
-
-      <!-- Formulario inline de creación rápida -->
-      <div id="imp-new-inv-form" style="display:none;margin-top:12px;padding-top:12px;border-top:1px solid rgba(45,212,160,.15);">
-        <div style="font-size:10px;color:var(--green);font-weight:600;letter-spacing:.06em;margin-bottom:10px;">NUEVO CLIENTE</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px;">
-          <input class="fi" id="imp-new-name" placeholder="Nombre completo" style="font-size:12px;">
-          <input class="fi" id="imp-new-pin" placeholder="PIN (4 dígitos)" maxlength="4" type="password" inputmode="numeric" style="font-size:12px;">
-        </div>
-        <div style="margin-bottom:10px;">
-          <div style="font-size:10px;color:var(--muted);margin-bottom:6px;">Color</div>
-          <div id="imp-new-cp" style="display:flex;gap:5px;flex-wrap:wrap;"></div>
-        </div>
-        <div style="display:flex;gap:8px;">
-          <button class="bok" id="imp-new-save-btn" onclick="impSaveNewInv()" style="flex:1;background:var(--green);border-color:var(--green);">✓ Crear cliente</button>
-          <button class="bno" onclick="impToggleNewInv()" style="flex:0 0 auto;">Cancelar</button>
-        </div>
-        <div id="imp-new-inv-msg" style="margin-top:6px;font-size:11px;"></div>
-      </div>
     </div>
 
     <!-- TABS -->
     <div style="display:flex;gap:1px;border-bottom:1px solid var(--line);margin-bottom:16px;">
-      <button class="tb active" id="imp-tab-cartera" onclick="impTab('cartera')">📋 Inviu</button>
-      <button class="tb" id="imp-tab-flujo" onclick="impTab('flujo')">📅 Flujo de Cobros</button>
-      <button class="tb" id="imp-tab-rv" onclick="impTab('rv')">🏦 Balanz / Manual</button>
+      <button class="tb active" id="imp-tab-rv" onclick="impTab('rv')">📂 Mi Cartera</button>
+      <button class="tb" id="imp-tab-flujo" onclick="impTab('flujo')" style="display:none;">🌊 Olas</button>
     </div>
 
     <!-- RV PANEL — ambos brokers juntos -->
@@ -694,36 +717,8 @@ input[type=range]{flex:1;accent-color:var(--blue);}
       </div>
     </div>
 
-    <!-- CARTERA PANEL (Tenencias: bonos → RF + acciones → RV) -->
-    <div id="imp-cartera-panel" style="display:none;">
-      <div style="background:rgba(45,212,160,.05);border:1px solid rgba(45,212,160,.15);border-radius:var(--r);padding:10px 13px;font-size:12px;color:var(--green);margin-bottom:12px;line-height:1.5;">
-        <strong>Tenencias Inviu</strong> — subí el Excel que bajás de Inviu → Tenencias.<br>
-        <span style="font-size:11px;opacity:.8;">Detecta bonos (→ Renta Fija) y acciones/CEDEARs (→ Renta Variable) automáticamente en un solo paso.</span>
-      </div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--blue);margin-bottom:6px;">Archivo Excel de Tenencias (.xlsx)</div>
-      <div id="imp-ten-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-ten-file').click()" ondragover="event.preventDefault();this.style.borderColor='var(--blue)'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impTenDrop(event)">
-        <div style="font-size:22px;margin-bottom:4px;">📋</div>
-        <div style="font-size:11px;color:var(--soft);">Arrastrá el Excel de Tenencias</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Detecta bonos (RF) y acciones/CEDEARs (RV) automáticamente</div>
-      </div>
-      <input type="file" id="imp-ten-file" accept=".xlsx" style="display:none;" onchange="impTenFile(this.files[0])">
-      <div id="imp-ten-preview" style="margin-top:8px;"></div>
-    </div>
-
-    <!-- FLUJO DE COBROS PANEL (rf_flows + Olas) -->
+    <!-- OLAS PANEL -->
     <div id="imp-flujo-panel" style="display:none;">
-      <!-- Flujo de Cobros (bonos) -->
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#9b7ff4;margin-bottom:6px;">Flujo de Cobros Inviu (.xlsx)</div>
-      <div id="imp-rf-dropzone" style="border:2px dashed var(--line2);border-radius:var(--r2);padding:18px;text-align:center;cursor:pointer;transition:border .18s;" onclick="document.getElementById('imp-rf-file').click()" ondragover="event.preventDefault();this.style.borderColor='#9b7ff4'" ondragleave="this.style.borderColor='var(--line2)'" ondrop="impRFDrop(event)">
-        <div style="font-size:22px;margin-bottom:4px;">📊</div>
-        <div style="font-size:11px;color:var(--soft);">Arrastrá el Flujo de Cobros</div>
-        <div style="font-size:10px;color:var(--muted);margin-top:3px;">Calendario de cupones y amortizaciones de bonos</div>
-      </div>
-      <input type="file" id="imp-rf-file" accept=".xlsx" style="display:none;" onchange="impRFFlowsFile(this.files[0])">
-      <div id="imp-rf-preview" style="margin-top:8px;"></div>
-
-      <!-- Separator -->
-      <div style="border-top:1px solid var(--line);margin:16px 0 14px;"></div>
       <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--amber);margin-bottom:10px;">Olas (Yont)</div>
 
       <!-- Olas TC -->
@@ -1165,6 +1160,93 @@ async function hashPin(pin){
   return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
 }
 
+// ── LOGIN / PROFILES ──────────────────────────────────────────
+const REG_AVATARS=['🦁','🐯','🦊','🐻','🐼','🦅','🦋','🌊','⚡','🌙','⭐','🎯','🦄','🐉','🌵'];
+let selectedInvId=null, regAvatar='', regColor=PAL[0];
+
+async function loadLoginProfiles(){
+  const grid=document.getElementById('login-profiles-grid');
+  try{
+    const{data}=await sb.from('investors').select('id,name,color,avatar').order('name');
+    if(!data?.length){grid.innerHTML='<div style="color:var(--muted);font-size:12px;grid-column:1/-1;text-align:center;padding:20px 0;">Nadie registrado aún · creá tu cuenta abajo</div>';return;}
+    grid.innerHTML=data.map(inv=>`
+      <div onclick="selectProfile('${inv.id}','${encodeURIComponent(inv.name)}','${inv.color||'#5b9cf6'}','${inv.avatar||''}')"
+           style="display:flex;flex-direction:column;align-items:center;gap:8px;cursor:pointer;padding:14px 8px;border-radius:var(--r);background:var(--bg2);border:1px solid var(--line);transition:all .15s;"
+           onmouseover="this.style.background='var(--bg3)';this.style.borderColor='var(--blue)'" onmouseout="this.style.background='var(--bg2)';this.style.borderColor='var(--line)'">
+        <div style="width:52px;height:52px;border-radius:50%;background:${inv.color||'#5b9cf6'};display:flex;align-items:center;justify-content:center;font-size:${inv.avatar?'26px':'20px'};font-weight:700;color:#fff;box-shadow:0 2px 8px rgba(0,0,0,.3);">
+          ${inv.avatar||inv.name[0].toUpperCase()}
+        </div>
+        <div style="font-size:11px;font-weight:600;color:var(--txt);text-align:center;max-width:80px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${inv.name}</div>
+      </div>`).join('');
+  }catch(e){grid.innerHTML='<div style="color:var(--red);font-size:11px;grid-column:1/-1;text-align:center;">Error cargando perfiles</div>';}
+}
+
+function selectProfile(invId,nameEnc,color,avatar){
+  selectedInvId=invId;
+  const name=decodeURIComponent(nameEnc);
+  pin=''; upP();
+  document.getElementById('lerr').textContent='';
+  document.getElementById('login-selected-user').innerHTML=`
+    <div style="width:64px;height:64px;border-radius:50%;background:${color};display:flex;align-items:center;justify-content:center;font-size:${avatar?'32px':'24px'};font-weight:700;color:#fff;box-shadow:0 3px 12px rgba(0,0,0,.35);margin-bottom:8px;">${avatar||name[0].toUpperCase()}</div>
+    <div style="font-size:16px;font-weight:600;color:var(--txt);">Hola, ${name.split(' ')[0]}</div>
+    <div style="font-size:11px;color:var(--muted);margin-top:3px;">Ingresá tu PIN</div>`;
+  document.getElementById('s-login-profiles').style.display='none';
+  document.getElementById('s-login-pin').style.display='block';
+}
+
+function backToProfiles(){
+  pin=''; upP(); selectedInvId=null;
+  document.getElementById('s-login-profiles').style.display='block';
+  document.getElementById('s-login-pin').style.display='none';
+  document.getElementById('lerr').textContent='';
+}
+
+function openRegister(){
+  regAvatar=''; regColor=PAL[0];
+  document.getElementById('reg-name').value='';
+  document.getElementById('reg-pin').value='';
+  document.getElementById('reg-msg').innerHTML='';
+  const av=document.getElementById('reg-avatars');
+  av.innerHTML=REG_AVATARS.map(e=>`<div onclick="pickRegAvatar('${e}',this)" style="width:36px;height:36px;border-radius:8px;background:var(--bg3);border:2px solid transparent;display:flex;align-items:center;justify-content:center;font-size:20px;cursor:pointer;transition:border .12s;" title="${e}">${e}</div>`).join('');
+  const cp=document.getElementById('reg-cp');
+  cp.innerHTML=PAL.map(c=>`<div onclick="pickRegColor('${c}',this)" style="width:24px;height:24px;border-radius:50%;background:${c};cursor:pointer;border:2px solid ${c===regColor?'#fff':'transparent'};transition:border .12s;"></div>`).join('');
+  oo('m-register');
+  setTimeout(()=>document.getElementById('reg-name').focus(),200);
+}
+
+function pickRegAvatar(e,el){
+  regAvatar=e;
+  document.querySelectorAll('#reg-avatars div').forEach(d=>d.style.borderColor='transparent');
+  el.style.borderColor='var(--blue)';
+}
+
+function pickRegColor(c,el){
+  regColor=c;
+  document.querySelectorAll('#reg-cp div').forEach(d=>d.style.borderColor='transparent');
+  el.style.borderColor='#fff';
+}
+
+async function registerUser(){
+  const name=document.getElementById('reg-name').value.trim();
+  const pinVal=document.getElementById('reg-pin').value.trim();
+  const msg=document.getElementById('reg-msg');
+  if(!name){msg.innerHTML='<span style="color:var(--red);">Ingresá un nombre</span>';return;}
+  if(!/^\d{4}$/.test(pinVal)){msg.innerHTML='<span style="color:var(--red);">El PIN debe ser exactamente 4 dígitos</span>';return;}
+  const btn=document.getElementById('reg-save-btn');
+  btn.disabled=true;btn.textContent='Creando...';
+  try{
+    const hashed=await hashPin(pinVal);
+    const{data,error}=await sb.from('investors').insert({name,pin:hashed,color:regColor,avatar:regAvatar||null,olas_enabled:false,is_admin:false}).select().single();
+    if(error)throw error;
+    co('m-register');
+    showToast('✓ Cuenta creada — ¡bienvenido/a!');
+    await loadLoginProfiles();
+    selectProfile(data.id,encodeURIComponent(data.name),data.color,data.avatar||'');
+  }catch(e){
+    msg.innerHTML=`<span style="color:var(--red);">Error: ${e.message}</span>`;
+  }finally{btn.disabled=false;btn.textContent='✓ Crear cuenta';}
+}
+
 // ── PIN UI ────────────────────────────────────────────────────
 let pin='';
 function np(d){if(pin.length>=4)return;pin+=d;upP();if(pin.length===4)setTimeout(tryLogin,200);}
@@ -1174,7 +1256,7 @@ function upP(){for(let i=0;i<4;i++){const el=document.getElementById('p'+i);el.c
 async function tryLogin(){
   document.getElementById('lerr').textContent='';
   const hashed=await hashPin(pin);
-  const {data,error}=await sb.from('investors').select('*').eq('pin',hashed).single();
+  const{data,error}=await sb.from('investors').select('*').eq('id',selectedInvId).eq('pin',hashed).maybeSingle();
   if(error||!data){
     for(let i=0;i<4;i++)document.getElementById('p'+i).classList.add('err');
     document.getElementById('lerr').textContent='PIN incorrecto';
@@ -1187,10 +1269,12 @@ async function tryLogin(){
 }
 
 async function logout(){
-  CU=null; INV_CACHE={};
+  CU=null; INV_CACHE={}; selectedInvId=null;
   if(autoRefreshTimer)clearInterval(autoRefreshTimer);
   localStorage.removeItem('cu');
+  backToProfiles();
   sw('s-login');
+  loadLoginProfiles();
 }
 
 // ── SKELETON LOADING ──────────────────────────────────────────
@@ -1379,8 +1463,11 @@ async function showApp(){
   document.getElementById('btn-ref').style.display='none';
   document.getElementById('mkt-status')?.style && (document.getElementById('mkt-status').style.display='none');
   document.getElementById('pst').style.display='none';
-  document.getElementById('btn-op').style.display=isA?'block':'none';
-  document.getElementById('btn-import')?.style && (document.getElementById('btn-import').style.display=isA?'block':'none');
+  document.getElementById('btn-op').style.display='none';
+  document.getElementById('btn-import')?.style && (document.getElementById('btn-import').style.display='block');
+  // Show/hide Flujo de Caja tab based on olas_enabled
+  const flujTab=document.getElementById('itb-flujo');
+  if(flujTab)flujTab.style.display=(CU.olas_enabled||isA)?'':'none';
   updateMarketStatus();
   startQuotes();
 
@@ -1409,29 +1496,26 @@ function sw(id){document.querySelectorAll('.screen').forEach(s=>s.classList.remo
 
 // ── SUPABASE LOADERS ──────────────────────────────────────────
 async function loadAllInvestors(){
-  const {data}=await sb.from('investors').select('*').order('created_at');
+  const{data}=await sb.from('investors').select('*').order('name');
   const invs=data||[];
-  await Promise.all(invs.filter(i=>!i.is_admin).map(inv=>loadInvestor(inv.id)));
+  invs.forEach(inv=>{
+    inv.rv=[];inv.rf=[];inv.olasFlows=[];inv.rfFlows=[];
+    INV_CACHE[inv.id]=inv;
+  });
   return invs;
 }
 
 async function loadInvestor(id){
-  const [rvR,rfR,olasR,invR,rfFlowsR]=await Promise.all([
+  const [rvR,olasR,invR]=await Promise.all([
     sb.from('positions_rv').select('*').eq('investor_id',id).order('valor',{ascending:false}),
-    sb.from('positions_rf').select('*').eq('investor_id',id).order('valor',{ascending:false}),
     sb.from('olas_flows').select('*').eq('investor_id',id).order('fecha'),
     sb.from('investors').select('*').eq('id',id).single(),
-    sb.from('rf_flows').select('*').eq('investor_id',id).order('fecha'),
   ]);
   const inv=invR.data||{};
   // Filter RV to latest import batch (by imported_at). Null rows treated as a single legacy batch.
   const allDbRv=rvR.data||[];
   const maxTs=allDbRv.reduce((m,p)=>p.imported_at&&p.imported_at>m?p.imported_at:m,null);
   inv._dbRv=maxTs?allDbRv.filter(p=>p.imported_at===maxTs):allDbRv;
-  // Filter RF to latest import batch (by imported_at). Null rows treated as legacy.
-  const allDbRf=rfR.data||[];
-  const maxRfTs=allDbRf.reduce((m,p)=>p.imported_at&&p.imported_at>m?p.imported_at:m,null);
-  const activeRf=maxRfTs?allDbRf.filter(p=>p.imported_at===maxRfTs):allDbRf;
   const rvMerged={};
   for(const p of inv._dbRv){
     if(!rvMerged[p.ticker]){
@@ -1446,11 +1530,10 @@ async function loadInvestor(id){
     }
   }
   inv.rv=Object.values(rvMerged).map(p=>({...p,rend:p.valor-p.vinicial,autoPrice:p.auto_price,priceChange:p.price_change})).sort((a,b)=>b.valor-a.valor);
-  inv.rf=activeRf.map(p=>({...p,vnTotal:p.vn_total,proxCupon:p.prox_cupon,vinicial:p.vn_total*p.precio_compra/100,rend:p.valor-p.vn_total*p.precio_compra/100}));
+  inv.rf=[];
+  inv.rfFlows=[];
   inv.olasFlows=(olasR.data||[]).map(fx=>({id:fx.id,fecha:fx.fecha,desc:fx.descripcion,descripcion:fx.descripcion,ars:fx.monto_ars,cobrado:fx.cobrado||false,tcCobro:fx.tc_cobro||null,montoRealArs:fx.monto_real_ars||null,tcInicio:fx.tc_inicio||null,capitalUsd:fx.capital_usd||null,capitalArs:fx.capital_ars||null}));
-  inv.rfFlows=(rfFlowsR.data||[]);
   autoConfirmarVencidos(inv);
-  autoEliminarVencidosRF(inv);
   inv.gastos=[];
   inv.olasVal=inv.olas_val||0;
   inv.advisor_msg=inv.notes||'';
@@ -1709,8 +1792,7 @@ async function rHomeLinks(){
 function rConsolidado(){
   const invs=Object.values(INV_CACHE).filter(i=>!i.is_admin);
   const allRV=invs.flatMap(i=>i.rv||[]);
-  const allRF=invs.flatMap(i=>i.rf||[]);
-  const all=[...allRV,...allRF];
+  const all=[...allRV];
   const liq=all.reduce((s,p)=>s+p.valor,0);
   const rend=all.reduce((s,p)=>s+p.rend,0);
   const olas=invs.reduce((s,i)=>s+(i.olasVal||0),0);
@@ -1749,7 +1831,7 @@ function rConsolidado(){
 
   sc(`${stalePanel}<div class="krow">
     <div class="kpi"><div class="kl">AUM Total</div><div class="kv" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div><div class="ks">${invs.length} inversores activos</div></div>
-    <div class="kpi"><div class="kl">Portafolio líquido</div><div class="kv" data-countup="${liq}" data-prefix="u$s ">u$s ${fmt(liq)}</div><div class="ks">RV + RF</div></div>
+    <div class="kpi"><div class="kl">Portafolio líquido</div><div class="kv" data-countup="${liq}" data-prefix="u$s ">u$s ${fmt(liq)}</div><div class="ks">Renta Variable</div></div>
     <div class="kpi"><div class="kl">Rendimiento total</div><div class="kv ${rend>=0?'g':'r'}">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div><div class="ks">${rend>=0?'+':''}${rp}%</div></div>
     <div class="kpi"><div class="kl">Olas total</div><div class="kv b" data-countup="${olas}" data-prefix="u$s ">u$s ${fmt(olas)}</div><div class="ks">${invs.filter(i=>i.olasVal>0).length} con fideicomiso</div></div>
   </div>
@@ -1758,9 +1840,9 @@ function rConsolidado(){
   <div class="card" style="margin-bottom:12px;">
     <div class="ct">Inversores</div>
     <div class="tw"><table>
-      <thead><tr><th>Nombre</th><th style="text-align:right">RV</th><th style="text-align:right">RF</th><th style="text-align:right">Olas</th><th style="text-align:right">Total</th><th style="text-align:right">Rend.</th><th style="text-align:right">%</th><th style="text-align:right" class="mv">1M</th><th style="text-align:right" class="mv">3M</th><th style="text-align:right" class="mv">6M</th><th style="text-align:right" class="mv">1A</th><th></th></tr></thead>
+      <thead><tr><th>Nombre</th><th style="text-align:right">RV</th><th style="text-align:right">Olas</th><th style="text-align:right">Total</th><th style="text-align:right">Rend.</th><th style="text-align:right">%</th><th style="text-align:right" class="mv">1M</th><th style="text-align:right" class="mv">3M</th><th style="text-align:right" class="mv">6M</th><th style="text-align:right" class="mv">1A</th><th></th></tr></thead>
       <tbody>${invs.map(inv=>{
-        const rv=totalRV(inv),rf=totalRF(inv),ov=inv.olasVal||0,t=grand(inv),r=totalRend(inv);
+        const rv=totalRV(inv),ov=inv.olasVal||0,t=grand(inv),r=totalRend(inv);
         const rp2=totalLiq(inv)>0?(r/Math.abs(totalLiq(inv)-r)*100).toFixed(1):'—';
         const iSnaps=snapForInv(inv.id);
         const iLast=iSnaps.length?iSnaps[iSnaps.length-1]:null;
@@ -1776,7 +1858,6 @@ function rConsolidado(){
         return `<tr style="cursor:pointer;" onclick="viewInv('${inv.id}')">
           <td><div style="display:flex;align-items:center;gap:8px;"><div style="width:8px;height:8px;border-radius:50%;background:${inv.color};"></div><span style="font-weight:500;">${inv.name}</span></div></td>
           <td style="text-align:right" class="mv">${rv>0?'u$s '+fmt(rv):'—'}</td>
-          <td style="text-align:right" class="mv">${rf>0?'u$s '+fmt(rf):'—'}</td>
           <td style="text-align:right" class="mv b">${ov>0?'u$s '+fmt(ov):'—'}</td>
           <td style="text-align:right" class="mv" style="font-weight:500;">u$s ${fmt(t)}</td>
           <td style="text-align:right" class="${r>=0?'pos':'neg'}">${r>=0?'+':''}u$s ${fmt(Math.abs(r))}</td>
@@ -1840,7 +1921,6 @@ function rConsolidado(){
         labels:invs.map(i=>i.name),
         datasets:[
           {label:'RV',data:invs.map(i=>+totalRV(i).toFixed(0)),backgroundColor:invs.map(i=>i.color+'cc'),borderRadius:4,borderSkipped:false},
-          {label:'RF',data:invs.map(i=>+totalRF(i).toFixed(0)),backgroundColor:invs.map(i=>i.color+'66'),borderRadius:4,borderSkipped:false},
           {label:'Olas',data:invs.map(i=>+(i.olasVal||0)),backgroundColor:'rgba(91,156,246,.3)',borderRadius:4,borderSkipped:false},
         ]
       },options:{responsive:true,maintainAspectRatio:false,indexAxis:'y',plugins:{legend:{display:true,labels:{color:'#7d8799',font:{family:'Geist Mono',size:10},boxWidth:8}}},scales:{x:{stacked:true,ticks:{color:'#424b5c',font:{family:'Geist Mono',size:10},callback:v=>'u$s '+fmt(v)},grid:{color:'rgba(255,255,255,0.04)'}},y:{stacked:true,ticks:{color:'#eceef3',font:{size:11}},grid:{display:false}}}}});
@@ -1861,26 +1941,31 @@ function rConsolidado(){
 
 // ── INVERSORES ────────────────────────────────────────────────
 function rInversores(){
-  const invs=Object.values(INV_CACHE);
-  sc(`<div class="sec-hdr"><h3>Inversores (${invs.length})</h3><button class="ib" onclick="openNewInv()">+ Nuevo</button></div>
-  <div class="igrid">
-    ${invs.map(inv=>{
-      const rend=totalRend(inv),tot=grand(inv);
-      const mover=inv.rv?.filter(p=>p.priceChange).sort((a,b)=>Math.abs(b.priceChange)-Math.abs(a.priceChange))[0];
-      return `<div class="icard" onclick="viewInv('${inv.id}')">
-        <div class="ich"><div class="iav" style="background:${inv.color}">${inv.name[0].toUpperCase()}</div>
-        <div style="flex:1;min-width:0;"><div class="iname">${inv.name}</div><div class="ipin">PIN: ${inv.pin||'—'}</div></div>
-        <button class="ib" style="font-size:10px;padding:5px 9px;flex-shrink:0;" onclick="genInvToken('${inv.id}',event)">${inv.access_token?'🔗 Copiar link':'🔗 Generar link'}</button></div>
-        <div class="istats">
-          <div class="istat"><div class="isl">Total</div><div class="isv">u$s ${fmt(tot)}</div></div>
-          <div class="istat"><div class="isl">Rend.</div><div class="isv ${rend>=0?'g':'r'}">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div></div>
-          <div class="istat"><div class="isl">Posiciones</div><div class="isv">${(inv.rv?.length||0)+(inv.rf?.length||0)}</div></div>
-          <div class="istat"><div class="isl">${mover?mover.ticker+' hoy':'Olas'}</div><div class="isv ${mover?(mover.priceChange>=0?'g':'r'):'b'}">${mover?(mover.priceChange>=0?'+':'')+mover.priceChange?.toFixed(2)+'%':'u$s '+fmt(inv.olasVal||0)}</div></div>
-        </div>
-      </div>`;
-    }).join('')}
-    <div class="addcard" onclick="openNewInv()"><div style="font-size:22px;font-weight:300;">+</div><span style="font-size:11px;font-weight:600;">Nuevo inversor</span></div>
+  const invs=Object.values(INV_CACHE).filter(i=>!i.is_admin).sort((a,b)=>a.name.localeCompare(b.name));
+  sc(`<div class="sec-hdr" style="margin-bottom:16px;"><h3>Usuarios registrados (${invs.length})</h3></div>
+  <div style="display:flex;flex-direction:column;gap:8px;max-width:560px;">
+    ${invs.map(inv=>`
+    <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r);padding:12px 16px;display:flex;align-items:center;gap:12px;">
+      <div style="width:42px;height:42px;border-radius:50%;background:${inv.color||'#5b9cf6'};display:flex;align-items:center;justify-content:center;font-size:${inv.avatar?'22px':'16px'};font-weight:700;color:#fff;flex-shrink:0;">${inv.avatar||inv.name[0].toUpperCase()}</div>
+      <div style="flex:1;min-width:0;">
+        <div style="font-weight:600;font-size:13px;">${inv.name}</div>
+        <div style="font-size:10px;color:var(--muted);margin-top:2px;">Registro: ${inv.created_at?new Date(inv.created_at).toLocaleDateString('es-AR'):'—'}</div>
+      </div>
+      <button onclick="toggleOlas('${inv.id}',${!inv.olas_enabled})"
+              style="font-size:11px;padding:5px 14px;border-radius:6px;cursor:pointer;transition:all .15s;border:1px solid ${inv.olas_enabled?'var(--amber)':'var(--line2)'};background:${inv.olas_enabled?'rgba(245,166,35,.15)':'var(--bg3)'};color:${inv.olas_enabled?'var(--amber)':'var(--muted)'};">
+        ${inv.olas_enabled?'✓ Olas activo':'Activar Olas'}
+      </button>
+    </div>`).join('')}
+    ${!invs.length?'<div style="color:var(--muted);font-size:12px;text-align:center;padding:20px;">Nadie registrado aún</div>':''}
   </div>`);
+}
+
+async function toggleOlas(invId,enable){
+  const{error}=await sb.from('investors').update({olas_enabled:enable}).eq('id',invId);
+  if(error){showToast('Error: '+error.message);return;}
+  if(INV_CACHE[invId])INV_CACHE[invId].olas_enabled=enable;
+  showToast(enable?'✓ Olas activado':'Olas desactivado');
+  rInversores();
 }
 
 async function genInvToken(invId,ev){
@@ -1930,7 +2015,6 @@ function rCalendario(){
   if(!calFilterTo){const d=new Date();d.setMonth(d.getMonth()+3);calFilterTo=d.toISOString().slice(0,10);}
   const allFlows=[];
   invs.forEach(inv=>{
-    genRFFlows(inv).filter(fl=>fl.usd>=50).forEach(fl=>{allFlows.push({...fl,who:inv.name,color:inv.color});});
     (inv.olasFlows||[]).filter(fl=>!fl.cobrado).forEach(fl=>{
       const monto=olasMonto(fl);
       const usd=+(monto/MEP).toFixed(0);
@@ -2087,10 +2171,8 @@ async function biLoad(){
   const invName=(inv?.name||'').replace(/'/g,"\\'");
 
   // Load all data in parallel
-  const[rvRes,rfRes,rfFlowsRes]= await Promise.all([
+  const[rvRes]= await Promise.all([
     sb.from('positions_rv').select('imported_at,ticker').eq('investor_id',invId).order('imported_at',{ascending:false}),
-    sb.from('positions_rf').select('imported_at,ticker,tipo,valor').eq('investor_id',invId).order('imported_at',{ascending:false}),
-    sb.from('rf_flows').select('ticker,tipo,fecha,monto_usd').eq('investor_id',invId).order('fecha',{ascending:false}),
   ]);
 
   // Group RV by imported_at batch
@@ -2102,21 +2184,6 @@ async function biLoad(){
   });
   const batchList=Object.entries(batches).sort((a,b)=>b[0].localeCompare(a[0]));
 
-  // Group RF by imported_at batch
-  const rfBatches={};
-  (rfRes.data||[]).forEach(p=>{
-    const key=p.imported_at||'legacy';
-    if(!rfBatches[key])rfBatches[key]=[];
-    rfBatches[key].push(p);
-  });
-  const rfBatchList=Object.entries(rfBatches).sort((a,b)=>b[0].localeCompare(a[0]));
-
-  // RF flows
-  const rfFlows=rfFlowsRes.data||[];
-  const rfFlowTickers=[...new Set(rfFlows.map(f=>f.ticker))];
-  const rfFlowMin=rfFlows.length?rfFlows.reduce((m,f)=>f.fecha<m?f.fecha:m,rfFlows[0].fecha):null;
-  const rfFlowMax=rfFlows.length?rfFlows.reduce((m,f)=>f.fecha>m?f.fecha:m,rfFlows[0].fecha):null;
-
   // Olas by project
   const olasByProj={};
   (inv?.olasFlows||[]).forEach(f=>{
@@ -2126,7 +2193,7 @@ async function biLoad(){
   });
   const olasProjList=Object.keys(olasByProj);
 
-  const hasAny=batchList.length||rfBatchList.length||rfFlows.length||olasProjList.length;
+  const hasAny=batchList.length||olasProjList.length;
   let html='';
 
   // ── Botón borrar todo ─────────────────────────────────────
@@ -2164,49 +2231,6 @@ async function biLoad(){
   }
   html+=`</div>`;
 
-  // ── RF positions ──────────────────────────────────────────
-  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Renta Fija (bonos · Tenencias)</div>`;
-  if(!rfBatchList.length){
-    html+=`<div class="empty">Sin importaciones.</div>`;
-  }else{
-    rfBatchList.forEach(([ts,rows],idx)=>{
-      const isLatest=idx===0;
-      const label=ts==='legacy'?'Importación anterior (sin fecha)':new Date(ts).toLocaleString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'});
-      const tsSafe=ts.replace(/'/g,"\\'");
-      const rfTotal=rows.reduce((s,p)=>s+(p.valor||0),0);
-      html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);">
-        <div style="flex:1;min-width:0;">
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:13px;font-weight:500;">${label}</span>
-            ${isLatest?'<span style="background:rgba(91,156,246,.15);color:var(--blue);font-size:9px;font-weight:600;padding:2px 6px;border-radius:10px;flex-shrink:0;">ACTIVA</span>':''}
-          </div>
-          <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${rows.length} bonos · u$s ${fmt(rfTotal)} · ${rows.slice(0,6).map(p=>p.ticker).join(' · ')}${rows.length>6?' +'+(rows.length-6)+' más':''}</div>
-        </div>
-        <button onclick="biDeleteRFBatch('${invId}','${invName}','${tsSafe}',${isLatest})" title="Borrar esta importación RF"
-          style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
-          onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
-      </div>`;
-    });
-  }
-  html+=`</div>`;
-
-  // ── RF Flows ──────────────────────────────────────────────
-  html+=`<div class="card" style="margin-bottom:12px;"><div class="ct">Flujo de Cobros (cupones / amortizaciones)</div>`;
-  if(!rfFlows.length){
-    html+=`<div class="empty">Sin importaciones.</div>`;
-  }else{
-    const fmtD=d=>d?new Date(d+'T12:00:00').toLocaleDateString('es-AR',{day:'2-digit',month:'2-digit',year:'numeric'}):'—';
-    html+=`<div style="display:flex;align-items:center;gap:10px;padding:10px 0;">
-      <div style="flex:1;min-width:0;">
-        <div style="font-size:13px;font-weight:500;">${rfFlows.length} flujos · ${rfFlowTickers.length} bono${rfFlowTickers.length!==1?'s':''}</div>
-        <div style="font-family:var(--mono);font-size:10px;color:var(--muted);margin-top:3px;">${fmtD(rfFlowMin)} → ${fmtD(rfFlowMax)} · ${rfFlowTickers.slice(0,6).join(' · ')}${rfFlowTickers.length>6?' +'+(rfFlowTickers.length-6)+' más':''}</div>
-      </div>
-      <button onclick="biDeleteRFFlows('${invId}','${invName}')" title="Borrar flujos RF"
-        style="flex-shrink:0;background:none;border:1px solid rgba(240,108,108,.3);border-radius:var(--r2);padding:6px 8px;cursor:pointer;color:var(--red);font-size:14px;transition:background .15s;"
-        onmouseover="this.style.background='rgba(240,108,108,.1)'" onmouseout="this.style.background='none'">🗑</button>
-    </div>`;
-  }
-  html+=`</div>`;
 
   // ── Olas ──────────────────────────────────────────────────
   if(olasProjList.length){
@@ -2278,21 +2302,10 @@ async function biDeleteRF(invId,invName){
   biLoad();
 }
 
-async function biDeleteRFFlows(invId,invName){
-  if(!confirm('¿Borrar todos los flujos de cobros (cupones y amortizaciones) de '+invName+'?'))return;
-  const{error}=await sb.from('rf_flows').delete().eq('investor_id',invId);
-  if(error)return showToast('Error: '+error.message);
-  INV_CACHE[invId]=await loadInvestor(invId);
-  showToast('✓ Flujos RF eliminados');
-  biLoad();
-}
-
 async function biDeleteAll(invId,invName){
-  if(!confirm('⚠️ ¿Eliminar TODAS las importaciones de '+invName+'?\n\nEsto borra:\n• Posiciones RV (todas las importaciones)\n• Posiciones RF (bonos)\n• Flujo de Cobros\n• Fideicomisos Olas\n\nEsta acción no se puede deshacer.'))return;
+  if(!confirm('⚠️ ¿Eliminar TODAS las importaciones de '+invName+'?\n\nEsto borra:\n• Posiciones RV (todas las importaciones)\n• Fideicomisos Olas\n\nEsta acción no se puede deshacer.'))return;
   const results=await Promise.all([
     sb.from('positions_rv').delete().eq('investor_id',invId),
-    sb.from('positions_rf').delete().eq('investor_id',invId),
-    sb.from('rf_flows').delete().eq('investor_id',invId),
     sb.from('olas_flows').delete().eq('investor_id',invId),
   ]);
   const err=results.find(r=>r.error);
@@ -2335,14 +2348,11 @@ async function genReport(){
   const _totalCap=(liq-rvRfRend)+(_olasCap>0?_olasCap:(inv.olasVal||0));
   const rendPct=_totalCap>0?(rend/_totalCap*100).toFixed(1):'0.0';
   const rendColor=rend>=0?'#0d9f6b':'#dc2626';
-  const allPos=[...inv.rv||[],...inv.rf||[]].sort((a,b)=>b.rend-a.rend);
+  const allPos=(inv.rv||[]).sort((a,b)=>b.rend-a.rend);
   const maxVal=allPos.length?allPos[0].valor:1;
   const nowStr=new Date().toISOString().slice(0,10);
-  const now=new Date();const in12=new Date();in12.setMonth(in12.getMonth()+12);
-  const rfFlowsAll=genRFFlows(inv).filter(fl=>fl.usd>=50&&(()=>{const d=new Date(fl.fecha);return d>=now&&d<=in12;})());
   const olasFlowsNext=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasDate(fl)>=nowStr&&olasMonto(fl)/MEP>=50).sort((a,b)=>olasDate(a).localeCompare(olasDate(b)));
   const allFlows=[
-    ...rfFlowsAll.map(fl=>({date:fl.fecha,desc:fl.desc,usd:fl.usd,color:'#0d9f6b',prefix:''})),
     ...olasFlowsNext.map(fl=>({date:olasDate(fl),desc:olasDesc(fl),usd:olasMonto(fl)/MEP,color:'#f59e0b',prefix:'≈ '}))
   ].sort((a,b)=>a.date.localeCompare(b.date));
   const shownFlows=allFlows.slice(0,8);
@@ -2352,7 +2362,7 @@ async function genReport(){
   const quarter='Q'+Math.ceil((new Date().getMonth()+1)/3)+' '+new Date().getFullYear();
   const savedComment=await getSavedComment(id);
   const recom=await getRecom(id);
-  const hasRF=(inv.rf||[]).length>0;
+  const hasRF=false;
 
   // Detect purchases: compare last two snapshots with qty data
   const allSnapsForRep=snapForInv(id);
@@ -2589,21 +2599,21 @@ function renderInv(inv){
   const rend=rvRfRend+olasRendProfile;
   const totalCapProfile=(liq-rvRfRend)+(olasCapProfile>0?olasCapProfile:(inv.olasVal||0));
   const rendPct=totalCapProfile>0?((rend/totalCapProfile)*100).toFixed(1):'0.0';
-  const best=[...inv.rv||[],...inv.rf||[]].filter(p=>p.rend>0).sort((a,b)=>b.rend-a.rend)[0];
+  const best=(inv.rv||[]).filter(p=>p.rend>0).sort((a,b)=>b.rend-a.rend)[0];
 
   const hdr=`<div class="ihdr">
     <div class="ihdr-l">
       <div class="ihdr-av" style="background:${inv.color}">${inv.name[0].toUpperCase()}</div>
       <div><div class="ihdr-name">${inv.name}</div>
-      <div class="ihdr-sub">${(inv.rv?.length||0)+(inv.rf?.length||0)} posiciones · ${lastPriceUpdate?'precios: '+lastPriceUpdate.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'sin actualizar'}</div></div>
+      <div class="ihdr-sub">${(inv.rv?.length||0)} posiciones · ${lastPriceUpdate?'precios: '+lastPriceUpdate.toLocaleTimeString('es-AR',{hour:'2-digit',minute:'2-digit'}):'sin actualizar'}</div></div>
     </div>
     <div class="ihdr-r">
       ${isA?`<button class="ib" onclick="aTab('inversores')">← Volver</button>
       <button class="ib" onclick="openRV('${inv.id}')">+ RV</button>
-      <button class="ib" onclick="openRF('${inv.id}')">+ RF</button>
       <button class="ib" onclick="editNotes('${inv.id}')">📝 Notas</button>
       <button class="ib" onclick="resetPPC('${inv.id}')" style="background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);" title="Iguala el costo base (PPC) al valor actual de cada posición RV">🔄 Reset PPC</button>
-      <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`:''}
+      <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`
+      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>`}
     </div>
   </div>`;
 
@@ -2637,14 +2647,13 @@ let inv_ref=null;
 
 // ── VISTA CLIENTE SIMPLIFICADA ────────────────────────────────
 function rClienteSimple(inv,liq,rend,tot,rendPct){
-  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+  const rv0=totalRV(inv),ol0=inv.olasVal||0;
   const advisorMsg=inv.advisor_msg||'';
   const staleDays=inv.last_import_date?Math.floor((new Date()-new Date(inv.last_import_date))/(864e5)):null;
   const staleInfo=staleDays!==null?(staleDays===0?'Hoy':staleDays===1?'Ayer':'Hace '+staleDays+' días'):'';
 
   const comps=[
     {label:'Renta Variable',val:rv0,color:'#5b9cf6'},
-    {label:'Renta Fija',val:rf0,color:'#2dd4a0'},
     {label:'Fideicomiso',val:ol0,color:'#f5a623'},
   ].filter(c=>c.val>0);
   const compRows=comps.map(c=>`
@@ -2802,8 +2811,8 @@ async function loadClienteReporte(inv,mk){
   const deltaPct=p0>0?(delta/p0*100).toFixed(1):'—';
   const rend=+s1.total_rend;
   const liq=totalLiq(inv);
-  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
-  const allPos=[...(inv.rv||[]),...(inv.rf||[])].sort((a,b)=>b.valor-a.valor);
+  const rv0=totalRV(inv),ol0=inv.olasVal||0;
+  const allPos=(inv.rv||[]).sort((a,b)=>b.valor-a.valor);
   const today=new Date().toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
 
   el.innerHTML=`
@@ -2814,10 +2823,9 @@ async function loadClienteReporte(inv,mk){
       <div class="rpt-kpi"><div class="rpt-kl">Rendimiento total</div><div class="rpt-kv" style="color:${rend>=0?'var(--green)':'var(--red)'};">${rend>=0?'+':'−'}u$s ${fmt(Math.abs(rend))}</div></div>
     </div>
     <div style="height:160px;position:relative;margin-bottom:20px;"><canvas id="cli-rpt-chart"></canvas></div>
-    ${rv0+rf0+ol0>0?`<div class="rpt-sec">
+    ${rv0+ol0>0?`<div class="rpt-sec">
       <div class="rpt-sec-t">Composición</div>
       ${rv0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Renta Variable</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(rv0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(rv0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
-      ${rf0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Renta Fija</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(rf0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(rf0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
       ${ol0>0?`<div class="rpt-row"><span style="flex:1;font-size:12px;color:var(--soft);">Fideicomiso Olas</span><span style="font-family:var(--mono);font-size:12px;">u$s ${fmt(ol0)}</span><span style="font-family:var(--mono);font-size:11px;color:var(--muted);min-width:55px;text-align:right;">${p1>0?(ol0/p1*100).toFixed(1)+'%':''}</span></div>`:''}
     </div>`:''}
     ${allPos.length?`<div class="rpt-sec">
@@ -2847,16 +2855,13 @@ function getMilestone(tot){
 }
 
 function rOverview(inv,liq,rend,tot,rendPct,best){
-  const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0,tot0=rv0+rf0+ol0;
+  const rv0=totalRV(inv),ol0=inv.olasVal||0,tot0=rv0+ol0;
   const advisorMsg=inv.advisor_msg||'';
 
   const today0=new Date().toISOString().slice(0,10);
-  const rfFlows=genRFFlows(inv).filter(fl=>fl.usd>=50&&fl.fecha>=today0);
   const olasF=(inv.olasFlows||[]).filter(fl=>!fl.cobrado&&olasMonto(fl)/MEP>=50&&olasDate(fl)>=today0);
 
-  // Merge & sort next 3 cobros from RF + Olas
   const allNextFlows=[
-    ...rfFlows.map(f=>({src:'rf',fecha:f.fecha,monto:f.usd||f.monto||0,tipo:f.tipo,tipo_pago:f.tipo_pago})),
     ...olasF.map(f=>({src:'olas',fecha:olasDate(f),monto:olasMonto(f)/MEP,tipo:'Olas',desc:(f.descripcion||f.desc||'').split('·')[0].trim()}))
   ].sort((a,b)=>a.fecha.localeCompare(b.fecha)).slice(0,3);
   const nextFlow=allNextFlows[0]||null;
@@ -2865,16 +2870,15 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   const staleInfo=inv.last_import_date?(staleDays>=7?'⚠ Datos de hace '+staleDays+' días':'Actualizado '+inv.last_import_date):'';
 
   // Top performers by return %
-  const allPos=[...(inv.rv||[]).filter(p=>p.vinicial>0),...(inv.rf||[]).filter(p=>p.vinicial>0)];
+  const allPos=[...(inv.rv||[]).filter(p=>p.vinicial>0)];
   const topPerf=[...allPos].sort((a,b)=>(b.rend/b.vinicial)-(a.rend/a.vinicial)).slice(0,3);
 
   // Allocation mini-bar segments
   const allocBar=[];
   if(rv0>0&&tot0>0)allocBar.push({c:'#5b9cf6',pct:(rv0/tot0*100),lb:'RV'});
-  if(rf0>0&&tot0>0)allocBar.push({c:'#2dd4a0',pct:(rf0/tot0*100),lb:'RF'});
   if(ol0>0&&tot0>0)allocBar.push({c:'#f5a623',pct:(ol0/tot0*100),lb:'Olas'});
 
-  const totalPos=(inv.rv||[]).length+(inv.rf||[]).length;
+  const totalPos=(inv.rv||[]).length;
 
   const waBest=best?'\nMejor posición: '+best.ticker+' '+(best.rend>=0?'+':'')+best.rend.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g,',')+' u$s':'';
   const waNext=nextFlow?'\nPróximo cobro: '+nextFlow.fecha+' · u$s '+fmt(nextFlow.monto)+(nextFlow.tipo?' ('+nextFlow.tipo+')':''):'';
@@ -2951,7 +2955,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
   if(tot0>0){
     const allocs=[];
     if(rv0>0)allocs.push({lb:'Renta Variable',sub:'CEDEARs y acciones',v:rv0,c:'#5b9cf6'});
-    if(rf0>0)allocs.push({lb:'Renta Fija',sub:'Bonos y ONs',v:rf0,c:'#2dd4a0'});
     if(ol0>0)allocs.push({lb:'Olas (Yont)',sub:'Fideicomiso ARS',v:ol0,c:'#f5a623'});
     html+=`
     <div class="card" style="margin-bottom:12px;">
@@ -2988,10 +2991,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     const rvCap=(inv.rv||[]).reduce((s,p)=>s+safeNum(p.vinicial),0);
     const rvHasCost=rvCap>0;
     const rvRend=rvHasCost?rvVal-rvCap:null;
-    const rfVal=totalRF(inv);
-    const rfCap=(inv.rf||[]).reduce((s,p)=>s+safeNum(+p.vn_total*(+p.precio_compra||0)/100),0);
-    const rfHasCost=rfCap>0;
-    const rfRend=rfHasCost?rfVal-rfCap:null;
     const olasVal=inv.olasVal||0;
     const olasCapRaw=(()=>{
       const seen=new Set();
@@ -3009,9 +3008,9 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
     const olasHasCost=olasCapRaw>0;
     const olasEfectivo=olasVal+olasCobradoUSD;
     const olasRend=olasHasCost?olasEfectivo-olasCap:null;
-    const totalCap=rvCap+rfCap+olasCap;
-    const totalVal=rvVal+rfVal+olasEfectivo;
-    const hasCostTotal=rvHasCost||rfHasCost||olasHasCost;
+    const totalCap=rvCap+olasCap;
+    const totalVal=rvVal+olasEfectivo;
+    const hasCostTotal=rvHasCost||olasHasCost;
     const totalRendCalc=hasCostTotal?totalVal-totalCap:null;
     const capBar=totalCap>0?Math.min(120,totalVal/totalCap*100):100;
     const totalC=totalRendCalc===null?'#5b9cf6':totalRendCalc>=0?'#2dd4a0':'#f06c6c';
@@ -3041,7 +3040,6 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       </div>
       <div style="font-family:var(--mono);font-size:8px;color:var(--muted);text-align:right;margin-bottom:14px;">${totalRendCalc!==null?(totalRendCalc>=0?'▲':'▼')+' '+(Math.abs(totalRendCalc)/totalCap*100).toFixed(1)+'% sobre capital':''}</div>`:''}
       ${mkCatRow('💹','Acciones',rvVal,rvCap,rvHasCost,rvRend)}
-      ${mkCatRow('📄','Bonos',rfVal,rfCap,rfHasCost,rfRend)}
       ${(()=>{
         if(olasVal<=0&&olasCobradoUSD<=0)return'';
         const rc=olasRend===null?'var(--muted)':olasRend>=0?'#2dd4a0':'#f06c6c';
@@ -3116,9 +3114,8 @@ function rOverview(inv,liq,rend,tot,rendPct,best){
       const sorted=allItems;
       const safeInvId=inv.id;
       const _haRV=(inv.rv||[]).some(p=>p.valor>0);
-      const _haRF=(inv.rf||[]).some(p=>p.valor>0);
       const _haOl=(inv.olasVal||0)>0;
-      const _fBtns=[['all','Todos'],...(_haRV?[['rv','Acciones']]:[ ]),...(_haRF?[['rf','Bonos']]:[ ]),...(_haOl?[['olas','Olas']]:[ ])];
+      const _fBtns=[['all','Todos'],...(_haRV?[['rv','Acciones']]:[ ]),...(_haOl?[['olas','Olas']]:[ ])];
       html+=`
       <div class="card" style="margin-bottom:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
@@ -3215,13 +3212,6 @@ function rOlasMini(inv){
   </div>`;
 }
 
-function rRFMini(inv){
-  const next=genRFFlows(inv).filter(fl=>fl.usd>=50).slice(0,4);
-  if(!next.length)return'';
-  return `<div class="card" style="margin-bottom:12px;"><div class="ct">Próximos cupones (≥ u$s 50)</div>
-    ${next.map(c=>`<div class="cf-item"><span class="cf-date">${c.fecha}</span><span class="cf-desc">${c.desc}</span><span class="cf-monto g">u$s ${fmtd(c.monto)}</span></div>`).join('')}
-  </div>`;
-}
 
 function setAnalisisFiltro(f,inv,liq){analisisFiltro=f;kc();renderInv(inv);}
 function sortPos(col, inv, liq){
@@ -3240,15 +3230,6 @@ function autoConfirmarVencidos(inv){
   sb.from('olas_flows').upsert(vencidos.map(f=>({id:f.id,cobrado:true,tc_cobro:tc,monto_real_ars:f.ars})),{onConflict:'id'});
 }
 
-// Elimina posiciones de RF cuyo vencimiento ya pasó — el bono volvió, ya no existe en cartera
-function autoEliminarVencidosRF(inv){
-  const today=new Date().toISOString().slice(0,10);
-  const vencidos=(inv.rf||[]).filter(p=>p.vencimiento&&p.vencimiento<today);
-  if(!vencidos.length)return;
-  const ids=vencidos.map(p=>p.id);
-  inv.rf=inv.rf.filter(p=>!ids.includes(p.id));
-  sb.from('positions_rf').delete().in('id',ids); // fire and forget
-}
 
 function _olasPagosRows(flows,invId,todayStr){
   const isAdmin=CU?.is_admin;
@@ -3709,13 +3690,12 @@ function olasReport(proj,invId){
 // ── FLUJO DE CAJA ─────────────────────────────────────────────
 const _MOS=['ene','feb','mar','abr','may','jun','jul','ago','sep','oct','nov','dic'];
 function rFlujoCaja(inv){
-  const rfFlows=genRFFlows(inv);
   const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado).map(fl=>{
     const monto=olasMonto(fl);
     return {fecha:olasDate(fl),desc:olasDesc(fl),tipo:'Olas',monto,moneda:'ARS',usd:+(monto/MEP).toFixed(0)};
   });
   const today=new Date();today.setHours(0,0,0,0);
-  const all=[...rfFlows,...olasF].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
+  const all=[...olasF].sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
   const future=all.filter(fl=>new Date(fl.fecha)>=today);
 
   // Hero — próximo cobro
@@ -3766,9 +3746,7 @@ function rFlujoCaja(inv){
     <div class="ct" style="display:flex;align-items:center;justify-content:space-between;">
       <span>Cobros mensuales</span>
       <span style="display:flex;gap:12px;font-family:var(--mono);font-size:10px;color:var(--muted);">
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#9b7ff4;display:inline-block;flex-shrink:0;"></span>RF</span>
         <span style="display:flex;align-items:center;gap:5px;"><span style="width:8px;height:8px;border-radius:50%;background:#f5a623;display:inline-block;flex-shrink:0;"></span>Olas</span>
-        <span style="display:flex;align-items:center;gap:5px;"><span style="width:14px;border-top:2px dashed rgba(255,255,255,0.35);display:inline-block;flex-shrink:0;"></span>total</span>
       </span>
     </div>
     <div style="height:190px;position:relative;"><canvas id="fl-chart" role="img" aria-label="Flujo de caja mensual"></canvas></div>
@@ -3778,14 +3756,13 @@ function rFlujoCaja(inv){
 
 function renderCFList(invId){
   const inv=INV_CACHE[invId]||(CU?.is_admin?null:CU_DATA);if(!inv)return;
-  const rfFlows=genRFFlows(inv);
   const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado).map(fl=>{
     const monto=olasMonto(fl);
     return {fecha:olasDate(fl),desc:olasDesc(fl),tipo:'Olas',monto,moneda:'ARS',usd:+(monto/MEP).toFixed(0),id:fl.id};
   });
   const today=new Date();today.setHours(0,0,0,0);
   const inN=new Date(today);if(cfRangeMonths!==999)inN.setMonth(inN.getMonth()+cfRangeMonths);
-  const all=[...rfFlows,...olasF]
+  const all=[...olasF]
     .filter(fl=>new Date(fl.fecha)>=today&&(cfRangeMonths===999||new Date(fl.fecha)<=inN))
     .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
   const byM={};all.forEach(fl=>{const k=fl.fecha.slice(0,7);if(!byM[k])byM[k]=[];byM[k].push(fl);});
@@ -3827,38 +3804,26 @@ function renderCFList(invId){
 
 function buildFlujoCajaChart(invId){
   const inv=INV_CACHE[invId]||(CU?.is_admin?null:CU_DATA);if(!inv)return;
-  const rfF=genRFFlows(inv);
   const olasF=(inv.olasFlows||[]).filter(f=>!f.cobrado);
   const today=new Date();today.setHours(0,0,0,0);
   const inN=new Date(today);if(cfRangeMonths!==999)inN.setMonth(inN.getMonth()+cfRangeMonths);
-  const rfByM={},oByM={};
-  rfF.forEach(fl=>{
-    const d=new Date(fl.fecha);d.setHours(0,0,0,0);
-    if(d>=today&&(cfRangeMonths===999||d<=inN)){const k=fl.fecha.slice(0,7);rfByM[k]=(rfByM[k]||0)+fl.usd;}
-  });
+  const oByM={};
   olasF.forEach(f=>{
     const d=olasDate(f);const dt=new Date(d);dt.setHours(0,0,0,0);
     if(dt>=today&&(cfRangeMonths===999||dt<=inN)){const k=d.slice(0,7);oByM[k]=(oByM[k]||0)+olasMonto(f)/MEP;}
   });
-  const ks=[...new Set([...Object.keys(rfByM),...Object.keys(oByM)])].sort();
+  const ks=Object.keys(oByM).sort();
   if(!ks.length){const el=document.getElementById('fl-chart');if(el&&CHS['fl-chart']){CHS['fl-chart'].destroy();delete CHS['fl-chart'];}return;}
-  const rfData=ks.map(k=>+(rfByM[k]||0).toFixed(0));
   const olData=ks.map(k=>+(oByM[k]||0).toFixed(0));
-  const totData=ks.map((k,i)=>rfData[i]+olData[i]);
   const labels=ks.map(k=>{const[yr,mo]=k.split('-');return _MOS[+mo-1]+' \''+yr.slice(2);});
   const el=document.getElementById('fl-chart');if(!el)return;
   if(CHS['fl-chart'])CHS['fl-chart'].destroy();
-  // Build gradient fills using canvas context
   const ctx=el.getContext('2d');
-  const gRF=ctx.createLinearGradient(0,0,0,190);
-  gRF.addColorStop(0,'rgba(155,127,244,0.9)');gRF.addColorStop(1,'rgba(155,127,244,0.55)');
   const gOl=ctx.createLinearGradient(0,0,0,190);
   gOl.addColorStop(0,'rgba(245,166,35,0.9)');gOl.addColorStop(1,'rgba(245,166,35,0.55)');
   CHS['fl-chart']=new Chart(el,{
     data:{labels,datasets:[
-      {type:'bar',label:'Renta Fija',data:rfData,backgroundColor:gRF,stack:'s',borderRadius:{topLeft:0,topRight:0,bottomLeft:5,bottomRight:5},borderSkipped:false,order:2},
-      {type:'bar',label:'Olas',data:olData,backgroundColor:gOl,stack:'s',borderRadius:{topLeft:5,topRight:5,bottomLeft:0,bottomRight:0},borderSkipped:false,order:2},
-      {type:'line',label:'Total',data:totData,borderColor:'rgba(255,255,255,0.3)',backgroundColor:'transparent',borderWidth:1.5,borderDash:[5,4],pointRadius:3.5,pointBackgroundColor:'rgba(255,255,255,0.9)',pointBorderWidth:0,fill:false,tension:0.2,order:1},
+      {type:'bar',label:'Olas',data:olData,backgroundColor:gOl,stack:'s',borderRadius:{topLeft:5,topRight:5,bottomLeft:5,bottomRight:5},borderSkipped:false,order:2},
     ]},
     options:{
       responsive:true,maintainAspectRatio:false,
@@ -3877,7 +3842,7 @@ function buildFlujoCajaChart(invId){
           callbacks:{
             title:items=>{const[yr,mo]=items[0].label.replace("'",'').split(' ');return (MONTHS[+_MOS.indexOf(mo.toLowerCase())]||mo)+' 20'+yr.trim();},
             label:c=>{
-              const names=['RF','Olas','Total'];
+              const names=['Olas'];
               return ' '+names[c.datasetIndex]+': u$s '+fmt(c.parsed.y);
             },
           }
@@ -4206,14 +4171,14 @@ async function loadRiesgos(inv){
 
 // ── ANALISIS ──────────────────────────────────────────────────
 function rAnalisis(inv,liq){
-  const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[],...inv.rf?.map(p=>({...p,cat:'RF'}))||[]];
+  const all=[...inv.rv?.map(p=>({...p,cat:'RV'}))||[]];
   const uid=CU.is_admin?AVId:CU.id;
   if(!all.length&&!(inv.olasFlows?.length))return`<div class="card"><div class="empty">Agregá posiciones para ver el análisis.</div></div>`;
   if(!all.length&&inv.olasFlows?.length)return`<div style="margin-top:0">${olasSection(inv)}</div>`;
 
-  const hasRV=(inv.rv?.length||0)>0, hasRF=(inv.rf?.length||0)>0;
+  const hasRV=(inv.rv?.length||0)>0;
   // Filtered set for table and KPIs
-  const filtered=analisisFiltro==='rv'?all.filter(p=>p.cat==='RV'):analisisFiltro==='rf'?all.filter(p=>p.cat==='RF'):all;
+  const filtered=analisisFiltro==='rv'?all.filter(p=>p.cat==='RV'):all;
 
   const totalValor=filtered.reduce((s,p)=>s+p.valor,0);
   const totalRend2=filtered.reduce((s,p)=>s+p.rend,0);
@@ -4250,7 +4215,7 @@ function rAnalisis(inv,liq){
   });
 
   const maxAllocPct=sorted.reduce((mx,p)=>Math.max(mx,totalValor>0?p.valor/totalValor*100:0),0)||1;
-  const PILL_CFG={todos:{ac:'rgba(255,255,255,.55)',bc:'rgba(255,255,255,.12)',bg:'rgba(255,255,255,.07)'},rv:{ac:'#5b9cf6',bc:'rgba(91,156,246,.4)',bg:'rgba(91,156,246,.12)'},rf:{ac:'#2dd4a0',bc:'rgba(45,212,160,.4)',bg:'rgba(45,212,160,.1)'}};
+  const PILL_CFG={todos:{ac:'rgba(255,255,255,.55)',bc:'rgba(255,255,255,.12)',bg:'rgba(255,255,255,.07)'},rv:{ac:'#5b9cf6',bc:'rgba(91,156,246,.4)',bg:'rgba(91,156,246,.12)'}};
   const fPill=(f,lb)=>{const c=PILL_CFG[f];const on=analisisFiltro===f;return`<button onclick="setAnalisisFiltro('${f}',inv_ref,${liq})" style="padding:6px 16px;border-radius:20px;font-size:11px;font-weight:600;letter-spacing:.04em;cursor:pointer;border:1px solid ${on?c.bc:'rgba(255,255,255,.08)'};background:${on?c.bg:'transparent'};color:${on?c.ac:'var(--muted)'};transition:all .15s;white-space:nowrap;">${lb}</button>`;};
 
   const posRows=sorted.map(p=>{
@@ -4305,7 +4270,7 @@ function rAnalisis(inv,liq){
   const rm=calcRiskMetrics(inv.id); // used for preview chips in the risk portal card
 
   return `
-  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">${fPill('todos','TODOS')}${hasRV?fPill('rv','SOLO RENTA VARIABLE'):''}${hasRF?fPill('rf','SOLO RENTA FIJA'):''}</div>
+  <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">${fPill('todos','TODOS')}${hasRV?fPill('rv','SOLO ACCIONES'):''}</div>
   <div class="an-sum">
     <div style="background:var(--bg2);border:1px solid var(--line);border-radius:var(--r2);padding:14px 16px;">
       <div class="kl">Invertido</div>
@@ -4377,12 +4342,11 @@ function buildAlerts(pos,liq){
 
 // ── BUILD INV CHARTS ──────────────────────────────────────────
 function buildInvCharts(tab,inv,liq){
-  const all=[...inv.rv||[],...inv.rf||[]];
+  const all=[...inv.rv||[]];
   if(tab==='overview'){
-    const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+    const rv0=totalRV(inv),ol0=inv.olasVal||0;
     const segs=[];
     if(rv0>0)segs.push({lb:'Renta Variable',v:rv0,c:'#5b9cf6'});
-    if(rf0>0)segs.push({lb:'Renta Fija',v:rf0,c:'#2dd4a0'});
     if(ol0>0)segs.push({lb:'Olas (ARS)',v:ol0,c:'#f5a623'});
     if(segs.length) mkDonut('ov-alloc',segs.map(s=>s.v),segs.map(s=>s.c),segs.map(s=>s.lb));
     // Per-asset chart
@@ -4403,17 +4367,16 @@ function buildInvCharts(tab,inv,liq){
     if(mk.length)mkBar('g-bar',mk,mk.map(k=>bm[k]),CHC,'$','');
   }
   else if(tab==='analisis'){
-    const fInv=analisisFiltro==='rv'?{...inv,rf:[],olasVal:0}:analisisFiltro==='rf'?{...inv,rv:[],olasVal:0}:inv;
-    const all=[...fInv.rv||[],...fInv.rf||[]];
-    const rv0a=totalRV(fInv),rf0a=totalRF(fInv),ol0a=fInv.olasVal||0;
+    const fInv=analisisFiltro==='rv'?{...inv,olasVal:0}:inv;
+    const all=[...fInv.rv||[]];
+    const rv0a=totalRV(fInv),ol0a=fInv.olasVal||0;
     // Alloc
     const allocSegs=[];
     if(rv0a>0)allocSegs.push({lb:'Renta Variable',v:rv0a,c:'#5b9cf6'});
-    if(rf0a>0)allocSegs.push({lb:'Renta Fija',v:rf0a,c:'#2dd4a0'});
     if(ol0a>0)allocSegs.push({lb:'Olas',v:ol0a,c:'#f5a623'});
     if(allocSegs.length){
       const totA=allocSegs.reduce((t,s)=>t+s.v,0);
-      const allocSP=allocSegs.map(s=>s.lb==='Renta Variable'?(fInv.rv||[]):s.lb==='Renta Fija'?(fInv.rf||[]):[]);
+      const allocSP=allocSegs.map(s=>s.lb==='Renta Variable'?(fInv.rv||[]):[]);
       const legA=document.getElementById('an-alloc-leg');
       if(legA)legA.innerHTML=allocSegs.map((s,i)=>`<div class="lr" style="cursor:pointer;" onclick="selectDonutSeg('an-alloc',${i})"><div class="ld" style="background:${s.c}"></div><span class="ln">${s.lb}</span><span class="lp">${totA>0?(s.v/totA*100).toFixed(0):0}%</span></div>`).join('');
       setTimeout(()=>mkAnalisisDonut('an-alloc',allocSegs,allocSP),0);
@@ -4551,53 +4514,6 @@ async function saveNotes(invId){
   showToast('✓ Notas guardadas');
 }
 
-// ── RF FLOWS ──────────────────────────────────────────────────
-function genRFFlows(inv){
-  const today=new Date().toISOString().slice(0,10);
-
-  // ── Use real Inviu flows when available ───────────────────────
-  if(inv.rfFlows&&inv.rfFlows.length){
-    return inv.rfFlows
-      .filter(f=>!f.cobrado&&f.fecha>=today)
-      .map(f=>({
-        fecha:f.fecha,
-        desc:f.tipo==='Amortización'?`Amortización ${f.ticker}`:`Cupón ${f.ticker}`,
-        tipo:f.ticker,
-        tipo_pago:f.tipo,  // 'Renta' | 'Amortización'
-        monto:f.monto_usd,
-        moneda:f.moneda||'USD',
-        usd:f.monto_usd,
-        id:f.id,
-      }))
-      .sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
-  }
-
-  // ── Fallback: estimate from position data ─────────────────────
-  const flows=[];
-  (inv.rf||[]).forEach(p=>{
-    if(!p.proxCupon&&!p.prox_cupon)return;
-    const proxC=p.proxCupon||p.prox_cupon;
-    const venc=p.vencimiento;
-    if(!venc)return;
-    const vn=p.vnTotal||p.vn_total||0;
-    const freq=p.freq||2;
-    const cuponPeriodo=vn*(p.cupon/100)/freq;
-    let d=new Date(proxC);
-    const vencDate=new Date(venc);
-    const max=new Date();max.setFullYear(max.getFullYear()+4);
-    let iter=0;
-    while(d<=max&&iter<50){
-      iter++;
-      const isVenc=d>=vencDate;
-      const monto=cuponPeriodo+(isVenc?vn:0);
-      flows.push({fecha:d.toISOString().slice(0,10),desc:`Cupón ${p.ticker}${isVenc?' + amort. final':''}`,tipo:p.ticker,tipo_pago:isVenc?'Amortización':'Renta',monto,moneda:p.moneda||'USD',usd:p.moneda==='ARS'?+(monto/MEP).toFixed(0):monto});
-      if(isVenc)break;
-      const mesesPorPeriodo=Math.round(12/freq);
-      d=new Date(d);d.setMonth(d.getMonth()+mesesPorPeriodo);
-    }
-  });
-  return flows.sort((a,b)=>new Date(a.fecha)-new Date(b.fecha));
-}
 
 function parseFecha(s){
   try{
@@ -4619,7 +4535,6 @@ let _allocFilterTipo='all';
 function allocItemsFiltered(inv,tipo){
   const raw=[];
   if(tipo==='all'||tipo==='rv')(inv.rv||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
-  if(tipo==='all'||tipo==='rf')(inv.rf||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
   if((tipo==='all'||tipo==='olas')&&(inv.olasVal||0)>0)raw.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal});
   raw.sort((a,b)=>b.v-a.v);
   return raw.map((x,i)=>({...x,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
@@ -4640,7 +4555,6 @@ function filterAllocChart(tipo,invId){
   });
   const raw=[];
   if(tipo==='all'||tipo==='rv')(inv.rv||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
-  if(tipo==='all'||tipo==='rf')(inv.rf||[]).forEach(p=>raw.push({lb:p.ticker,sub:p.nombre||p.ticker,v:p.valor}));
   if((tipo==='all'||tipo==='olas')&&(inv.olasVal||0)>0)raw.push({lb:'OLA / Fideicomiso',sub:'Olas (Yont)',v:inv.olasVal});
   raw.sort((a,b)=>b.v-a.v);
   const items=raw.map((x,i)=>({...x,c:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
@@ -5031,9 +4945,9 @@ function co(id){document.getElementById(id).classList.remove('open');}
 function kc(){Object.keys(CHS).forEach(k=>{try{CHS[k].destroy();}catch(e){}delete CHS[k];});}
 function groupBy(arr,key){const m={};arr.forEach(p=>{const v=p[key]||'Otro';m[v]=(m[v]||0)+p.valor;});return Object.entries(m).sort((a,b)=>b[1]-a[1]).map(e=>({label:e[0],val:+e[1].toFixed(0)}));}
 function totalRV(inv){return (inv.rv||[]).reduce((s,p)=>s+p.valor,0);}
-function totalRF(inv){return (inv.rf||[]).reduce((s,p)=>s+p.valor,0);}
-function totalLiq(inv){return totalRV(inv)+totalRF(inv);}
-function totalRend(inv){return [...(inv.rv||[]),...(inv.rf||[])].reduce((s,p)=>s+p.rend,0);}
+function totalRF(inv){return 0;}
+function totalLiq(inv){return totalRV(inv);}
+function totalRend(inv){return (inv.rv||[]).reduce((s,p)=>s+p.rend,0);}
 function grand(inv){return totalLiq(inv)+(inv.olasVal||inv.olas_val||0);}
 function showToast(msg,ms=2800){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),ms);}
 document.querySelectorAll('.ov').forEach(o=>o.addEventListener('click',e=>{if(e.target===o)o.classList.remove('open');}));
@@ -6108,7 +6022,7 @@ async function snapAdd(inv){
   const snap={
     id:snapId,investorId:inv.id,date:new Date().toISOString(),
     totalValueUSD:newVal,rvValueUSD:+totalRV(inv).toFixed(2),
-    rfValueUSD:+totalRF(inv).toFixed(2),olasValueUSD:+(inv.olasVal||0),
+    rfValueUSD:0,olasValueUSD:+(inv.olasVal||0),
     spyPrice:SPY_PRICE_CACHE||null,
     positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})
   };
@@ -6167,7 +6081,7 @@ function rReporteMensual(inv){
 
   // If fewer than 2 snapshots this month, build synthetic s0 from last available snapshot + current data as s1
   const isCurrent=mk===nowMk;
-  const syntheticS1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:totalRF(inv),olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:null;
+  const syntheticS1=isCurrent?{date:new Date().toISOString(),totalValueUSD:grand(inv),rvValueUSD:totalRV(inv),rfValueUSD:0,olasValueUSD:inv.olasVal||0,spyPrice:SPY_PRICE_CACHE,positions:(inv.rv||[]).map(function(p){return{ticker:p.ticker,nombre:p.nombre||p.ticker,valueUSD:+p.valor.toFixed(2),qty:p.qty};})}:null;
   let s0,s1;
   if(monthSnaps.length>=2){
     s0=monthSnaps[0];
@@ -6207,7 +6121,7 @@ function rReporteMensual(inv){
     // No local snapshots — show current portfolio state (correct numbers, works for clients)
     const liq=totalLiq(inv),rend=totalRend(inv),tot=grand(inv);
     const rendPct=liq>0?(rend/Math.abs(liq-rend)*100).toFixed(1):'0.0';
-    const rv0=totalRV(inv),rf0=totalRF(inv),ol0=inv.olasVal||0;
+    const rv0=totalRV(inv),ol0=inv.olasVal||0;
     const rendC=rend>=0?'var(--green)':'var(--red)';
     const cobros=(inv.olasFlows||[]).filter(function(f){
       if(!f.cobrado)return false;
@@ -6217,13 +6131,12 @@ function rReporteMensual(inv){
       const tc=f.tcCobro||MEP;
       return acc+parseFloat((((f.montoRealArs||olasMonto(f)))/tc).toFixed(2));
     },0);
-    const allPos=[...(inv.rv||[]),...(inv.rf||[])].sort(function(a,b){return b.valor-a.valor;});
+    const allPos=(inv.rv||[]).sort(function(a,b){return b.valor-a.valor;});
     let h=navHtml;
     h+='<div class="card" style="margin-bottom:12px;"><div class="krow">';
     h+='<div class="kpi"><div class="kl">Patrimonio total</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(tot)+'</div></div>';
     h+='<div class="kpi"><div class="kl">Rendimiento total</div><div class="kv" style="color:'+rendC+';font-family:var(--mono);">'+(rend>=0?'+':'−')+' u$s '+fmt(Math.abs(rend))+' ('+rendPct+'%)</div></div>';
     if(rv0>0)h+='<div class="kpi"><div class="kl">Renta Variable</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(rv0)+'</div></div>';
-    if(rf0>0)h+='<div class="kpi"><div class="kl">Renta Fija</div><div class="kv" style="font-family:var(--mono);">u$s '+fmt(rf0)+'</div></div>';
     if(ol0>0)h+='<div class="kpi"><div class="kl">Fideicomiso</div><div class="kv" style="color:var(--amber);font-family:var(--mono);">u$s '+fmt(ol0)+'</div></div>';
     if(cobroTotal>0)h+='<div class="kpi"><div class="kl">Cobros del mes</div><div class="kv" style="color:var(--green);font-family:var(--mono);">+ u$s '+fmt(cobroTotal)+'</div></div>';
     h+='</div></div>';
@@ -6266,17 +6179,6 @@ function rReporteMensual(inv){
       h+='<div class="card" style="margin-bottom:12px;"><div class="ct" style="margin-bottom:14px;">Perdedores</div>';
       rvLosers.forEach(function(t){h+=tkRowSimple(t);});
       h+='</div>';
-    }
-    if(inv.rf&&inv.rf.length){
-      const rfRows=inv.rf.sort(function(a,b){return b.valor-a.valor;}).map(function(p){
-        return '<div class="rpt-row">'+
-          '<span class="rpt-ticker">'+p.ticker+'</span>'+
-          '<span style="flex:1;padding:0 10px;font-size:11px;color:var(--soft);">'+(p.nombre||'')+'</span>'+
-          '<span style="font-family:var(--mono);font-size:11px;min-width:80px;text-align:right;">u$s '+fmt(p.valor)+'</span>'+
-          '<span style="font-family:var(--mono);font-size:11px;min-width:65px;text-align:right;color:'+((p.rend||0)>=0?'var(--green)':'var(--red)')+';">'+(p.rend>=0?'+':'−')+' u$s '+fmt(Math.abs(p.rend||0))+'</span>'+
-          '</div>';
-      }).join('');
-      h+='<div class="card"><div class="ct" style="margin-bottom:10px;">Renta Fija</div>'+rfRows+'</div>';
     }
     return '<div id="rpt-mensual">'+h+'</div>';
   }
@@ -6989,38 +6891,24 @@ async function impSaveNewInv(){
 }
 
 function openImport(){
-  // If investor (not admin), pre-select themselves
-  let invs;
-  if(CU.is_admin){
-    invs=Object.values(INV_CACHE).filter(i=>!i.is_admin);
-  } else {
-    invs=[INV_CACHE[CU.id]||CU_DATA].filter(Boolean);
-  }
-  const sel=document.getElementById('imp-inv');
-  sel.innerHTML=invs.map(i=>`<option value="${i.id}">${i.name}</option>`).join('');
-  sel.disabled=!CU.is_admin;
-  document.getElementById('imp-new-inv-btn').style.display=CU.is_admin?'':'none';
-  document.getElementById('imp-new-inv-form').style.display='none';
-  impParsedRV=[]; _impRawRV=[]; impParsedOlas=[]; impParsedBalanz=[]; impParsedRFFlows=[]; impParsedTenencias=[]; impParsedRVFromTen=[];
+  impParsedRV=[]; _impRawRV=[]; impParsedOlas=[]; impParsedBalanz=[];
   document.getElementById('imp-rv-preview').innerHTML='';
   document.getElementById('imp-balanz-preview').innerHTML='';
-  document.getElementById('imp-ten-preview').innerHTML='';
-  document.getElementById('imp-rf-preview').innerHTML='';
   document.getElementById('imp-olas-preview').innerHTML='';
   document.getElementById('imp-confirm-btn').style.display='none';
   document.getElementById('imp-preview-btn').style.display='none';
+  const flujTab=document.getElementById('imp-tab-flujo');
+  if(flujTab)flujTab.style.display=(CU&&CU.olas_enabled)?'':'none';
   impUpdateCombined();
-  impTab('cartera');
+  impTab('rv');
   oo('m-import');
 }
 
 function impTab(tab){
   impCurrentTab=tab;
   document.getElementById('imp-rv-panel').style.display=tab==='rv'?'block':'none';
-  document.getElementById('imp-cartera-panel').style.display=tab==='cartera'?'block':'none';
   document.getElementById('imp-flujo-panel').style.display=tab==='flujo'?'block':'none';
   document.getElementById('imp-tab-rv').classList.toggle('active',tab==='rv');
-  document.getElementById('imp-tab-cartera').classList.toggle('active',tab==='cartera');
   document.getElementById('imp-tab-flujo').classList.toggle('active',tab==='flujo');
   document.getElementById('imp-confirm-btn').style.display=(tab==='rv'&&(impParsedRV.length||impParsedBalanz.length))?'block':'none';
   document.getElementById('imp-preview-btn').style.display=tab==='flujo'?'block':'none';
@@ -7871,8 +7759,8 @@ function impParseOlas(){
 }
 
 async function impLimpiarBroker(){
-  const invId=document.getElementById('imp-inv').value;
-  if(!invId){showToast('Seleccioná un inversor primero');return;}
+  const invId=CU.id;
+  if(!invId)return;
   const inv=INV_CACHE[invId];
   const nombre=inv?.name||'este inversor';
   const cant=(inv?.rv||[]).length;
@@ -7892,8 +7780,8 @@ async function impLimpiarBroker(){
 }
 
 async function impConfirm(){
-  const invId=document.getElementById('imp-inv').value;
-  if(!invId){showToast('Seleccioná un inversor primero');return;}
+  const invId=CU.id;
+  if(!invId)return;
 
   const btn=document.getElementById('imp-confirm-btn');
   btn.disabled=true;btn.textContent='Importando...';
@@ -8589,6 +8477,8 @@ async function delGasto(invId,gastoId){
   if(saved){
     CU=JSON.parse(saved);
     await showApp();
+  } else {
+    loadLoginProfiles();
   }
 })();
 

@@ -705,15 +705,23 @@ function fmtDateLong(d){
   return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
 }
 function openReportOptions(clientId){
+  pendingTenencias=null;
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>Reporte para el cliente</h3>
     <label class="flbl">Tipo de reporte</label>
     <select class="fi" id="rp-mode" onchange="toggleReportModeFields()" style="margin-bottom:12px;">
+      <option value="posicion">Posición simple (para el cliente)</option>
       <option value="flujo">Flujo de cobros (próximos pagos)</option>
       <option value="rendimiento">Resumen de rendimiento (cuánto cobró)</option>
     </select>
-    <div id="rp-flujo-fields">
+    <div id="rp-posicion-fields">
+      <label class="flbl">Archivo de Tenencias de Inviu (.xlsx)</label>
+      <input type="file" id="rp-tenencias-file" accept=".xlsx,.xls" style="display:none;" onchange="handleTenenciasFile(this.files[0])">
+      <div class="upl" onclick="document.getElementById('rp-tenencias-file').click()">📄 Tocá para elegir el archivo</div>
+      <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se sube solo para calcular este reporte — no se guarda en ningún lado.</div>
+    </div>
+    <div id="rp-flujo-fields" class="hidden">
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:6px 0 16px;">
         <input type="checkbox" id="rp-include-collected"> Incluir cobros ya realizados (historial completo)
       </label>
@@ -737,8 +745,108 @@ function openReportOptions(clientId){
 }
 function toggleReportModeFields(){
   const mode=document.getElementById('rp-mode').value;
+  document.getElementById('rp-posicion-fields').classList.toggle('hidden',mode!=='posicion');
   document.getElementById('rp-flujo-fields').classList.toggle('hidden',mode!=='flujo');
   document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
+}
+let pendingTenencias=null;
+function handleTenenciasFile(file){
+  pendingTenencias=null;
+  const st=document.getElementById('rp-tenencias-status');
+  if(!file)return;
+  st.textContent='Leyendo archivo…';
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      pendingTenencias=parseTenenciasXLSX(rows);
+      const n=pendingTenencias.positions.length;
+      st.textContent=n?`✓ ${n} posiciones leídas · TC MEP ${pendingTenencias.tcMep||'?'}`:'No se encontraron posiciones. Verificá que sea el archivo de Tenencias correcto.';
+    }catch(err){
+      st.textContent='Error leyendo el archivo: '+err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+function parseTenenciasXLSX(rows){
+  let tcMep=0;
+  for(const r of rows){
+    if(!r)continue;
+    for(let i=0;i<r.length;i++){
+      if(/TC\s*USD\s*MEP/i.test(String(r[i]||''))){
+        const v=+r[i+1];
+        if(v>0)tcMep=v;
+      }
+    }
+  }
+  const positions=[];
+  let currentTipo='';
+  for(const r of rows){
+    if(!r||r[0]==null||r[0]==='')continue;
+    const c0=String(r[0]).trim();
+    if(/^Tipo de Activo/i.test(c0)){
+      currentTipo=c0.replace(/^Tipo de Activo:\s*/i,'').trim();
+      continue;
+    }
+    if(c0==='Ticker'||/^Subtotal/i.test(c0)||c0==='Total')continue;
+    const ticker=c0.replace(/\s+(D|C|CI)$/,'');
+    const qty=+r[4]; // Disponibles
+    const precio=+r[6]; // Precio actual
+    if(!qty||qty<=0||!precio||precio<=0)continue;
+    const valorARS=qty*precio;
+    const valorUSD=tcMep>0?valorARS/tcMep:0;
+    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
+  }
+  return {tcMep,positions};
+}
+const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acción local':'Acciones'};
+function buildPositionReportHTML(clientId,tenencias){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  const positions=(tenencias&&tenencias.positions)||[];
+  const totalUSD=positions.reduce((s,p)=>s+p.valorUSD,0);
+  const cashARS=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+p.valorARS,0);
+
+  const byTipo={};
+  positions.filter(p=>p.tipo!=='Moneda').forEach(p=>{
+    if(!byTipo[p.tipo])byTipo[p.tipo]=[];
+    byTipo[p.tipo].push(p);
+  });
+  const posSections=Object.entries(byTipo).map(([tipo,items])=>{
+    const rows=items.map(p=>{
+      const iss=issuerLineHTML(p.ticker);
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
+    }).join('');
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join('');
+
+  const today=todayStr(),y1=new Date().getFullYear(),y2=y1+1;
+  const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today&&f.fecha<=`${y2}-12-31`).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const flowRows=flows.map(f=>{
+    const iss=issuerLineHTML(f.ticker);
+    return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${f.moneda} ${fmt2(f.monto)}</td></tr>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Tu Posición</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría · ${fmtDateLong(todayStr())}</div>
+    </div>
+    <div class="rp-body">
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalUSD)}</div><div class="rp-kpi-l">Posición total en USD</div></div>
+        ${cashARS>0?`<div class="rp-kpi"><div class="rp-kpi-v">$ ${fmt2(cashARS)}</div><div class="rp-kpi-l">Efectivo en pesos</div></div>`:''}
+      </div>
+      ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
+      <h3 class="rp-h3">Cobros ${y1}-${y2}</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Monto</th></tr></thead>
+      <tbody>${flowRows||'<tr><td colspan="3">Sin cobros programados en este período.</td></tr>'}</tbody></table>
+    </div>
+    ${advisorFooterHTML('Tu Posición')}
+  </div>`;
 }
 function toggleCustomPeriod(){
   document.getElementById('rp-custom-period').classList.toggle('hidden',document.getElementById('rp-period').value!=='custom');
@@ -970,7 +1078,10 @@ function showReportPreview(html){
 function previewClientReport(clientId){
   const mode=document.getElementById('rp-mode').value;
   let html;
-  if(mode==='rendimiento'){
+  if(mode==='posicion'){
+    if(!pendingTenencias||!pendingTenencias.positions.length){toast('Subí el archivo de Tenencias primero');return;}
+    html=buildPositionReportHTML(clientId,pendingTenencias);
+  }else if(mode==='rendimiento'){
     const period=document.getElementById('rp-period').value;
     let desde=null,hasta=document.getElementById('rp-hasta').value||todayStr();
     if(period==='6'){const d=new Date();d.setMonth(d.getMonth()-6);desde=d.toISOString().slice(0,10);}

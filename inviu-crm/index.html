@@ -232,13 +232,36 @@ function loadDB(){
   return {clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
 }
 let DB=loadDB();
-const SOVEREIGN_GUESS={
-  AL29:'República Argentina',AL30:'República Argentina',AL35:'República Argentina',AL38:'República Argentina',AL41:'República Argentina',
-  AE38:'República Argentina',GD29:'República Argentina',GD30:'República Argentina',GD35:'República Argentina',GD38:'República Argentina',
-  GD41:'República Argentina',GD46:'República Argentina',PARP:'República Argentina',PARY:'República Argentina',DICP:'República Argentina',DICY:'República Argentina'
+const SEED_ISSUERS={
+  AL29:{name:'República Argentina',sector:'Soberano'},AL30:{name:'República Argentina',sector:'Soberano'},
+  AL35:{name:'República Argentina',sector:'Soberano'},AL38:{name:'República Argentina',sector:'Soberano'},
+  AL41:{name:'República Argentina',sector:'Soberano'},AE38:{name:'República Argentina',sector:'Soberano'},
+  GD29:{name:'República Argentina',sector:'Soberano'},GD30:{name:'República Argentina',sector:'Soberano'},
+  GD35:{name:'República Argentina',sector:'Soberano'},GD38:{name:'República Argentina',sector:'Soberano'},
+  GD41:{name:'República Argentina',sector:'Soberano'},GD46:{name:'República Argentina',sector:'Soberano'},
+  PARP:{name:'República Argentina',sector:'Soberano'},PARY:{name:'República Argentina',sector:'Soberano'},
+  DICP:{name:'República Argentina',sector:'Soberano'},DICY:{name:'República Argentina',sector:'Soberano'},
+  YM420:{name:'YPF S.A.',sector:'Energía'},VSCV0:{name:'Vista Energy',sector:'Energía'},
+  PLC50:{name:'Pluspetrol',sector:'Energía'},MGCO0:{name:'Compañía Mega',sector:'Midstream'},
+  TTC80:{name:'TGS',sector:'Gas'},TLCM0:{name:'Telecom Argentina',sector:'Telecomunicaciones'},
+  HJCT0:{name:'Holcim Argentina',sector:'Materiales'},IRCP0:{name:'IRSA',sector:'Real Estate'},
+  BPOC7:{name:'BBVA Argentina',sector:'Financiero'}
 };
 function issuerFor(ticker){
-  return (DB.issuers&&DB.issuers[ticker])||SOVEREIGN_GUESS[ticker]||'';
+  const custom=DB.issuers&&DB.issuers[ticker];
+  if(custom)return typeof custom==='string'?custom:(custom.name||'');
+  const seed=SEED_ISSUERS[ticker];
+  return seed?seed.name:'';
+}
+function sectorFor(ticker){
+  const custom=DB.issuers&&DB.issuers[ticker];
+  if(custom&&typeof custom==='object'&&custom.sector)return custom.sector;
+  const seed=SEED_ISSUERS[ticker];
+  return seed?seed.sector:'';
+}
+function issuerLineHTML(ticker){
+  const parts=[issuerFor(ticker),sectorFor(ticker)].filter(Boolean);
+  return parts.join(' · ');
 }
 function advisorFooterHTML(title){
   const a=DB.advisor||{};
@@ -769,12 +792,12 @@ function buildReportHTML(clientId,includeCollected){
       byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
     });
     const tickerRows=Object.entries(byTicker).map(([tk,d])=>{
-      const iss=issuerFor(tk);
+      const iss=issuerLineHTML(tk);
       return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
     }).join('');
 
     const flowRows=mf.map(f=>{
-      const iss=issuerFor(f.ticker);
+      const iss=issuerLineHTML(f.ticker);
       return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?` <span style="color:#9ca3af;font-size:9px;">(${esc(iss)})</span>`:''}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
     }).join('');
 
@@ -883,12 +906,12 @@ function buildPerformanceReportHTML(clientId,desde,hasta){
       byTicker[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
     });
     const tickerRows=Object.entries(byTicker).map(([tk,d])=>{
-      const iss=issuerFor(tk);
+      const iss=issuerLineHTML(tk);
       return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
     }).join('');
 
     const flowRows=mf.map(f=>{
-      const iss=issuerFor(f.ticker);
+      const iss=issuerLineHTML(f.ticker);
       return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?` <span style="color:#9ca3af;font-size:9px;">(${esc(iss)})</span>`:''}</td><td>${f.tipo}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
     }).join('');
 
@@ -982,7 +1005,7 @@ function buildBusinessBookHTML(){
     if(f.fecha>byTicker[f.ticker].vence)byTicker[f.ticker].vence=f.fecha;
   });
   const tickerRows=Object.entries(byTicker).sort((a,b)=>b[1].sortKey-a[1].sortKey).map(([tk,d])=>{
-    const iss=issuerFor(tk);
+    const iss=issuerLineHTML(tk);
     return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmtTotals(d.monedas)}</td><td>${fmtDateShort(d.vence)}</td></tr>`;
   }).join('');
 
@@ -1188,7 +1211,7 @@ function renderStats(){
       <div class="row">
         <div style="flex:1;min-width:0;">
           <div style="font-family:var(--mono);font-weight:700;font-size:12px;">${esc(t.ticker)}</div>
-          ${issuerFor(t.ticker)?`<div style="font-size:10px;color:var(--muted);">${esc(issuerFor(t.ticker))}</div>`:''}
+          ${issuerLineHTML(t.ticker)?`<div style="font-size:10px;color:var(--muted);">${esc(issuerLineHTML(t.ticker))}</div>`:''}
           <div style="font-size:9px;color:var(--muted);font-family:var(--mono);">vence ${fmtDate(t.vence)}</div>
         </div>
         <div style="font-family:var(--mono);font-size:11px;color:var(--soft);">${fmtTotals(t.monedas)}</div>
@@ -1278,14 +1301,20 @@ function openIssuersEditor(){
     <h3>Emisores</h3>
     <div style="font-size:11px;color:var(--soft);margin-bottom:12px;">Se completa una sola vez por instrumento y queda para todos los clientes y reportes.</div>
     ${tickers.length?tickers.map(tk=>`
-      <div class="frow" style="align-items:center;">
-        <div style="width:64px;flex-shrink:0;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(tk)}</div>
-        <input class="fi" style="flex:1;" placeholder="Nombre del emisor" value="${esc(issuerFor(tk))}" onchange="setIssuer('${tk}',this.value)">
+      <div style="margin-bottom:10px;padding-bottom:10px;border-bottom:1px solid var(--line);">
+        <div style="font-family:var(--mono);font-weight:700;font-size:12px;margin-bottom:6px;">${esc(tk)}</div>
+        <div class="frow">
+          <input class="fi" style="flex:2;" placeholder="Emisor" value="${esc(issuerFor(tk))}" onchange="setIssuerField('${tk}','name',this.value)">
+          <input class="fi" style="flex:1;" placeholder="Sector" value="${esc(sectorFor(tk))}" onchange="setIssuerField('${tk}','sector',this.value)">
+        </div>
       </div>`).join(''):'<div class="empty">Todavía no importaste ningún instrumento.</div>'}
   `);
 }
-function setIssuer(ticker,value){
-  DB.issuers[ticker]=value.trim();
+function setIssuerField(ticker,field,value){
+  const current=DB.issuers[ticker];
+  const obj=(current&&typeof current==='object')?{...current}:{name:typeof current==='string'?current:''};
+  obj[field]=value.trim();
+  DB.issuers[ticker]=obj;
   save();
 }
 function setAdvisorField(field,value){

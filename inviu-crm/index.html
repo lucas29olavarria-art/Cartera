@@ -704,8 +704,30 @@ async function saveManualFlow(){
 }
 
 // ══════════════════════════ CLIENTES ══════════════════════════
+let cliSearchQuery='';
+function normalizeSearch(s){
+  return (s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'');
+}
+function filterClientes(v){
+  cliSearchQuery=v;
+  const el0=document.getElementById('cli-search');
+  const pos=el0?el0.selectionStart:null;
+  renderClientes();
+  const el=document.getElementById('cli-search');
+  if(el){el.focus();if(pos!=null)el.setSelectionRange(pos,pos);}
+}
 function renderClientes(){
-  const list=DB.clients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  let list=DB.clients.slice().sort((a,b)=>{
+    const au=a.patrimonioUSD||0,bu=b.patrimonioUSD||0;
+    if(au!==bu)return bu-au;
+    const aa=a.patrimonioARS||0,ba=b.patrimonioARS||0;
+    if(aa!==ba)return ba-aa;
+    return a.name.localeCompare(b.name);
+  });
+  if(cliSearchQuery.trim()){
+    const q=normalizeSearch(cliSearchQuery.trim());
+    list=list.filter(c=>normalizeSearch(c.name).includes(q));
+  }
   const dupGroups=findDuplicateClientGroups();
   sc(`
   <div class="sec-hdr"><h2>Clientes</h2>
@@ -715,6 +737,7 @@ function renderClientes(){
       <button class="ib pri" onclick="openClientModal()">+ Nuevo cliente</button>
     </div>
   </div>
+  <input class="fi" id="cli-search" value="${esc(cliSearchQuery)}" placeholder="🔎 Buscar cliente por nombre..." style="margin-bottom:12px;" oninput="filterClientes(this.value)">
   ${list.length?list.map(c=>{
     const flows=DB.flows.filter(f=>f.clientId===c.id&&!f.cobrado);
     const next=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
@@ -791,6 +814,7 @@ function openClientDetail(id){
       <button class="ib" onclick="closeModal();openClientModal(${JSON.stringify(c).replace(/"/g,'&quot;')})">✎ Editar</button>
       <button class="ib red" onclick="deleteClient('${c.id}')">🗑 Borrar cliente</button>
     </div>
+    <button class="ib" style="width:100%;padding:9px;margin-top:8px;" onclick="openMergeClient('${c.id}')">🔗 Es la misma persona que otro cliente</button>
     <button class="ib pri" style="width:100%;padding:9px;margin-top:8px;" onclick="openReportOptions('${c.id}')">📄 Generar reporte PDF</button>
     <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
     ${pendingHtml}
@@ -1384,6 +1408,44 @@ async function applyDuplicatesMerge(){
   dupGroupsCache=[];
   closeModal();renderClientes();
   toast(`✓ Se borraron ${removed} cliente${removed!==1?'s':''} duplicado${removed!==1?'s':''}`);
+}
+function openMergeClient(id){
+  const c=DB.clients.find(x=>x.id===id);if(!c)return;
+  const others=DB.clients.filter(x=>x.id!==id).sort((a,b)=>a.name.localeCompare(b.name));
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Fusionar "${esc(c.name)}"</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Elegí el cliente que es en realidad la misma persona o empresa. Se van a unir los cobros de los dos y se va a quedar el AUM más reciente entre ambos. "${esc(c.name)}" se borra después de fusionarse.</div>
+    <select class="fi" id="merge-target" style="margin-bottom:12px;">
+      <option value="">— elegí un cliente —</option>
+      ${others.map(o=>`<option value="${o.id}">${esc(o.name)}</option>`).join('')}
+    </select>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmMergeClient('${id}')">Fusionar</button>
+  `);
+}
+async function confirmMergeClient(sourceId){
+  const targetId=document.getElementById('merge-target').value;
+  if(!targetId){toast('Elegí un cliente');return;}
+  const source=DB.clients.find(x=>x.id===sourceId);
+  const target=DB.clients.find(x=>x.id===targetId);
+  if(!source||!target)return;
+  if(!confirm(`¿Fusionar "${source.name}" dentro de "${target.name}"? Esta acción no se puede deshacer.`))return;
+  const flows=DB.flows.filter(f=>f.clientId===sourceId);
+  if(flows.length){
+    const{error:ferr}=await sb.from('flows').update({client_id:targetId}).eq('client_id',sourceId);
+    if(ferr){dbError(ferr);return;}
+    DB.flows.forEach(f=>{if(f.clientId===sourceId)f.clientId=targetId;});
+  }
+  if((source.patrimonioFecha||'')>(target.patrimonioFecha||'')){
+    const{error:uerr}=await sb.from('clients').update({patrimonio_ars:source.patrimonioARS,patrimonio_usd:source.patrimonioUSD,patrimonio_fecha:source.patrimonioFecha}).eq('id',targetId);
+    if(uerr){dbError(uerr);return;}
+    target.patrimonioARS=source.patrimonioARS;target.patrimonioUSD=source.patrimonioUSD;target.patrimonioFecha=source.patrimonioFecha;
+  }
+  const{error}=await sb.from('clients').delete().eq('id',sourceId);
+  if(error){dbError(error);return;}
+  DB.clients=DB.clients.filter(x=>x.id!==sourceId);
+  closeModal();renderClientes();
+  toast(`✓ "${source.name}" fusionado con "${target.name}"`);
 }
 
 // ══════════════════════════ ACTUALIZAR AUM ══════════════════════════

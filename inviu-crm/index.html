@@ -365,7 +365,7 @@ function parseAUMText(text){
     if(matches.length<2)return;
     const arsM=matches[matches.length-2];
     const usdM=matches[matches.length-1];
-    const name=line.slice(0,arsM.index).replace(/[|,\t]+$/,'').trim();
+    const name=line.slice(0,arsM.index).trim().replace(/[|,\t]+$/,'').trim();
     if(!name)return;
     const ars=parseAmount(arsM[0]);
     const usd=parseAmount(usdM[0]);
@@ -1328,26 +1328,47 @@ function renderAUMPreview(){
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>Revisá antes de aplicar</h3>
-    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">${aumPreview.length} línea${aumPreview.length!==1?'s':''} detectada${aumPreview.length!==1?'s':''}. Corregí el cliente donde no matcheó bien, o dejá "— no asignar —" para saltear esa línea.</div>
-    ${aumPreview.map((r,i)=>`
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">${aumPreview.length} línea${aumPreview.length!==1?'s':''} detectada${aumPreview.length!==1?'s':''}. Corregí el cliente donde no matcheó bien. Los que no tenían cliente asignado quedan listos para crearse como cliente nuevo (sin renta fija, solo para el AUM) — cambialo si no querés.</div>
+    ${aumPreview.map((r,i)=>{
+      const suggestedName=reformatName(r.rawName);
+      return `
       <div style="border-bottom:1px solid var(--line);padding:9px 0;">
         <div style="font-size:11px;color:var(--soft);margin-bottom:4px;">${esc(r.rawName)} <span style="color:var(--muted);">·</span> <span style="font-family:var(--mono);color:var(--green);">${fmtMoney(r.usd,'USD')}</span> <span style="color:var(--muted);">·</span> <span style="font-family:var(--mono);color:var(--muted);">${fmtMoney(r.ars,'ARS')}</span></div>
         <select class="fi" id="aum-sel-${i}">
           <option value="">— no asignar —</option>
+          <option value="__new__" ${!r.clientId?'selected':''}>+ Crear cliente nuevo ("${esc(suggestedName)}")</option>
           ${clientOptions.map(c=>`<option value="${c.id}" ${r.clientId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
         </select>
-      </div>`).join('')}
+      </div>`;
+    }).join('')}
     <button class="ib pri" style="width:100%;padding:10px;margin-top:12px;" onclick="applyAUMUpdate()">✓ Aplicar cambios</button>
   `);
 }
+function reformatName(raw){
+  const parts=raw.split(',');
+  if(parts.length===2){
+    const apellido=parts[0].trim(),nombre=parts[1].trim();
+    if(apellido&&nombre)return `${nombre} ${apellido}`;
+  }
+  return raw.trim();
+}
 async function applyAUMUpdate(){
   const today=todayStr();
-  let applied=0;
+  let applied=0,created=0;
   for(let i=0;i<aumPreview.length;i++){
     const sel=document.getElementById('aum-sel-'+i);
-    const clientId=sel?sel.value:'';
+    let clientId=sel?sel.value:'';
     if(!clientId)continue;
     const r=aumPreview[i];
+    if(clientId==='__new__'){
+      const newId=uid();
+      const name=reformatName(r.rawName);
+      const{error:cerr}=await sb.from('clients').insert({id:newId,name,contact:'',notes:''});
+      if(cerr){dbError(cerr);continue;}
+      DB.clients.push({id:newId,name,contact:'',notes:'',patrimonioARS:null,patrimonioUSD:null,patrimonioFecha:null,createdAt:Date.now()});
+      clientId=newId;
+      created++;
+    }
     const{error}=await sb.from('clients').update({patrimonio_ars:r.ars,patrimonio_usd:r.usd,patrimonio_fecha:today}).eq('id',clientId);
     if(error){dbError(error);continue;}
     const c=DB.clients.find(x=>x.id===clientId);
@@ -1356,7 +1377,7 @@ async function applyAUMUpdate(){
   }
   aumPreview=[];
   closeModal();renderClientes();
-  toast(`✓ AUM actualizado en ${applied} cliente${applied!==1?'s':''}`);
+  toast(`✓ AUM actualizado en ${applied} cliente${applied!==1?'s':''}${created?` (${created} nuevo${created!==1?'s':''})`:''}`);
 }
 
 // ══════════════════════════ IMPORTAR ══════════════════════════

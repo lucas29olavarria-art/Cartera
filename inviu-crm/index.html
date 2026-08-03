@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
 <title>Inviu CRM · Lucas Olavarria</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>I</text></svg>">
 <link rel="manifest" href="manifest.json">
@@ -31,7 +32,7 @@ a{color:inherit;}
 .hidden{display:none !important;}
 
 /* ── Lock screen ── */
-#lock{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:18px;}
+#lock,#login{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;flex-direction:column;gap:18px;}
 .lk-box{width:280px;text-align:center;}
 .lk-title{font-family:var(--serif);font-size:26px;font-style:italic;font-weight:300;margin-bottom:6px;}
 .lk-sub{font-size:12px;color:var(--soft);margin-bottom:22px;}
@@ -184,6 +185,19 @@ body.previewing-report #report-print{
 </head>
 <body>
 
+<div id="login" class="hidden">
+  <div class="lk-box" style="width:300px;">
+    <div class="lk-title">Inviu CRM</div>
+    <div class="lk-sub">Iniciá sesión para ver tus datos</div>
+    <label class="flbl" style="text-align:left;">Email</label>
+    <input class="fi" type="email" id="lg-email" autocomplete="username" style="margin-bottom:10px;">
+    <label class="flbl" style="text-align:left;">Contraseña</label>
+    <input class="fi" type="password" id="lg-pass" autocomplete="current-password" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="ib pri" style="width:100%;padding:11px;" onclick="doLogin()">Entrar</button>
+    <div class="lk-err" id="lg-err"></div>
+  </div>
+</div>
+
 <div id="lock" class="hidden">
   <div class="lk-box">
     <div class="lk-title">Inviu CRM</div>
@@ -209,7 +223,7 @@ body.previewing-report #report-print{
     <button class="tb" id="tb-stat" onclick="nav('stat')">📊 Estadísticas</button>
   </div>
   <div class="content" id="view"></div>
-  <div class="foot-note">inviu crm · datos guardados solo en este navegador</div>
+  <div class="foot-note">inviu crm · sincronizado en la nube · disponible en cualquier dispositivo</div>
 </div>
 
 <div id="toast"></div>
@@ -221,23 +235,37 @@ body.previewing-report #report-print{
 <div id="report-print"></div>
 
 <script>
-// ══════════════════════════ STORAGE ══════════════════════════
-const DB_KEY='inviuCRM:data:v1';
+// ══════════════════════════ STORAGE (Supabase) ══════════════════════════
+const SUPABASE_URL='https://vqxcmooloynecpvyeghv.supabase.co';
+const SUPABASE_ANON_KEY='sb_publishable_DBhPfwrGlvI-41Cmo2NfKQ_WYdoGnT5';
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const PIN_KEY='inviuCRM:pin:v1';
 function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
-function loadDB(){
-  try{
-    const raw=localStorage.getItem(DB_KEY);
-    if(raw){
-      const d=JSON.parse(raw);
-      if(!d.issuers)d.issuers={};
-      if(!d.advisor)d.advisor={cnv:'',phone:'',email:''};
-      return d;
-    }
-  }catch(e){}
-  return {clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
+let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
+
+function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
+function rowToFlow(r){return {id:r.id,clientId:r.client_id,ticker:r.ticker,tipo:r.tipo,moneda:r.moneda,fecha:r.fecha,monto:+r.monto,cobrado:!!r.cobrado,source:r.source||''};}
+function rowToAgenda(r){return {id:r.id,text:r.text,due:r.due,done:!!r.done,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
+
+async function loadDBFromSupabase(){
+  const [clientsRes,flowsRes,agendaRes,issuersRes,advisorRes]=await Promise.all([
+    sb.from('clients').select('*'),
+    sb.from('flows').select('*'),
+    sb.from('agenda').select('*'),
+    sb.from('issuers').select('*'),
+    sb.from('advisor_settings').select('*').maybeSingle()
+  ]);
+  DB.clients=(clientsRes.data||[]).map(rowToClient);
+  DB.flows=(flowsRes.data||[]).map(rowToFlow);
+  DB.agenda=(agendaRes.data||[]).map(rowToAgenda);
+  DB.issuers={};
+  (issuersRes.data||[]).forEach(r=>{DB.issuers[r.ticker]={name:r.name||'',sector:r.sector||''};});
+  DB.advisor=advisorRes.data?{cnv:advisorRes.data.cnv||'',phone:advisorRes.data.phone||'',email:advisorRes.data.email||''}:{cnv:'',phone:'',email:''};
 }
-let DB=loadDB();
+function dbError(err){
+  console.error(err);
+  toast('⚠ Error de conexión: '+(err&&err.message||'reintentá'));
+}
 const SEED_ISSUERS={
   AL29:{name:'República Argentina',sector:'Soberano'},AL30:{name:'República Argentina',sector:'Soberano'},
   AL35:{name:'República Argentina',sector:'Soberano'},AL38:{name:'República Argentina',sector:'Soberano'},
@@ -283,7 +311,6 @@ function advisorFooterHTML(title){
   if(a.email)parts.push(a.email);
   return `<div class="rp-footer">${esc(title)} · Lucas Olavarría${parts.length?' · '+parts.map(esc).join(' · '):''}</div>`;
 }
-function save(){localStorage.setItem(DB_KEY,JSON.stringify(DB));}
 function toast(msg){
   const t=document.getElementById('toast');
   t.textContent=msg;t.classList.add('show');
@@ -473,12 +500,14 @@ function openDayDetail(dateStr){
       </div>`).join(''):'<div class="empty" style="padding:10px 0;">Sin notas este día.</div>'}
   `);
 }
-function addDayNote(dateStr){
+async function addDayNote(dateStr){
   const el=document.getElementById('day-note-text');
   const text=el.value.trim();
   if(!text)return;
-  DB.agenda.push({id:uid(),text,due:dateStr,done:false,createdAt:Date.now()});
-  save();
+  const id=uid();
+  const{error}=await sb.from('agenda').insert({id,text,due:dateStr,done:false});
+  if(error){dbError(error);return;}
+  DB.agenda.push({id,text,due:dateStr,done:false,createdAt:Date.now()});
   closeModal();openDayDetail(dateStr);
 }
 function allFlowsEnriched(){
@@ -575,14 +604,18 @@ function flowRow(f,isOverdue){
     <button class="del-x" onclick="deleteFlow('${f.id}')">×</button>
   </div>`;
 }
-function toggleCobrado(id){
+async function toggleCobrado(id){
   const f=DB.flows.find(x=>x.id===id);if(!f)return;
-  f.cobrado=true;save();
-  render();toast('✓ Marcado como cobrado');
+  f.cobrado=true;render();toast('✓ Marcado como cobrado');
+  const{error}=await sb.from('flows').update({cobrado:true}).eq('id',id);
+  if(error){f.cobrado=false;render();dbError(error);}
 }
-function deleteFlow(id){
+async function deleteFlow(id){
   if(!confirm('¿Borrar este cobro?'))return;
-  DB.flows=DB.flows.filter(f=>f.id!==id);save();render();toast('Cobro borrado');
+  const removed=DB.flows.find(f=>f.id===id);
+  DB.flows=DB.flows.filter(f=>f.id!==id);render();toast('Cobro borrado');
+  const{error}=await sb.from('flows').delete().eq('id',id);
+  if(error){if(removed)DB.flows.push(removed);render();dbError(error);}
 }
 function openManualFlow(presetDate){
   if(!DB.clients.length){toast('Primero agregá un cliente');nav('cli');return;}
@@ -612,7 +645,7 @@ function openManualFlow(presetDate){
     <button class="ib pri" style="width:100%;padding:10px;margin-top:12px;" onclick="saveManualFlow()">Guardar</button>
   `);
 }
-function saveManualFlow(){
+async function saveManualFlow(){
   const clientId=document.getElementById('mf-cli').value;
   const ticker=document.getElementById('mf-ticker').value.trim()||'—';
   const tipo=document.getElementById('mf-tipo').value;
@@ -620,8 +653,11 @@ function saveManualFlow(){
   const fecha=document.getElementById('mf-fecha').value;
   const monto=parseFloat(document.getElementById('mf-monto').value);
   if(!fecha||!isFinite(monto)||monto<=0){toast('Completá fecha y monto');return;}
-  DB.flows.push({id:uid(),clientId,ticker,tipo,moneda,fecha,monto,cobrado:false,source:'manual'});
-  save();closeModal();nav('cal');toast('✓ Cobro agregado');
+  const flow={id:uid(),clientId,ticker,tipo,moneda,fecha,monto,cobrado:false,source:'manual'};
+  closeModal();nav('cal');toast('✓ Cobro agregado');
+  const{error}=await sb.from('flows').insert({id:flow.id,client_id:clientId,ticker,tipo,moneda,fecha,monto,cobrado:false,source:'manual'});
+  if(error){dbError(error);return;}
+  DB.flows.push(flow);render();
 }
 
 // ══════════════════════════ CLIENTES ══════════════════════════
@@ -659,18 +695,24 @@ function openClientModal(existing){
     <button class="ib pri" style="width:100%;padding:10px;" onclick="saveClient('${c.id||''}')">Guardar</button>
   `);
 }
-function saveClient(id){
+async function saveClient(id){
   const name=document.getElementById('cl-name').value.trim();
   if(!name){toast('Ingresá un nombre');return;}
   const contact=document.getElementById('cl-contact').value.trim();
   const notes=document.getElementById('cl-notes').value.trim();
+  closeModal();
   if(id){
+    const{error}=await sb.from('clients').update({name,contact,notes}).eq('id',id);
+    if(error){dbError(error);return;}
     const c=DB.clients.find(x=>x.id===id);
     Object.assign(c,{name,contact,notes});
   }else{
-    DB.clients.push({id:uid(),name,contact,notes,createdAt:Date.now()});
+    const newId=uid();
+    const{error}=await sb.from('clients').insert({id:newId,name,contact,notes});
+    if(error){dbError(error);return;}
+    DB.clients.push({id:newId,name,contact,notes,createdAt:Date.now()});
   }
-  save();closeModal();renderClientes();toast('✓ Cliente guardado');
+  renderClientes();toast('✓ Cliente guardado');
 }
 function flowLine(f,green){
   return `<div class="row" style="padding:8px 0;${green?'':'opacity:.6;'}">
@@ -1182,11 +1224,14 @@ function printReportNow(){
 }
 window.onafterprint=()=>{document.body.classList.remove('printing');};
 
-function deleteClient(id){
+async function deleteClient(id){
   if(!confirm('¿Borrar este cliente y todos sus cobros cargados? Esta acción no se puede deshacer.'))return;
+  closeModal();
+  const{error}=await sb.from('clients').delete().eq('id',id);
+  if(error){dbError(error);return;}
   DB.clients=DB.clients.filter(c=>c.id!==id);
   DB.flows=DB.flows.filter(f=>f.clientId!==id);
-  save();closeModal();renderClientes();toast('Cliente borrado');
+  renderClientes();toast('Cliente borrado');
 }
 
 // ══════════════════════════ IMPORTAR ══════════════════════════
@@ -1256,22 +1301,32 @@ function showImportPreview(){
     <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmImport()">📥 Importar ${impParsed.length} flujos</button>
   `;
 }
-function confirmImport(){
+async function confirmImport(){
   const clientId=document.getElementById('imp-cli').value;
   const replace=document.getElementById('imp-replace').checked;
   if(!clientId||!impParsed.length)return;
-  if(replace)DB.flows=DB.flows.filter(f=>f.clientId!==clientId);
+  toast('Importando…');
+  if(replace){
+    const{error}=await sb.from('flows').delete().eq('client_id',clientId);
+    if(error){dbError(error);return;}
+    DB.flows=DB.flows.filter(f=>f.clientId!==clientId);
+  }
   const existingKeys=new Set(DB.flows.filter(f=>f.clientId===clientId).map(f=>`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`));
-  let added=0;
+  const toInsert=[];
   impParsed.forEach(f=>{
     const key=`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`;
     if(existingKeys.has(key))return;
-    DB.flows.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
+    toInsert.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
     existingKeys.add(key);
-    added++;
   });
-  save();impParsed=[];
-  toast(`✓ ${added} flujos importados`);
+  if(toInsert.length){
+    const rows=toInsert.map(f=>({id:f.id,client_id:f.clientId,ticker:f.ticker,tipo:f.tipo,moneda:f.moneda,fecha:f.fecha,monto:f.monto,cobrado:false,source:'import'}));
+    const{error}=await sb.from('flows').insert(rows);
+    if(error){dbError(error);return;}
+    DB.flows.push(...toInsert);
+  }
+  impParsed=[];
+  toast(`✓ ${toInsert.length} flujos importados`);
   nav('cal');
 }
 
@@ -1372,12 +1427,17 @@ function renderStats(){
   }).join('')||''}
   `);
 }
-function toggleAgenda(id){
+async function toggleAgenda(id){
   const i=DB.agenda.find(x=>x.id===id);if(!i)return;
-  i.done=!i.done;save();render();
+  i.done=!i.done;render();
+  const{error}=await sb.from('agenda').update({done:i.done}).eq('id',id);
+  if(error){i.done=!i.done;render();dbError(error);}
 }
-function deleteAgenda(id){
-  DB.agenda=DB.agenda.filter(x=>x.id!==id);save();render();
+async function deleteAgenda(id){
+  const removed=DB.agenda.find(x=>x.id===id);
+  DB.agenda=DB.agenda.filter(x=>x.id!==id);render();
+  const{error}=await sb.from('agenda').delete().eq('id',id);
+  if(error){if(removed)DB.agenda.push(removed);render();dbError(error);}
 }
 
 // ══════════════════════════ MODAL ══════════════════════════
@@ -1415,14 +1475,15 @@ function openSettings(){
     <label class="flbl">Email</label>
     <input class="fi" style="margin-bottom:14px;" value="${esc(DB.advisor.email||'')}" onchange="setAdvisorField('email',this.value)">
     <div class="ct" style="margin-top:6px;">Seguridad</div>
-    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Los datos se guardan solo en este navegador (no hay servidor). El PIN evita que alguien abra la app si toma tu dispositivo.</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Tus datos están guardados en la nube, protegidos con tu email y contraseña — solo vos podés verlos. El PIN es una traba extra para que nadie los abra si toma tu celular ya desbloqueado.</div>
     ${hasPin?`<button class="ib red" style="width:100%;padding:9px;margin-bottom:10px;" onclick="removePin()">Quitar PIN</button>`
              :`<button class="ib pri" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();setupPin()">Configurar PIN</button>`}
+    <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="logout()">🚪 Cerrar sesión</button>
     <div class="ct" style="margin-top:14px;">Emisores</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Nombre de la empresa/entidad de cada instrumento (aparece en los reportes PDF). Los bonos soberanos argentinos ya vienen completados.</div>
     <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();openIssuersEditor()">🏢 Editar emisores</button>
     <div class="ct" style="margin-top:14px;">Backup</div>
-    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos (clientes, flujos, agenda) o restaurá desde un backup anterior.</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos, o restaurá un backup viejo (por ejemplo, el de otra compu) hacia la nube.</div>
     <div class="frow">
       <button class="ib" style="flex:1;" onclick="exportBackup()">⬇ Exportar backup</button>
       <button class="ib" style="flex:1;" onclick="document.getElementById('restore-file').click()">⬆ Restaurar</button>
@@ -1448,16 +1509,18 @@ function openIssuersEditor(){
       </div>`).join(''):'<div class="empty">Todavía no importaste ningún instrumento.</div>'}
   `);
 }
-function setIssuerField(ticker,field,value){
+async function setIssuerField(ticker,field,value){
   const current=DB.issuers[ticker];
   const obj=(current&&typeof current==='object')?{...current}:{name:typeof current==='string'?current:''};
   obj[field]=value.trim();
   DB.issuers[ticker]=obj;
-  save();
+  const{error}=await sb.from('issuers').upsert({ticker,name:obj.name||'',sector:obj.sector||''},{onConflict:'ticker,user_id'});
+  if(error)dbError(error);
 }
-function setAdvisorField(field,value){
+async function setAdvisorField(field,value){
   DB.advisor[field]=value.trim();
-  save();
+  const{error}=await sb.from('advisor_settings').upsert({[field]:DB.advisor[field]},{onConflict:'user_id'});
+  if(error)dbError(error);
 }
 function exportBackup(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
@@ -1470,20 +1533,54 @@ function exportBackup(){
 function importBackup(file){
   if(!file)return;
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
       const data=JSON.parse(e.target.result);
       if(!Array.isArray(data.clients)||!Array.isArray(data.flows)||!Array.isArray(data.agenda))throw new Error('Formato inválido');
-      if(!confirm('Esto reemplaza todos los datos actuales por los del backup. ¿Continuar?'))return;
-      DB=data;save();closeModal();nav('cal');toast('✓ Backup restaurado');
+      if(!confirm('Esto reemplaza todos los datos actuales (en la nube) por los del backup. ¿Continuar?'))return;
+      toast('Restaurando…');
+      await sb.from('clients').delete().neq('id','00000000-0000-0000-0000-000000000000');
+      await sb.from('agenda').delete().neq('id','00000000-0000-0000-0000-000000000000');
+      await sb.from('issuers').delete().neq('ticker','');
+      if(data.clients.length){
+        const{error}=await sb.from('clients').insert(data.clients.map(c=>({id:c.id,name:c.name,contact:c.contact||'',notes:c.notes||''})));
+        if(error)throw error;
+      }
+      if(data.flows.length){
+        const{error}=await sb.from('flows').insert(data.flows.map(f=>({id:f.id,client_id:f.clientId,ticker:f.ticker,tipo:f.tipo,moneda:f.moneda,fecha:f.fecha,monto:f.monto,cobrado:!!f.cobrado,source:f.source||''})));
+        if(error)throw error;
+      }
+      if(data.agenda.length){
+        const{error}=await sb.from('agenda').insert(data.agenda.map(a=>({id:a.id,text:a.text,due:a.due||null,done:!!a.done})));
+        if(error)throw error;
+      }
+      const issuerRows=Object.entries(data.issuers||{}).map(([ticker,v])=>{
+        const obj=typeof v==='string'?{name:v,sector:''}:(v||{});
+        return{ticker,name:obj.name||'',sector:obj.sector||''};
+      });
+      if(issuerRows.length){
+        const{error}=await sb.from('issuers').insert(issuerRows);
+        if(error)throw error;
+      }
+      if(data.advisor){
+        const{error}=await sb.from('advisor_settings').upsert({cnv:data.advisor.cnv||'',phone:data.advisor.phone||'',email:data.advisor.email||''},{onConflict:'user_id'});
+        if(error)throw error;
+      }
+      await loadDBFromSupabase();
+      closeModal();nav('cal');toast('✓ Backup restaurado');
     }catch(err){toast('Error: '+err.message);}
   };
   reader.readAsText(file);
 }
-function wipeAll(){
+async function wipeAll(){
   if(!confirm('¿Borrar TODOS los clientes, cobros y tareas de la agenda? No se puede deshacer.'))return;
   if(!confirm('Confirmá de nuevo: esto borra todo permanentemente.'))return;
-  DB={clients:[],flows:[],agenda:[]};save();closeModal();nav('cal');toast('Datos borrados');
+  toast('Borrando…');
+  await sb.from('clients').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  await sb.from('agenda').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  await sb.from('issuers').delete().neq('ticker','');
+  DB={clients:[],flows:[],agenda:[],issuers:{},advisor:DB.advisor};
+  closeModal();nav('cal');toast('Datos borrados');
 }
 
 // ══════════════════════════ PIN LOCK ══════════════════════════
@@ -1565,7 +1662,28 @@ function removePin(){
 
 // ══════════════════════════ BOOT ══════════════════════════
 function render(){nav(ATb);}
-function boot(){
+async function doLogin(){
+  const email=document.getElementById('lg-email').value.trim();
+  const pass=document.getElementById('lg-pass').value;
+  const errEl=document.getElementById('lg-err');
+  errEl.textContent='';
+  if(!email||!pass){errEl.textContent='Completá email y contraseña';return;}
+  const{error}=await sb.auth.signInWithPassword({email,password:pass});
+  if(error){errEl.textContent='Email o contraseña incorrectos';return;}
+  document.getElementById('login').classList.add('hidden');
+  await afterLogin();
+}
+async function logout(){
+  if(!confirm('¿Cerrar sesión?'))return;
+  await sb.auth.signOut();
+  location.reload();
+}
+async function afterLogin(){
+  try{
+    await loadDBFromSupabase();
+  }catch(err){
+    dbError(err);
+  }
   const stored=localStorage.getItem(PIN_KEY);
   if(stored){
     document.getElementById('lock').classList.remove('hidden');
@@ -1575,6 +1693,14 @@ function boot(){
     document.getElementById('app').classList.remove('hidden');
   }
   nav('cal');
+}
+async function boot(){
+  const{data:{session}}=await sb.auth.getSession();
+  if(!session){
+    document.getElementById('login').classList.remove('hidden');
+    return;
+  }
+  await afterLogin();
 }
 boot();
 </script>

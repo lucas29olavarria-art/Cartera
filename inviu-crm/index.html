@@ -1214,13 +1214,23 @@ function buildBusinessBookHTML(){
 
   const byClient={};
   flows.forEach(f=>{
-    if(!byClient[f.clientId])byClient[f.clientId]={name:f.clientName,cobrado:{},pendiente:{},sortKey:0};
+    if(!byClient[f.clientId])byClient[f.clientId]={cobrado:{},pendiente:{},sortKey:0};
     const b=byClient[f.clientId];
     (f.cobrado?b.cobrado:b.pendiente)[f.moneda]=((f.cobrado?b.cobrado:b.pendiente)[f.moneda]||0)+f.monto;
     b.sortKey+=f.monto;
   });
-  const clientRows=Object.values(byClient).sort((a,b)=>b.sortKey-a.sortKey).map(c=>`
-    <tr><td>${esc(c.name)}</td><td class="num">${fmtTotals(c.cobrado)}</td><td class="num">${fmtTotals(c.pendiente)}</td></tr>`).join('');
+  const clientsWithAUM=DB.clients.filter(c=>c.patrimonioARS!=null||c.patrimonioUSD!=null);
+  const aumTotalARS=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioARS||0),0);
+  const aumTotalUSD=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioUSD||0),0);
+  const aumFecha=clientsWithAUM.map(c=>c.patrimonioFecha).filter(Boolean).sort().slice(-1)[0];
+  const clientRows=DB.clients.slice().sort((a,b)=>{
+    const score=c=>(c.patrimonioUSD||0)+((byClient[c.id]&&byClient[c.id].sortKey)||0);
+    return score(b)-score(a);
+  }).map(c=>{
+    const b=byClient[c.id]||{cobrado:{},pendiente:{}};
+    const hasAUM=c.patrimonioARS!=null||c.patrimonioUSD!=null;
+    return `<tr><td>${esc(c.name)}</td><td class="num">${hasAUM?'USD '+fmt2(c.patrimonioUSD||0):'—'}</td><td class="num">${hasAUM?'ARS '+fmt2(c.patrimonioARS||0):'—'}</td><td class="num">${fmtTotals(b.cobrado)}</td><td class="num">${fmtTotals(b.pendiente)}</td></tr>`;
+  }).join('');
 
   const byTicker={};
   flows.forEach(f=>{
@@ -1241,14 +1251,19 @@ function buildBusinessBookHTML(){
       <div class="rp-sub">Resumen consolidado · Lucas Olavarría · ${fmtDateLong(todayStr())}</div>
     </div>
     <div class="rp-body">
+      ${clientsWithAUM.length?`<h3 class="rp-h3">AUM total${aumFecha?' (al '+fmtDateLong(aumFecha)+')':''}</h3>
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(aumTotalUSD)}</div><div class="rp-kpi-l">Patrimonio en USD</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">ARS ${fmt2(aumTotalARS)}</div><div class="rp-kpi-l">Patrimonio en ARS</div></div>
+      </div>`:''}
       <div class="rp-kpis">
         <div class="rp-kpi"><div class="rp-kpi-v">${DB.clients.length}</div><div class="rp-kpi-l">Clientes</div></div>
         <div class="rp-kpi"><div class="rp-kpi-v">${fmtTotals(sumByMoneda(cobrados))}</div><div class="rp-kpi-l">Total cobrado histórico</div></div>
         <div class="rp-kpi"><div class="rp-kpi-v">${fmtTotals(sumByMoneda(pendientes))}</div><div class="rp-kpi-l">Total pendiente</div></div>
       </div>
       <h3 class="rp-h3">Por cliente</h3>
-      <table class="rp-table"><thead><tr><th>Cliente</th><th>Cobrado</th><th>Pendiente</th></tr></thead>
-      <tbody>${clientRows||'<tr><td colspan="3">Sin datos todavía.</td></tr>'}</tbody></table>
+      <table class="rp-table"><thead><tr><th>Cliente</th><th>AUM USD</th><th>AUM ARS</th><th>Cobrado</th><th>Pendiente</th></tr></thead>
+      <tbody>${clientRows||'<tr><td colspan="5">Sin datos todavía.</td></tr>'}</tbody></table>
       <h3 class="rp-h3">Por instrumento</h3>
       <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total</th><th>Vence</th></tr></thead>
       <tbody>${tickerRows||'<tr><td colspan="3">Sin datos todavía.</td></tr>'}</tbody></table>

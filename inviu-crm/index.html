@@ -243,7 +243,7 @@ const PIN_KEY='inviuCRM:pin:v1';
 function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
 let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
 
-function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
+function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',patrimonioARS:r.patrimonio_ars!=null?+r.patrimonio_ars:null,patrimonioUSD:r.patrimonio_usd!=null?+r.patrimonio_usd:null,patrimonioFecha:r.patrimonio_fecha||null,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 function rowToFlow(r){return {id:r.id,clientId:r.client_id,ticker:r.ticker,tipo:r.tipo,moneda:r.moneda,fecha:r.fecha,monto:+r.monto,cobrado:!!r.cobrado,source:r.source||''};}
 function rowToAgenda(r){return {id:r.id,text:r.text,due:r.due,done:!!r.done,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 
@@ -356,6 +356,41 @@ function parseAmount(raw){
     s=s.replace(/\./g,'').replace(',','.');
   }
   return parseFloat(s);
+}
+function parseAUMText(text){
+  const lines=text.split(/\r?\n/).map(l=>l.trim()).filter(Boolean);
+  const rows=[];
+  lines.forEach(line=>{
+    const matches=[...line.matchAll(/-?\d[\d.,]*\d|-?\d/g)];
+    if(matches.length<2)return;
+    const arsM=matches[matches.length-2];
+    const usdM=matches[matches.length-1];
+    const name=line.slice(0,arsM.index).replace(/[|,\t]+$/,'').trim();
+    if(!name)return;
+    const ars=parseAmount(arsM[0]);
+    const usd=parseAmount(usdM[0]);
+    if(!isFinite(ars)&&!isFinite(usd))return;
+    rows.push({rawName:name,ars:isFinite(ars)?ars:0,usd:isFinite(usd)?usd:0});
+  });
+  return rows;
+}
+function normalizeNameWords(name){
+  return (name||'').toLowerCase()
+    .normalize('NFD')
+    .replace(/[^a-z\s]/g,' ')
+    .split(/\s+/).filter(Boolean);
+}
+function bestClientMatch(rawName){
+  const targetSet=new Set(normalizeNameWords(rawName));
+  let best=null,bestScore=0;
+  DB.clients.forEach(c=>{
+    const cSet=new Set(normalizeNameWords(c.name));
+    const inter=[...targetSet].filter(w=>cSet.has(w)).length;
+    const union=new Set([...targetSet,...cSet]).size;
+    const score=union?inter/union:0;
+    if(score>bestScore){bestScore=score;best=c;}
+  });
+  return bestScore>=0.4?best:null;
 }
 function parseDateCell(raw){
   if(raw==null)return null;
@@ -664,10 +699,16 @@ async function saveManualFlow(){
 function renderClientes(){
   const list=DB.clients.slice().sort((a,b)=>a.name.localeCompare(b.name));
   sc(`
-  <div class="sec-hdr"><h2>Clientes</h2><button class="ib pri" onclick="openClientModal()">+ Nuevo cliente</button></div>
+  <div class="sec-hdr"><h2>Clientes</h2>
+    <div class="frow" style="margin-bottom:0;">
+      <button class="ib" onclick="openAUMUpdate()">🔄 AUM</button>
+      <button class="ib pri" onclick="openClientModal()">+ Nuevo cliente</button>
+    </div>
+  </div>
   ${list.length?list.map(c=>{
     const flows=DB.flows.filter(f=>f.clientId===c.id&&!f.cobrado);
     const next=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:1)[0];
+    const hasAUM=c.patrimonioARS!=null||c.patrimonioUSD!=null;
     return `<div class="card" style="cursor:pointer;" onclick="openClientDetail('${c.id}')">
       <div style="display:flex;align-items:center;gap:12px;">
         <div style="width:38px;height:38px;border-radius:50%;background:${colorFor(c.id)}22;color:${colorFor(c.id)};display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px;flex-shrink:0;">${initials(c.name)}</div>
@@ -675,6 +716,10 @@ function renderClientes(){
           <div style="font-size:13px;font-weight:600;">${esc(c.name)}</div>
           <div style="font-size:11px;color:var(--soft);">${flows.length} cobro${flows.length!==1?'s':''} pendiente${flows.length!==1?'s':''}${next?' · próx. '+fmtDate(next.fecha):''}</div>
         </div>
+        ${hasAUM?`<div style="text-align:right;flex-shrink:0;">
+          ${c.patrimonioUSD!=null?`<div style="font-family:var(--mono);font-size:11px;color:var(--green);">${fmtMoney(c.patrimonioUSD,'USD')}</div>`:''}
+          ${c.patrimonioARS!=null?`<div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${fmtMoney(c.patrimonioARS,'ARS')}</div>`:''}
+        </div>`:''}
         <div style="color:var(--muted);">›</div>
       </div>
     </div>`;
@@ -1234,6 +1279,71 @@ async function deleteClient(id){
   renderClientes();toast('Cliente borrado');
 }
 
+// ══════════════════════════ ACTUALIZAR AUM ══════════════════════════
+let aumPreview=[];
+function openAUMUpdate(){
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Actualizar AUM</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Pegá el texto con nombre y montos (uno por línea). Después vas a poder revisar a qué cliente se asigna cada línea antes de aplicar nada.</div>
+    <textarea class="fi" id="aum-paste" rows="8" style="resize:vertical;margin-bottom:12px;font-family:var(--mono);font-size:11px;" placeholder="Olavarria, Gonzalo | 209305609.81 | 137913.83
+Rocha, Andres Blas | 15339101.51 | 10107.11"></textarea>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="analyzeAUMPaste()">Analizar</button>
+  `);
+}
+function analyzeAUMPaste(){
+  const text=document.getElementById('aum-paste').value;
+  aumPreview=parseAUMText(text).map(r=>{
+    const match=bestClientMatch(r.rawName);
+    return{...r,clientId:match?match.id:''};
+  });
+  renderAUMPreview();
+}
+function renderAUMPreview(){
+  if(!aumPreview.length){
+    showModal(`
+      <button class="mclose" onclick="closeModal()">×</button>
+      <h3>Actualizar AUM</h3>
+      <div class="empty">No pude leer ninguna línea con nombre y montos. Revisá el formato y probá de nuevo.</div>
+      <button class="ib" style="width:100%;padding:9px;margin-top:10px;" onclick="openAUMUpdate()">‹ Volver a pegar</button>
+    `);
+    return;
+  }
+  const clientOptions=DB.clients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Revisá antes de aplicar</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">${aumPreview.length} línea${aumPreview.length!==1?'s':''} detectada${aumPreview.length!==1?'s':''}. Corregí el cliente donde no matcheó bien, o dejá "— no asignar —" para saltear esa línea.</div>
+    ${aumPreview.map((r,i)=>`
+      <div style="border-bottom:1px solid var(--line);padding:9px 0;">
+        <div style="font-size:11px;color:var(--soft);margin-bottom:4px;">${esc(r.rawName)} <span style="color:var(--muted);">·</span> <span style="font-family:var(--mono);color:var(--green);">${fmtMoney(r.usd,'USD')}</span> <span style="color:var(--muted);">·</span> <span style="font-family:var(--mono);color:var(--muted);">${fmtMoney(r.ars,'ARS')}</span></div>
+        <select class="fi" id="aum-sel-${i}">
+          <option value="">— no asignar —</option>
+          ${clientOptions.map(c=>`<option value="${c.id}" ${r.clientId===c.id?'selected':''}>${esc(c.name)}</option>`).join('')}
+        </select>
+      </div>`).join('')}
+    <button class="ib pri" style="width:100%;padding:10px;margin-top:12px;" onclick="applyAUMUpdate()">✓ Aplicar cambios</button>
+  `);
+}
+async function applyAUMUpdate(){
+  const today=todayStr();
+  let applied=0;
+  for(let i=0;i<aumPreview.length;i++){
+    const sel=document.getElementById('aum-sel-'+i);
+    const clientId=sel?sel.value:'';
+    if(!clientId)continue;
+    const r=aumPreview[i];
+    const{error}=await sb.from('clients').update({patrimonio_ars:r.ars,patrimonio_usd:r.usd,patrimonio_fecha:today}).eq('id',clientId);
+    if(error){dbError(error);continue;}
+    const c=DB.clients.find(x=>x.id===clientId);
+    if(c){c.patrimonioARS=r.ars;c.patrimonioUSD=r.usd;c.patrimonioFecha=today;}
+    applied++;
+  }
+  aumPreview=[];
+  closeModal();renderClientes();
+  toast(`✓ AUM actualizado en ${applied} cliente${applied!==1?'s':''}`);
+}
+
 // ══════════════════════════ IMPORTAR ══════════════════════════
 let impParsed=[];
 function renderImportar(){
@@ -1378,9 +1488,23 @@ function renderStats(){
     ${tickersNoIssuer.length?`<div class="row"><div style="flex:1;font-size:12px;">Instrumentos sin emisor cargado</div><span class="chip a">${tickersNoIssuer.length}</span></div>`:''}
   </div>`:'';
 
+  const clientsWithAUM=DB.clients.filter(c=>c.patrimonioARS!=null||c.patrimonioUSD!=null);
+  const aumTotalARS=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioARS||0),0);
+  const aumTotalUSD=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioUSD||0),0);
+  const aumFecha=clientsWithAUM.map(c=>c.patrimonioFecha).filter(Boolean).sort().slice(-1)[0];
+
   sc(`
   <div class="sec-hdr"><h2>Estadísticas</h2><button class="ib" onclick="previewBusinessBook()">📄 Libro de negocio</button></div>
   ${alertsHtml}
+  ${clientsWithAUM.length?`
+  <div class="card">
+    <div class="ct">AUM total${aumFecha?' · al '+fmtDate(aumFecha):''}</div>
+    <div class="krow" style="grid-template-columns:repeat(2,1fr);margin-bottom:0;">
+      <div class="kpi"><div class="kl">En USD</div><div class="kv g">${fmtMoney(aumTotalUSD,'USD')}</div></div>
+      <div class="kpi"><div class="kl">En ARS</div><div class="kv b">${fmtMoney(aumTotalARS,'ARS')}</div></div>
+    </div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;">${clientsWithAUM.length} de ${DB.clients.length} cliente${DB.clients.length!==1?'s':''} con AUM cargado</div>
+  </div>`:''}
   <div class="krow" style="grid-template-columns:repeat(2,1fr);">
     <div class="kpi"><div class="kl">Total cobrado (histórico)</div><div class="kv g">${fmtTotals(sumByMoneda(cobrados))||'—'}</div><div class="ks">${cobrados.length} cobro${cobrados.length!==1?'s':''}</div></div>
     <div class="kpi"><div class="kl">Total pendiente</div><div class="kv b">${fmtTotals(sumByMoneda(pendientes))||'—'}</div><div class="ks">${pendientes.length} evento${pendientes.length!==1?'s':''}</div></div>

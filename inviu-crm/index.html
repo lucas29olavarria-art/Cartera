@@ -706,9 +706,11 @@ async function saveManualFlow(){
 // ══════════════════════════ CLIENTES ══════════════════════════
 function renderClientes(){
   const list=DB.clients.slice().sort((a,b)=>a.name.localeCompare(b.name));
+  const dupGroups=findDuplicateClientGroups();
   sc(`
   <div class="sec-hdr"><h2>Clientes</h2>
     <div class="frow" style="margin-bottom:0;">
+      ${dupGroups.length?`<button class="ib red" onclick="openDuplicatesReview()">🧹 Duplicados (${dupGroups.length})</button>`:''}
       <button class="ib" onclick="openAUMUpdate()">🔄 AUM</button>
       <button class="ib pri" onclick="openClientModal()">+ Nuevo cliente</button>
     </div>
@@ -1300,6 +1302,88 @@ async function deleteClient(id){
   DB.clients=DB.clients.filter(c=>c.id!==id);
   DB.flows=DB.flows.filter(f=>f.clientId!==id);
   renderClientes();toast('Cliente borrado');
+}
+
+// ══════════════════════════ CLIENTES DUPLICADOS ══════════════════════════
+function findDuplicateClientGroups(){
+  const byKey=new Map();
+  DB.clients.forEach(c=>{
+    const key=nameKey(c.name);
+    if(!key)return;
+    if(!byKey.has(key))byKey.set(key,[]);
+    byKey.get(key).push(c);
+  });
+  return [...byKey.values()].filter(g=>g.length>1);
+}
+function suggestedSurvivor(group){
+  return group.slice().sort((a,b)=>{
+    const fa=a.patrimonioFecha||'',fb=b.patrimonioFecha||'';
+    if(fa!==fb)return fa<fb?1:-1; // AUM más reciente primero
+    const flowsA=DB.flows.filter(f=>f.clientId===a.id).length;
+    const flowsB=DB.flows.filter(f=>f.clientId===b.id).length;
+    if(flowsA!==flowsB)return flowsB-flowsA; // el que tiene cobros cargados gana
+    return (b.createdAt||0)-(a.createdAt||0); // el más reciente gana
+  })[0];
+}
+let dupGroupsCache=[];
+function openDuplicatesReview(){
+  dupGroupsCache=findDuplicateClientGroups();
+  renderDuplicatesReview();
+}
+function renderDuplicatesReview(){
+  if(!dupGroupsCache.length){
+    closeModal();renderClientes();toast('No quedan duplicados');
+    return;
+  }
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Clientes duplicados</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Encontramos ${dupGroupsCache.length} nombre${dupGroupsCache.length!==1?'s':''} con más de un cliente cargado. Elegí cuál mantener en cada caso — el resto se borra (si tenían cobros cargados, se pasan al que quede antes de borrar).</div>
+    ${dupGroupsCache.map((group,gi)=>{
+      const survivor=suggestedSurvivor(group);
+      return `
+      <div style="border-bottom:1px solid var(--line);padding:9px 0;">
+        <div style="font-size:12px;font-weight:600;margin-bottom:6px;">${esc(group[0].name)}</div>
+        ${group.map(c=>{
+          const flows=DB.flows.filter(f=>f.clientId===c.id).length;
+          return `<label style="display:flex;align-items:flex-start;gap:8px;padding:5px 0;font-size:11px;cursor:pointer;">
+            <input type="radio" name="dup-${gi}" value="${c.id}" ${c.id===survivor.id?'checked':''} style="margin-top:2px;">
+            <span style="flex:1;">
+              ${c.patrimonioFecha?`AUM al ${fmtDate(c.patrimonioFecha)}`:'sin AUM cargado'}
+              ${c.patrimonioUSD!=null?` · ${fmtMoney(c.patrimonioUSD,'USD')}`:''}
+              ${c.patrimonioARS!=null?` · ${fmtMoney(c.patrimonioARS,'ARS')}`:''}
+              ${flows?` · ${flows} cobro${flows!==1?'s':''} cargado${flows!==1?'s':''}`:''}
+            </span>
+          </label>`;
+        }).join('')}
+      </div>`;
+    }).join('')}
+    <button class="ib pri" style="width:100%;padding:10px;margin-top:12px;" onclick="applyDuplicatesMerge()">✓ Mantener seleccionados y borrar el resto</button>
+  `);
+}
+async function applyDuplicatesMerge(){
+  let removed=0;
+  for(let gi=0;gi<dupGroupsCache.length;gi++){
+    const group=dupGroupsCache[gi];
+    const sel=document.querySelector(`input[name="dup-${gi}"]:checked`);
+    const survivorId=sel?sel.value:suggestedSurvivor(group).id;
+    for(const c of group){
+      if(c.id===survivorId)continue;
+      const flows=DB.flows.filter(f=>f.clientId===c.id);
+      if(flows.length){
+        const{error:ferr}=await sb.from('flows').update({client_id:survivorId}).eq('client_id',c.id);
+        if(ferr){dbError(ferr);continue;}
+        DB.flows.forEach(f=>{if(f.clientId===c.id)f.clientId=survivorId;});
+      }
+      const{error}=await sb.from('clients').delete().eq('id',c.id);
+      if(error){dbError(error);continue;}
+      DB.clients=DB.clients.filter(x=>x.id!==c.id);
+      removed++;
+    }
+  }
+  dupGroupsCache=[];
+  closeModal();renderClientes();
+  toast(`✓ Se borraron ${removed} cliente${removed!==1?'s':''} duplicado${removed!==1?'s':''}`);
 }
 
 // ══════════════════════════ ACTUALIZAR AUM ══════════════════════════

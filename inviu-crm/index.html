@@ -392,6 +392,14 @@ function bestClientMatch(rawName){
   });
   return bestScore>=0.4?best:null;
 }
+function nameKey(name){
+  return normalizeNameWords(name).slice().sort().join(' ');
+}
+function exactClientMatch(rawName){
+  const key=nameKey(rawName);
+  if(!key)return null;
+  return DB.clients.find(c=>nameKey(c.name)===key)||null;
+}
 function parseDateCell(raw){
   if(raw==null)return null;
   if(typeof raw==='number'){ // excel serial date
@@ -1308,7 +1316,13 @@ Rocha, Andres Blas | 15339101.51 | 10107.11"></textarea>
 }
 function analyzeAUMPaste(){
   const text=document.getElementById('aum-paste').value;
-  aumPreview=parseAUMText(text).map(r=>{
+  const parsed=parseAUMText(text);
+  const byName=new Map();
+  parsed.forEach(r=>{
+    const key=nameKey(r.rawName);
+    byName.set(key,r); // si el mismo nombre aparece más de una vez, gana la última ocurrencia
+  });
+  aumPreview=[...byName.values()].map(r=>{
     const match=bestClientMatch(r.rawName);
     return{...r,clientId:match?match.id:''};
   });
@@ -1361,13 +1375,18 @@ async function applyAUMUpdate(){
     if(!clientId)continue;
     const r=aumPreview[i];
     if(clientId==='__new__'){
-      const newId=uid();
-      const name=reformatName(r.rawName);
-      const{error:cerr}=await sb.from('clients').insert({id:newId,name,contact:'',notes:''});
-      if(cerr){dbError(cerr);continue;}
-      DB.clients.push({id:newId,name,contact:'',notes:'',patrimonioARS:null,patrimonioUSD:null,patrimonioFecha:null,createdAt:Date.now()});
-      clientId=newId;
-      created++;
+      const exact=exactClientMatch(r.rawName);
+      if(exact){
+        clientId=exact.id; // ya existe un cliente con este nombre exacto: actualizamos en vez de duplicar
+      }else{
+        const newId=uid();
+        const name=reformatName(r.rawName);
+        const{error:cerr}=await sb.from('clients').insert({id:newId,name,contact:'',notes:''});
+        if(cerr){dbError(cerr);continue;}
+        DB.clients.push({id:newId,name,contact:'',notes:'',patrimonioARS:null,patrimonioUSD:null,patrimonioFecha:null,createdAt:Date.now()});
+        clientId=newId;
+        created++;
+      }
     }
     const{error}=await sb.from('clients').update({patrimonio_ars:r.ars,patrimonio_usd:r.usd,patrimonio_fecha:today}).eq('id',clientId);
     if(error){dbError(error);continue;}

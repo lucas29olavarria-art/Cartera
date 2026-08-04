@@ -886,8 +886,11 @@ function fmtDateLong(d){
   const dt=new Date(d+'T00:00:00');
   return dt.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'});
 }
+let currentReportClientId=null;
 function openReportOptions(clientId){
   pendingTenencias=null;
+  previousTenenciasSnapshot=null;
+  currentReportClientId=clientId;
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>Reporte para el cliente</h3>
@@ -901,7 +904,7 @@ function openReportOptions(clientId){
       <label class="flbl">Archivo de Tenencias de Inviu (.xlsx)</label>
       <input type="file" id="rp-tenencias-file" accept=".xlsx,.xls" style="display:none;" onchange="handleTenenciasFile(this.files[0])">
       <div class="upl" onclick="document.getElementById('rp-tenencias-file').click()">📄 Tocá para elegir el archivo</div>
-      <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se sube solo para calcular este reporte — no se guarda en ningún lado.</div>
+      <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se guarda un historial de esta posición para poder mostrar qué cambió entre reportes.</div>
       <div id="rp-tenencias-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
     </div>
     <div id="rp-flujo-fields" class="hidden">
@@ -933,6 +936,7 @@ function toggleReportModeFields(){
   document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
 }
 let pendingTenencias=null;
+let previousTenenciasSnapshot=null;
 let reportPrintTitle='';
 let __prevDocTitle=null;
 function setTenenciasResult(msg,ok){
@@ -943,14 +947,29 @@ function setTenenciasResult(msg,ok){
   box.style.border='1px solid '+(ok?'rgba(45,212,160,.4)':'rgba(240,108,108,.4)');
   box.style.color=ok?'var(--green)':'var(--red)';
 }
+async function saveTenenciasSnapshot(clientId,tenencias){
+  if(!clientId)return;
+  const today=todayStr();
+  try{
+    const{data:prevRows,error:selErr}=await sb.from('tenencias_snapshots').select('*').eq('client_id',clientId).neq('fecha',today);
+    if(!selErr&&prevRows&&prevRows.length){
+      previousTenenciasSnapshot=prevRows.slice().sort((a,b)=>a.fecha<b.fecha?1:-1)[0];
+    }
+    const{error:insErr}=await sb.from('tenencias_snapshots').insert({client_id:clientId,fecha:today,tc_mep:tenencias.tcMep||null,positions:tenencias.positions});
+    if(insErr)console.warn('No se pudo guardar el historial de tenencias:',insErr);
+  }catch(err){
+    console.warn('No se pudo guardar el historial de tenencias:',err);
+  }
+}
 function handleTenenciasFile(file){
   pendingTenencias=null;
+  previousTenenciasSnapshot=null;
   const box=document.getElementById('rp-tenencias-result');
   box.style.display='none';
   if(!file)return;
   setTenenciasResult('Leyendo archivo…',true);
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
       const wb=XLSX.read(e.target.result,{type:'array'});
       const ws=wb.Sheets[wb.SheetNames[0]];
@@ -960,6 +979,7 @@ function handleTenenciasFile(file){
       if(n){
         setTenenciasResult(`✓ Listo — ${n} posiciones leídas · TC MEP ${pendingTenencias.tcMep||'?'}`,true);
         toast(`✓ ${n} posiciones leídas del archivo`);
+        await saveTenenciasSnapshot(currentReportClientId,pendingTenencias);
       }else{
         setTenenciasResult('⚠ No se encontraron posiciones. Verificá que sea el archivo de Tenencias correcto.',false);
       }
@@ -1053,6 +1073,14 @@ function paisForPosition(p){
 }
 const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acción local':'Acciones'};
 const MONTH_ABBR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+function dolarizacionPct(pos,tcMep){
+  const arr=pos||[];
+  const totalUSDinv=arr.filter(p=>p.tipo!=='Moneda').reduce((s,p)=>s+(p.valorUSD||0),0);
+  const cashARSval=arr.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+(p.valorARS||0),0);
+  const cashUSDeq=tcMep>0?cashARSval/tcMep:0;
+  const total=totalUSDinv+cashUSDeq;
+  return total>0?(totalUSDinv/total*100):null;
+}
 function buildPositionReportHTML(clientId,tenencias){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
@@ -1060,6 +1088,39 @@ function buildPositionReportHTML(clientId,tenencias){
   const totalUSD=positions.reduce((s,p)=>s+p.valorUSD,0);
   const cashARS=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+p.valorARS,0);
   const invPositions=positions.filter(p=>p.tipo!=='Moneda');
+
+  let cambiosHtml='';
+  if(previousTenenciasSnapshot&&previousTenenciasSnapshot.positions){
+    const prevPositions=previousTenenciasSnapshot.positions||[];
+    const prevInv=prevPositions.filter(p=>p.tipo!=='Moneda');
+    const prevTickers=new Set(prevInv.map(p=>p.ticker));
+    const currTickers=new Set(invPositions.map(p=>p.ticker));
+    const nuevos=[...currTickers].filter(t=>!prevTickers.has(t));
+    const vendidos=[...prevTickers].filter(t=>!currTickers.has(t));
+    const prevTotalUSD=prevPositions.reduce((s,p)=>s+(p.valorUSD||0),0);
+    const changeUSD=totalUSD-prevTotalUSD;
+    const changePct=prevTotalUSD>0?(changeUSD/prevTotalUSD*100):null;
+    const prevDolar=dolarizacionPct(prevPositions,+previousTenenciasSnapshot.tc_mep||0);
+    const currDolar=dolarizacionPct(positions,tenencias.tcMep||0);
+    const desde=previousTenenciasSnapshot.fecha;
+    const cobradosPeriodo=DB.flows.filter(f=>f.clientId===clientId&&f.cobrado&&f.fecha>=desde&&f.fecha<=todayStr());
+    const cobradoTotales={};
+    cobradosPeriodo.forEach(f=>{cobradoTotales[f.moneda]=(cobradoTotales[f.moneda]||0)+f.monto;});
+    const cobradoStr=Object.entries(cobradoTotales).map(([m,v])=>`${m} ${fmt2(v)}`).join(' + ');
+
+    const items=[];
+    items.push(`Valor total: USD ${fmt2(prevTotalUSD)} → USD ${fmt2(totalUSD)}${changePct!=null?` (${changeUSD>=0?'+':''}${changePct.toFixed(1)}%)`:''}`);
+    items.push(nuevos.length?`${nuevos.length} activo${nuevos.length!==1?'s':''} nuevo${nuevos.length!==1?'s':''}: ${nuevos.join(', ')}`:'Sin activos nuevos');
+    items.push(vendidos.length?`${vendidos.length} activo${vendidos.length!==1?'s':''} vendido${vendidos.length!==1?'s':''}: ${vendidos.join(', ')}`:'Sin ventas');
+    items.push(cobradosPeriodo.length?`${cobradosPeriodo.length} cupón${cobradosPeriodo.length!==1?'es':''} cobrado${cobradosPeriodo.length!==1?'s':''}: ${cobradoStr}`:'Sin cupones cobrados en el período');
+    if(prevDolar!=null&&currDolar!=null)items.push(`Exposición en USD: ${prevDolar.toFixed(0)}% → ${currDolar.toFixed(0)}%`);
+
+    cambiosHtml=`
+    <h2 class="rp-h2">Cambios desde el ${fmtDateLong(desde)}</h2>
+    <ul style="font-size:12px;line-height:1.9;color:#374151;margin:0 0 8px 18px;padding:0;">
+      ${items.map(it=>`<li>${esc(it)}</li>`).join('')}
+    </ul>`;
+  }
 
   const sectorTotals={};
   invPositions.forEach(p=>{
@@ -1192,6 +1253,7 @@ function buildPositionReportHTML(clientId,tenencias){
       ${paisHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
       ${withGainAll.length?`<div class="rp-note">La columna "Result." muestra la ganancia o pérdida no realizada respecto al costo promedio de compra de cada posición. No incluye comisiones de venta ni impuestos.</div>`:''}
+      ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}
       <h3 class="rp-h3">Próximos pasos</h3>

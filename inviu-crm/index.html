@@ -1894,30 +1894,39 @@ function showImportPreview(){
       <div class="ct">${impParsed.length} flujos · ${Object.keys(byTicker).length} instrumento(s)</div>
       ${rows}
     </div>
-    <label style="display:flex;align-items:center;gap:8px;font-size:11px;color:var(--soft);margin-bottom:10px;">
-      <input type="checkbox" id="imp-replace" checked> Reemplazar flujos existentes de este cliente (evita duplicados)
-    </label>
+    <div style="font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Si ya tenías flujos cargados para este cliente: lo que ya está marcado como cobrado no se toca. Lo pendiente se actualiza si cambió el monto (por ej. si recomprás). Los cupones nuevos se agregan.</div>
     <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmImport()">📥 Importar ${impParsed.length} flujos</button>
   `;
 }
 async function confirmImport(){
   const clientId=document.getElementById('imp-cli').value;
-  const replace=document.getElementById('imp-replace').checked;
   if(!clientId||!impParsed.length)return;
   toast('Importando…');
-  if(replace){
-    const{error}=await sb.from('flows').delete().eq('client_id',clientId);
-    if(error){dbError(error);return;}
-    DB.flows=DB.flows.filter(f=>f.clientId!==clientId);
-  }
-  const existingKeys=new Set(DB.flows.filter(f=>f.clientId===clientId).map(f=>`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`));
-  const toInsert=[];
-  impParsed.forEach(f=>{
-    const key=`${f.ticker}|${f.tipo}|${f.fecha}|${f.monto}`;
-    if(existingKeys.has(key))return;
-    toInsert.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
-    existingKeys.add(key);
+  const existingByKey=new Map();
+  DB.flows.filter(f=>f.clientId===clientId).forEach(f=>{
+    existingByKey.set(`${f.ticker}|${f.tipo}|${f.fecha}`,f);
   });
+  const toInsert=[];
+  const toUpdate=[];
+  let preserved=0;
+  impParsed.forEach(f=>{
+    const key=`${f.ticker}|${f.tipo}|${f.fecha}`;
+    const match=existingByKey.get(key);
+    if(match){
+      if(match.cobrado){
+        preserved++; // ya cobrado: no se toca
+      }else if(match.monto!==f.monto){
+        toUpdate.push({id:match.id,monto:f.monto});
+        match.monto=f.monto;
+      }
+    }else{
+      toInsert.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
+    }
+  });
+  for(const u of toUpdate){
+    const{error}=await sb.from('flows').update({monto:u.monto}).eq('id',u.id);
+    if(error){dbError(error);return;}
+  }
   if(toInsert.length){
     const rows=toInsert.map(f=>({id:f.id,client_id:f.clientId,ticker:f.ticker,tipo:f.tipo,moneda:f.moneda,fecha:f.fecha,monto:f.monto,cobrado:false,source:'import'}));
     const{error}=await sb.from('flows').insert(rows);
@@ -1925,7 +1934,7 @@ async function confirmImport(){
     DB.flows.push(...toInsert);
   }
   impParsed=[];
-  toast(`✓ ${toInsert.length} flujos importados`);
+  toast(`✓ ${toInsert.length} nuevo(s) · ${toUpdate.length} actualizado(s) · ${preserved} ya cobrado(s) sin tocar`);
   nav('cal');
 }
 

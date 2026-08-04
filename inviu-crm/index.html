@@ -994,7 +994,14 @@ function parseTenenciasXLSX(rows){
     if(!qty||qty<=0||!precio||precio<=0)continue;
     const valorARS=qty*precio;
     const valorUSD=tcMep>0?valorARS/tcMep:0;
-    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
+    const ppc=+r[9]; // Costo (PPC)
+    let gainARS=null,gainPct=null;
+    if(isFinite(ppc)&&ppc>0){
+      gainARS=(precio-ppc)*qty;
+      gainPct=(precio/ppc-1)*100;
+    }
+    const gainUSD=gainARS!=null&&tcMep>0?gainARS/tcMep:null;
+    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD,ppc:isFinite(ppc)&&ppc>0?ppc:null,gainARS,gainUSD,gainPct});
   }
   return {tcMep,positions};
 }
@@ -1077,6 +1084,11 @@ function buildPositionReportHTML(clientId,tenencias){
   const totalRentaFija=invPositions.filter(p=>p.tipo==='Bonos').reduce((s,p)=>s+p.valorUSD,0);
   const totalRentaVariable=invPositions.filter(p=>p.tipo==='Cedear'||p.tipo==='Acción local').reduce((s,p)=>s+p.valorUSD,0);
 
+  const withGainAll=invPositions.filter(p=>p.gainUSD!=null);
+  const totalGainUSD=withGainAll.reduce((s,p)=>s+p.gainUSD,0);
+  const totalCostUSD=withGainAll.reduce((s,p)=>s+(p.valorUSD-p.gainUSD),0);
+  const totalGainPct=totalCostUSD>0?(totalGainUSD/totalCostUSD*100):null;
+
   const byTipo={};
   invPositions.forEach(p=>{
     if(!byTipo[p.tipo])byTipo[p.tipo]=[];
@@ -1085,11 +1097,18 @@ function buildPositionReportHTML(clientId,tenencias){
   const posSections=Object.entries(byTipo).map(([tipo,items])=>{
     const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
     const subtotal=sorted.reduce((s,p)=>s+p.valorUSD,0);
+    const withGain=sorted.filter(p=>p.gainUSD!=null);
+    const hasGainCol=withGain.length>0;
+    const sectionGainUSD=withGain.reduce((s,p)=>s+p.gainUSD,0);
+    const sectionCostUSD=withGain.reduce((s,p)=>s+(p.valorUSD-p.gainUSD),0);
+    const sectionGainPct=sectionCostUSD>0?(sectionGainUSD/sectionCostUSD*100):null;
     const rows=sorted.map(p=>{
       const iss=issuerLineHTML(p.ticker);
-      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
+      const gainCell=hasGainCol?(p.gainPct!=null?`<td class="num" style="color:${p.gainPct>=0?'#15803d':'#dc2626'};">${p.gainPct>=0?'+':''}${p.gainPct.toFixed(1)}%</td>`:'<td class="num">—</td>'):'';
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
     }).join('');
-    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th></tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td></tr></tbody></table>`;
+    const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%</td>`:'<td class="num">—</td>'):'';
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?'<th>Result.</th>':''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
   }).join('');
 
   const today=todayStr(),y1=new Date().getFullYear(),y2=y1+1;
@@ -1143,6 +1162,7 @@ function buildPositionReportHTML(clientId,tenencias){
     <div class="rp-body">
       <div class="rp-kpis">
         <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalUSD)}</div><div class="rp-kpi-l">Posición total en USD</div></div>
+        ${totalGainPct!=null?`<div class="rp-kpi"><div class="rp-kpi-v" style="color:${totalGainUSD>=0?'#15803d':'#dc2626'};">${totalGainUSD>=0?'+':''}USD ${fmt2(totalGainUSD)}</div><div class="rp-kpi-l">Resultado no realizado (${totalGainPct>=0?'+':''}${totalGainPct.toFixed(1)}%)</div></div>`:''}
         ${cashARS>0?`<div class="rp-kpi"><div class="rp-kpi-v">$ ${fmt2(cashARS)}</div><div class="rp-kpi-l">Efectivo en pesos</div></div>`:''}
       </div>
       ${(totalRentaFija>0||totalRentaVariable>0)?`<div class="rp-kpis">
@@ -1152,6 +1172,7 @@ function buildPositionReportHTML(clientId,tenencias){
       ${donutHtml}
       ${paisHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
+      ${withGainAll.length?`<div class="rp-note">La columna "Result." muestra la ganancia o pérdida no realizada respecto al costo promedio de compra de cada posición. No incluye comisiones de venta ni impuestos.</div>`:''}
       <h2 class="rp-h2">Cobros ${y1}-${y2}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros programados en este período.</p>'}
     </div>

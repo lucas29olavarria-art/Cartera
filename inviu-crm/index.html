@@ -126,24 +126,26 @@ select.fi{cursor:pointer;}
 
 /* ── Client report (print / PDF) ── */
 #report-print{display:none;}
-.rp-page{background:#fff;color:#1f2937;font-family:'Geist',Arial,sans-serif;max-width:800px;margin:0 auto;}
+.rp-page{background:#fff;color:#1f2937;font-family:Georgia,'Times New Roman',serif;max-width:800px;margin:0 auto;}
 .rp-header{background:#1a4d3d;color:#fff;padding:28px 32px;margin-bottom:24px;}
 .rp-header h1{font-size:24px;font-weight:700;margin-bottom:4px;}
-.rp-sub{font-size:13px;color:#cfe3da;}
+.rp-sub{font-size:13px;color:#cfe3da;font-family:Arial,Helvetica,sans-serif;}
 .rp-body{padding:0 32px;}
 .rp-h2{font-size:16px;font-weight:700;color:#1a4d3d;margin:22px 0 8px;}
-.rp-h3{font-size:13px;font-weight:700;color:#1a4d3d;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.03em;}
+.rp-h3{font-size:13px;font-weight:700;color:#1a4d3d;margin:20px 0 8px;text-transform:uppercase;letter-spacing:.03em;font-family:Arial,Helvetica,sans-serif;}
 .rp-p{font-size:12px;line-height:1.6;color:#374151;}
+.rp-chart-caption{font-size:10px;color:#6b7280;font-family:Arial,Helvetica,sans-serif;margin:-4px 0 12px;line-height:1.5;}
 .rp-kpis{display:flex;gap:14px;margin:14px 0;}
 .rp-kpi{flex:1;text-align:center;background:#eef5f1;border-radius:6px;padding:14px 8px;}
-.rp-kpi-v{font-size:16px;font-weight:700;color:#1a4d3d;}
-.rp-kpi-l{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:.03em;}
-.rp-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;}
+.rp-kpi-v{font-size:16px;font-weight:700;color:#1a4d3d;font-family:'Courier New',monospace;}
+.rp-kpi-l{font-size:9px;color:#6b7280;margin-top:4px;text-transform:uppercase;letter-spacing:.03em;font-family:Arial,Helvetica,sans-serif;}
+.rp-table{width:100%;border-collapse:collapse;font-size:11px;margin-bottom:6px;font-family:Arial,Helvetica,sans-serif;}
 .rp-table th{background:#1a4d3d;color:#fff;text-align:left;padding:7px 10px;font-weight:600;}
 .rp-table td{padding:6px 10px;border-bottom:1px solid #e5e7eb;}
 .rp-table tr:nth-child(even) td{background:#eef5f1;}
 .rp-table .rp-total-row td{font-weight:700;background:#dcebe3!important;border-top:1.5px solid #1a4d3d;}
 .rp-table td.num,.rp-table th:last-child{text-align:right;}
+.rp-table td.num{font-family:'Courier New',monospace;}
 .rp-chart-legend{display:flex;gap:18px;font-size:10px;color:#374151;margin-bottom:10px;}
 .rp-sw{display:inline-block;width:10px;height:10px;border-radius:2px;margin-right:5px;vertical-align:middle;}
 .rp-sw-renta{background:#1a4d3d;}
@@ -166,6 +168,10 @@ select.fi{cursor:pointer;}
 .rp-legend-label{flex:1;}
 .rp-legend-val{font-family:monospace;font-size:10px;color:#6b7280;margin-right:8px;}
 .rp-legend-pct{font-weight:700;color:#1a4d3d;font-family:monospace;min-width:40px;text-align:right;}
+.rp-segbar{display:flex;height:18px;border-radius:4px;overflow:hidden;margin:6px 0 10px;}
+.rp-segbar-seg{height:100%;}
+.rp-segbar-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:10px;color:#374151;margin-bottom:18px;font-family:Arial,Helvetica,sans-serif;}
+.rp-segbar-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle;}
 .rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
 .rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
 
@@ -993,7 +999,7 @@ function parseTenenciasXLSX(rows){
   return {tcMep,positions};
 }
 const ALLOC_COLORS=['#1a4d3d','#f28e2b','#5b9cf6','#e15759','#8fc4ac','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0'];
-function buildSectorDonutHTML(entries){
+function buildSectorDonutHTML(entries,caption){
   const total=entries.reduce((s,e)=>s+e.value,0);
   if(!total||!entries.length)return'';
   let acc=0;
@@ -1008,12 +1014,33 @@ function buildSectorDonutHTML(entries){
   }).join('');
   return `
   <h3 class="rp-h3">Distribución por sector</h3>
+  ${caption?`<div class="rp-chart-caption">${esc(caption)}</div>`:''}
   <div class="rp-donut-wrap">
     <div class="rp-donut" style="background:conic-gradient(${stops});">
       <div class="rp-donut-hole"><div class="rp-donut-hole-v">${entries.length}</div><div class="rp-donut-hole-l">sectores</div></div>
     </div>
     <div class="rp-legend">${legend}</div>
   </div>`;
+}
+function buildSegBarHTML(title,caption,entries){
+  const total=entries.reduce((s,e)=>s+e.value,0);
+  if(!total||!entries.length)return'';
+  const segs=entries.map(e=>`<div class="rp-segbar-seg" style="width:${(e.value/total*100).toFixed(2)}%;background:${e.color};"></div>`).join('');
+  const legend=entries.map(e=>{
+    const pct=(e.value/total*100).toFixed(1);
+    return `<span><i style="background:${e.color};"></i>${esc(e.label)} ${pct}%</span>`;
+  }).join('');
+  return `
+  <h3 class="rp-h3">${esc(title)}</h3>
+  ${caption?`<div class="rp-chart-caption">${esc(caption)}</div>`:''}
+  <div class="rp-segbar">${segs}</div>
+  <div class="rp-segbar-legend">${legend}</div>`;
+}
+const CEDEAR_PAIS={MELI:'Argentina',NU:'Brasil',PBR:'Brasil',VALE:'Brasil',TSM:'Taiwan',EWZ:'Brasil'};
+function paisForPosition(p){
+  if(p.tipo==='Bonos'||p.tipo==='Acción local')return'Argentina';
+  if(p.tipo==='Cedear')return CEDEAR_PAIS[p.ticker]||'Estados Unidos';
+  return'';
 }
 const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acción local':'Acciones'};
 function buildPositionReportHTML(clientId,tenencias){
@@ -1022,22 +1049,39 @@ function buildPositionReportHTML(clientId,tenencias){
   const positions=(tenencias&&tenencias.positions)||[];
   const totalUSD=positions.reduce((s,p)=>s+p.valorUSD,0);
   const cashARS=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+p.valorARS,0);
+  const invPositions=positions.filter(p=>p.tipo!=='Moneda');
 
   const sectorTotals={};
-  positions.filter(p=>p.tipo!=='Moneda').forEach(p=>{
+  invPositions.forEach(p=>{
     const sec=sectorFor(p.ticker)||'Sin clasificar';
     sectorTotals[sec]=(sectorTotals[sec]||0)+p.valorUSD;
   });
   const sectorEntries=Object.entries(sectorTotals).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-  const donutHtml=buildSectorDonutHTML(sectorEntries);
+  const tiposPresentes=[...new Set(invPositions.map(p=>p.tipo))];
+  const hasBonos=tiposPresentes.includes('Bonos');
+  const hasVariable=tiposPresentes.some(t=>t==='Cedear'||t==='Acción local');
+  let donutCaption='';
+  if(hasBonos&&hasVariable)donutCaption='Incluye renta fija y renta variable (acciones y CEDEARs), valuado en USD.';
+  else if(hasBonos)donutCaption='Incluye únicamente renta fija (bonos y obligaciones negociables), valuado en USD.';
+  else if(hasVariable)donutCaption='Incluye únicamente renta variable (acciones y CEDEARs), valuado en USD.';
+  const donutHtml=buildSectorDonutHTML(sectorEntries,donutCaption);
+
+  const paisTotals={};
+  invPositions.forEach(p=>{
+    const pais=paisForPosition(p)||'Sin clasificar';
+    paisTotals[pais]=(paisTotals[pais]||0)+p.valorUSD;
+  });
+  const paisEntries=Object.entries(paisTotals).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[(i+3)%ALLOC_COLORS.length]}));
+  const paisHtml=buildSegBarHTML('Distribución por país','Según el país de origen de cada instrumento.',paisEntries);
 
   const byTipo={};
-  positions.filter(p=>p.tipo!=='Moneda').forEach(p=>{
+  invPositions.forEach(p=>{
     if(!byTipo[p.tipo])byTipo[p.tipo]=[];
     byTipo[p.tipo].push(p);
   });
   const posSections=Object.entries(byTipo).map(([tipo,items])=>{
-    const rows=items.map(p=>{
+    const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
+    const rows=sorted.map(p=>{
       const iss=issuerLineHTML(p.ticker);
       return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
     }).join('');
@@ -1046,9 +1090,44 @@ function buildPositionReportHTML(clientId,tenencias){
 
   const today=todayStr(),y1=new Date().getFullYear(),y2=y1+1;
   const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today&&f.fecha<=`${y2}-12-31`).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
-  const flowRows=flows.map(f=>{
-    const iss=issuerLineHTML(f.ticker);
-    return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${f.moneda} ${fmt2(f.monto)}</td></tr>`;
+  const monedasCobros=[...new Set(flows.map(f=>f.moneda))];
+  const cobrosBlocks=monedasCobros.map(moneda=>{
+    const mf=flows.filter(f=>f.moneda===moneda);
+    const totalMoneda=mf.reduce((s,f)=>s+f.monto,0);
+    const byMonth={};
+    mf.forEach(f=>{
+      const k=f.fecha.slice(0,7);
+      if(!byMonth[k])byMonth[k]={renta:0,amort:0};
+      byMonth[k][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const byTicker={};
+    mf.forEach(f=>{
+      if(!byTicker[f.ticker])byTicker[f.ticker]={total:0,next:null};
+      byTicker[f.ticker].total+=f.monto;
+      if(!byTicker[f.ticker].next||f.fecha<byTicker[f.ticker].next)byTicker[f.ticker].next=f.fecha;
+    });
+    const tickerRows=Object.entries(byTicker).sort((a,b)=>b[1].total-a[1].total).map(([tk,d])=>{
+      const iss=issuerLineHTML(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.total)}</td><td>${fmtDateShort(d.next)}</td></tr>`;
+    }).join('');
+    const detailRows=mf.map(f=>{
+      const iss=issuerLineHTML(f.ticker);
+      return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
+    }).join('');
+    return `
+    <div>
+      ${monedasCobros.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalMoneda)}</div><div class="rp-kpi-l">Total a cobrar en el período</div></div>
+      </div>
+      ${buildMonthChartHTML(byMonth)}
+      <h3 class="rp-h3">Resumen por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total (${moneda})</th><th>Próximo pago</th></tr></thead>
+      <tbody>${tickerRows}</tbody></table>
+      <h3 class="rp-h3">Detalle cronológico</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Monto (${moneda})</th></tr></thead>
+      <tbody>${detailRows}</tbody></table>
+    </div>`;
   }).join('');
 
   return `
@@ -1063,10 +1142,10 @@ function buildPositionReportHTML(clientId,tenencias){
         ${cashARS>0?`<div class="rp-kpi"><div class="rp-kpi-v">$ ${fmt2(cashARS)}</div><div class="rp-kpi-l">Efectivo en pesos</div></div>`:''}
       </div>
       ${donutHtml}
+      ${paisHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
-      <h3 class="rp-h3">Cobros ${y1}-${y2}</h3>
-      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Monto</th></tr></thead>
-      <tbody>${flowRows||'<tr><td colspan="3">Sin cobros programados en este período.</td></tr>'}</tbody></table>
+      <h2 class="rp-h2">Cobros ${y1}-${y2}</h2>
+      ${cobrosBlocks||'<p class="rp-p">Sin cobros programados en este período.</p>'}
     </div>
     ${advisorFooterHTML('Tu Posición')}
   </div>`;

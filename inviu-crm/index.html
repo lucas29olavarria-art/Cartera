@@ -880,6 +880,8 @@ function toggleReportModeFields(){
   document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
 }
 let pendingTenencias=null;
+let reportPrintTitle='';
+let __prevDocTitle=null;
 function setTenenciasResult(msg,ok){
   const box=document.getElementById('rp-tenencias-result');
   box.style.display='block';
@@ -1219,12 +1221,18 @@ function showReportPreview(html){
   closeModal();
   document.body.classList.add('previewing-report');
 }
+function safeFileName(s){
+  return (s||'').replace(/[\\/:*?"<>|]/g,'-').trim();
+}
 function previewClientReport(clientId){
   const mode=document.getElementById('rp-mode').value;
-  let html;
+  const client=DB.clients.find(c=>c.id===clientId);
+  const clientName=client?client.name:'';
+  let html,label;
   if(mode==='posicion'){
     if(!pendingTenencias||!pendingTenencias.positions.length){toast('Subí el archivo de Tenencias primero');return;}
     html=buildPositionReportHTML(clientId,pendingTenencias);
+    label='Posicion';
   }else if(mode==='rendimiento'){
     const period=document.getElementById('rp-period').value;
     let desde=null,hasta=document.getElementById('rp-hasta').value||todayStr();
@@ -1232,13 +1240,17 @@ function previewClientReport(clientId){
     else if(period==='12'){const d=new Date();d.setMonth(d.getMonth()-12);desde=d.toISOString().slice(0,10);}
     else if(period==='custom'){desde=document.getElementById('rp-desde').value||null;hasta=document.getElementById('rp-hasta').value||todayStr();}
     html=buildPerformanceReportHTML(clientId,desde,hasta);
+    label='Rendimiento';
   }else{
     const includeCollected=document.getElementById('rp-include-collected').checked;
     html=buildReportHTML(clientId,includeCollected);
+    label='Flujo de Cobros';
   }
+  reportPrintTitle=safeFileName(`${label} - ${clientName} - ${todayStr()}`);
   showReportPreview(html);
 }
 function previewBusinessBook(){
+  reportPrintTitle=safeFileName(`Libro de Negocio - ${todayStr()}`);
   showReportPreview(buildBusinessBookHTML());
 }
 function buildBusinessBookHTML(){
@@ -1316,9 +1328,13 @@ function closeReportPreview(){
 }
 function printReportNow(){
   document.body.classList.add('printing');
+  if(reportPrintTitle){__prevDocTitle=document.title;document.title=reportPrintTitle;}
   setTimeout(()=>window.print(),50);
 }
-window.onafterprint=()=>{document.body.classList.remove('printing');};
+window.onafterprint=()=>{
+  document.body.classList.remove('printing');
+  if(__prevDocTitle!=null){document.title=__prevDocTitle;__prevDocTitle=null;}
+};
 
 async function deleteClient(id){
   if(!confirm('¿Borrar este cliente y todos sus cobros cargados? Esta acción no se puede deshacer.'))return;

@@ -172,6 +172,8 @@ select.fi{cursor:pointer;}
 .rp-segbar-seg{height:100%;}
 .rp-segbar-legend{display:flex;flex-wrap:wrap;gap:14px;font-size:10px;color:#374151;margin-bottom:18px;font-family:Arial,Helvetica,sans-serif;}
 .rp-segbar-legend i{display:inline-block;width:8px;height:8px;border-radius:2px;margin-right:4px;vertical-align:middle;}
+.rp-comment{background:#f8f9fa;border-left:3px solid #1a4d3d;border-radius:4px;padding:14px 16px;margin:16px 0 20px;}
+.rp-comment-label{font-size:10px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;font-weight:800;font-family:Arial,Helvetica,sans-serif;}
 .rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
 .rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
 
@@ -1050,6 +1052,7 @@ function paisForPosition(p){
   return'';
 }
 const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acción local':'Acciones'};
+const MONTH_ABBR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function buildPositionReportHTML(clientId,tenencias){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
@@ -1089,6 +1092,12 @@ function buildPositionReportHTML(clientId,tenencias){
   const totalCostUSD=withGainAll.reduce((s,p)=>s+(p.valorUSD-p.gainUSD),0);
   const totalGainPct=totalCostUSD>0?(totalGainUSD/totalCostUSD*100):null;
 
+  const cuponMonths={};
+  DB.flows.filter(f=>f.clientId===clientId).forEach(f=>{
+    if(!cuponMonths[f.ticker])cuponMonths[f.ticker]=new Set();
+    cuponMonths[f.ticker].add(+f.fecha.slice(5,7));
+  });
+
   const byTipo={};
   invPositions.forEach(p=>{
     if(!byTipo[p.tipo])byTipo[p.tipo]=[];
@@ -1104,8 +1113,12 @@ function buildPositionReportHTML(clientId,tenencias){
     const sectionGainPct=sectionCostUSD>0?(sectionGainUSD/sectionCostUSD*100):null;
     const rows=sorted.map(p=>{
       const iss=issuerLineHTML(p.ticker);
+      const pctPos=totalUSD>0?(p.valorUSD/totalUSD*100):0;
+      const cuponSet=cuponMonths[p.ticker];
+      const cupon=(tipo==='Bonos'&&cuponSet&&cuponSet.size)?[...cuponSet].sort((a,b)=>a-b).map(m=>MONTH_ABBR[m-1]).join('/'):null;
+      const subLine=`Participación: ${pctPos.toFixed(1)}%${cupon?` · Cupón: ${cupon}`:''}`;
       const gainCell=hasGainCol?(p.gainPct!=null?`<td class="num" style="color:${p.gainPct>=0?'#15803d':'#dc2626'};">${p.gainPct>=0?'+':''}${p.gainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${p.gainUSD>=0?'+':''}USD ${fmt2(p.gainUSD)}</div></td>`:'<td class="num">—</td>'):'';
-      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}<div style="font-size:9px;color:#9ca3af;font-weight:400;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
     }).join('');
     const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${sectionGainUSD>=0?'+':''}USD ${fmt2(sectionGainUSD)}</div></td>`:'<td class="num">—</td>'):'';
     return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?'<th>Result.</th>':''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
@@ -1171,12 +1184,19 @@ function buildPositionReportHTML(clientId,tenencias){
         ${totalRentaFija>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaFija)}</div><div class="rp-kpi-l">Total renta fija</div></div>`:''}
         ${totalRentaVariable>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaVariable)}</div><div class="rp-kpi-l">Total renta variable</div></div>`:''}
       </div>`:''}
+      <div class="rp-comment">
+        <div class="rp-comment-label">Comentario del asesor</div>
+        <p class="rp-p" style="margin:0;">Escribí acá tu análisis para ${esc(client.name)}: qué pasó en el período, por qué la cartera está armada así, y en qué vas a estar atento los próximos meses. Este texto se puede editar directamente, tocá y escribí antes de generar el PDF.</p>
+      </div>
       ${donutHtml}
       ${paisHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
       ${withGainAll.length?`<div class="rp-note">La columna "Result." muestra la ganancia o pérdida no realizada respecto al costo promedio de compra de cada posición. No incluye comisiones de venta ni impuestos.</div>`:''}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}
+      <h3 class="rp-h3">Próximos pasos</h3>
+      <p class="rp-p">Durante los próximos meses vamos a seguir monitoreando la cartera y evaluando oportunidades para mejorar el perfil riesgo-retorno. Ante cualquier duda o si querés revisar la estrategia, estoy a disposición.</p>
+      <p class="rp-p" style="margin-top:10px;font-weight:700;">Lucas Olavarría${(DB.advisor&&DB.advisor.cnv)?` · Asesor Financiero CNV ${esc(DB.advisor.cnv)}`:' · Asesor Financiero'}</p>
     </div>
     ${advisorFooterHTML('Tu Posición')}
   </div>`;

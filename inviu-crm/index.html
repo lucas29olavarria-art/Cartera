@@ -1104,24 +1104,26 @@ function buildPositionReportHTML(clientId,tenencias){
     const sectionGainPct=sectionCostUSD>0?(sectionGainUSD/sectionCostUSD*100):null;
     const rows=sorted.map(p=>{
       const iss=issuerLineHTML(p.ticker);
-      const gainCell=hasGainCol?(p.gainPct!=null?`<td class="num" style="color:${p.gainPct>=0?'#15803d':'#dc2626'};">${p.gainPct>=0?'+':''}${p.gainPct.toFixed(1)}%</td>`:'<td class="num">—</td>'):'';
+      const gainCell=hasGainCol?(p.gainPct!=null?`<td class="num" style="color:${p.gainPct>=0?'#15803d':'#dc2626'};">${p.gainPct>=0?'+':''}${p.gainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${p.gainUSD>=0?'+':''}USD ${fmt2(p.gainUSD)}</div></td>`:'<td class="num">—</td>'):'';
       return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
     }).join('');
-    const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%</td>`:'<td class="num">—</td>'):'';
+    const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${sectionGainUSD>=0?'+':''}USD ${fmt2(sectionGainUSD)}</div></td>`:'<td class="num">—</td>'):'';
     return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?'<th>Result.</th>':''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
   }).join('');
 
-  const today=todayStr(),y1=new Date().getFullYear(),y2=y1+1;
-  const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today&&f.fecha<=`${y2}-12-31`).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const today=todayStr();
+  const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const yearsAll=[...new Set(flows.map(f=>f.fecha.slice(0,4)))].sort();
+  const cobrosTitle=yearsAll.length?(yearsAll[0]===yearsAll[yearsAll.length-1]?`Cobros ${yearsAll[0]}`:`Cobros ${yearsAll[0]}-${yearsAll[yearsAll.length-1]}`):'Cobros';
   const monedasCobros=[...new Set(flows.map(f=>f.moneda))];
   const cobrosBlocks=monedasCobros.map(moneda=>{
     const mf=flows.filter(f=>f.moneda===moneda);
     const totalMoneda=mf.reduce((s,f)=>s+f.monto,0);
-    const byMonth={};
+    const byYear={};
     mf.forEach(f=>{
-      const k=f.fecha.slice(0,7);
-      if(!byMonth[k])byMonth[k]={renta:0,amort:0};
-      byMonth[k][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+      const k=f.fecha.slice(0,4);
+      if(!byYear[k])byYear[k]={renta:0,amort:0};
+      byYear[k][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
     });
     const byTicker={};
     mf.forEach(f=>{
@@ -1141,9 +1143,9 @@ function buildPositionReportHTML(clientId,tenencias){
     <div>
       ${monedasCobros.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
       <div class="rp-kpis">
-        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalMoneda)}</div><div class="rp-kpi-l">Total a cobrar en el período</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalMoneda)}</div><div class="rp-kpi-l">Total a cobrar (todos los años pendientes)</div></div>
       </div>
-      ${buildMonthChartHTML(byMonth)}
+      ${buildYearChartHTML(byYear)}
       <h3 class="rp-h3">Resumen por instrumento</h3>
       <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total (${moneda})</th><th>Próximo pago</th></tr></thead>
       <tbody>${tickerRows}</tbody></table>
@@ -1173,8 +1175,8 @@ function buildPositionReportHTML(clientId,tenencias){
       ${paisHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
       ${withGainAll.length?`<div class="rp-note">La columna "Result." muestra la ganancia o pérdida no realizada respecto al costo promedio de compra de cada posición. No incluye comisiones de venta ni impuestos.</div>`:''}
-      <h2 class="rp-h2">Cobros ${y1}-${y2}</h2>
-      ${cobrosBlocks||'<p class="rp-p">Sin cobros programados en este período.</p>'}
+      <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
+      ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}
     </div>
     ${advisorFooterHTML('Tu Posición')}
   </div>`;

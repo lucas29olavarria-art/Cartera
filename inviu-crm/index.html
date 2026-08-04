@@ -155,6 +155,17 @@ select.fi{cursor:pointer;}
 .rp-bar-amort{background:#8fc4ac;width:100%;}
 .rp-bar-renta{background:#1a4d3d;width:100%;}
 .rp-bar-year{font-size:9px;color:#6b7280;margin-top:6px;}
+.rp-donut-wrap{display:flex;gap:24px;align-items:center;margin:14px 0 22px;flex-wrap:wrap;}
+.rp-donut{width:150px;height:150px;border-radius:50%;flex-shrink:0;position:relative;}
+.rp-donut-hole{position:absolute;inset:24px;background:#fff;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-direction:column;}
+.rp-donut-hole-v{font-size:13px;font-weight:700;color:#1a4d3d;}
+.rp-donut-hole-l{font-size:8px;color:#6b7280;text-transform:uppercase;letter-spacing:.03em;margin-top:2px;}
+.rp-legend{flex:1;min-width:180px;}
+.rp-legend-row{display:flex;align-items:center;gap:8px;padding:4px 0;font-size:11px;color:#374151;}
+.rp-legend-sw{width:10px;height:10px;border-radius:2px;flex-shrink:0;}
+.rp-legend-label{flex:1;}
+.rp-legend-val{font-family:monospace;font-size:10px;color:#6b7280;margin-right:8px;}
+.rp-legend-pct{font-weight:700;color:#1a4d3d;font-family:monospace;min-width:40px;text-align:right;}
 .rp-note{font-size:10px;color:#6b7280;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
 .rp-footer{font-size:9px;color:#9ca3af;margin-top:16px;padding:0 32px 20px;}
 
@@ -285,7 +296,41 @@ const SEED_ISSUERS={
   TLCMO:{name:'Telecom Argentina',sector:'Telecomunicaciones'},TLCPO:{name:'Telecom Argentina',sector:'Telecomunicaciones'},
   HJCFO:{name:'Holcim Argentina',sector:'Materiales'},HJCIO:{name:'Holcim Argentina',sector:'Materiales'},
   IRCPO:{name:'IRSA',sector:'Real Estate'},
-  BPOB8:{name:'BBVA Argentina',sector:'Financiero'},BPOC7:{name:'BBVA Argentina',sector:'Financiero'},BPOD7:{name:'BBVA Argentina',sector:'Financiero'}
+  BPOB8:{name:'BBVA Argentina',sector:'Financiero'},BPOC7:{name:'BBVA Argentina',sector:'Financiero'},BPOD7:{name:'BBVA Argentina',sector:'Financiero'},
+  // Acciones locales
+  YPFD:{name:'YPF S.A.',sector:'Energía'},PAMP:{name:'Pampa Energía',sector:'Energía'},VIST:{name:'Vista Energy',sector:'Energía'},
+  GGAL:{name:'Grupo Financiero Galicia',sector:'Financiero'},BMA:{name:'Banco Macro',sector:'Financiero'},SUPV:{name:'Grupo Supervielle',sector:'Financiero'},BBAR:{name:'BBVA Argentina',sector:'Financiero'},
+  LOMA:{name:'Loma Negra',sector:'Materiales'},TXAR:{name:'Ternium Argentina',sector:'Materiales'},
+  TECO2:{name:'Telecom Argentina',sector:'Telecomunicaciones'},TGNO4:{name:'Transportadora de Gas del Norte',sector:'Gas'},CEPU:{name:'Central Puerto',sector:'Energía'},
+  // CEDEARs — Tecnología
+  AAPL:{name:'Apple Inc.',sector:'Tecnología'},MSFT:{name:'Microsoft Corp.',sector:'Tecnología'},GOOGL:{name:'Alphabet Inc.',sector:'Tecnología'},GOOG:{name:'Alphabet Inc.',sector:'Tecnología'},
+  META:{name:'Meta Platforms Inc.',sector:'Tecnología'},AMZN:{name:'Amazon.com Inc.',sector:'Tecnología'},ORCL:{name:'Oracle Corp.',sector:'Tecnología'},CRM:{name:'Salesforce Inc.',sector:'Tecnología'},
+  NFLX:{name:'Netflix Inc.',sector:'Tecnología'},UBER:{name:'Uber Technologies',sector:'Tecnología'},
+  // CEDEARs — Semiconductores
+  NVDA:{name:'NVIDIA Corporation',sector:'Semiconductores'},TSM:{name:'Taiwan Semiconductor',sector:'Semiconductores'},AMD:{name:'Advanced Micro Devices',sector:'Semiconductores'},
+  INTC:{name:'Intel Corp.',sector:'Semiconductores'},QCOM:{name:'Qualcomm Inc.',sector:'Semiconductores'},AVGO:{name:'Broadcom Inc.',sector:'Semiconductores'},
+  // CEDEARs — Fintech
+  MELI:{name:'Mercadolibre Inc.',sector:'Fintech'},NU:{name:'Nu Holdings Ltd',sector:'Fintech'},V:{name:'Visa Inc.',sector:'Fintech'},MA:{name:'Mastercard Inc.',sector:'Fintech'},
+  // CEDEARs — Financiero
+  JPM:{name:'JPMorgan Chase',sector:'Financiero'},BAC:{name:'Bank of America',sector:'Financiero'},GS:{name:'Goldman Sachs',sector:'Financiero'},BRKB:{name:'Berkshire Hathaway B',sector:'Financiero'},
+  // CEDEARs — Petróleo
+  CVX:{name:'Chevron Corp.',sector:'Petróleo'},XOM:{name:'Exxon Mobil',sector:'Petróleo'},PBR:{name:'Petróleo Brasileiro (Petrobras)',sector:'Petróleo'},
+  // CEDEARs — Energía / Utilities
+  XLU:{name:'Utilities Select Sector SPDR Fund',sector:'Utilities'},
+  // CEDEARs — Materiales
+  VALE:{name:'Vale S.A.',sector:'Materiales'},LAC:{name:'Lithium Americas Corp',sector:'Materiales'},FCX:{name:'Freeport-McMoRan',sector:'Materiales'},
+  // CEDEARs — Consumo
+  WMT:{name:'Walmart Inc.',sector:'Consumo'},KO:{name:'Coca-Cola Co.',sector:'Consumo'},PEP:{name:'PepsiCo Inc.',sector:'Consumo'},PG:{name:'Procter & Gamble',sector:'Consumo'},
+  COST:{name:'Costco Wholesale',sector:'Consumo'},MCD:{name:"McDonald's Corp.",sector:'Consumo'},SBUX:{name:'Starbucks Corp.',sector:'Consumo'},DIS:{name:'Walt Disney Co.',sector:'Consumo'},
+  // CEDEARs — Salud
+  ABBV:{name:'AbbVie Inc.',sector:'Salud'},JNJ:{name:'Johnson & Johnson',sector:'Salud'},PFE:{name:'Pfizer Inc.',sector:'Salud'},UNH:{name:'UnitedHealth Group',sector:'Salud'},LLY:{name:'Eli Lilly and Co.',sector:'Salud'},
+  // CEDEARs — Industrial
+  GE:{name:'General Electric Co.',sector:'Industrial'},CAT:{name:'Caterpillar Inc.',sector:'Industrial'},BA:{name:'Boeing Co.',sector:'Industrial'},TSLA:{name:'Tesla Inc.',sector:'Industrial'},
+  // CEDEARs — Cripto/Bitcoin
+  IBIT:{name:'iShares Bitcoin Trust',sector:'Cripto/Bitcoin'},ETHA:{name:'iShares Ethereum Trust',sector:'Cripto/Bitcoin'},
+  // CEDEARs — ETFs
+  SPY:{name:'SPDR S&P 500 ETF',sector:'ETF USA'},QQQ:{name:'Invesco QQQ Trust',sector:'ETF USA'},IWM:{name:'iShares Russell 2000',sector:'ETF USA'},
+  EWZ:{name:'iShares MSCI Brazil',sector:'ETF USA'},VTI:{name:'Vanguard Total Market',sector:'ETF USA'},GLD:{name:'SPDR Gold Trust',sector:'Commodities'}
 };
 function issuerFor(ticker){
   const custom=DB.issuers&&DB.issuers[ticker];
@@ -947,6 +992,29 @@ function parseTenenciasXLSX(rows){
   }
   return {tcMep,positions};
 }
+const ALLOC_COLORS=['#1a4d3d','#f28e2b','#5b9cf6','#e15759','#8fc4ac','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0'];
+function buildSectorDonutHTML(entries){
+  const total=entries.reduce((s,e)=>s+e.value,0);
+  if(!total||!entries.length)return'';
+  let acc=0;
+  const stops=entries.map(e=>{
+    const pct=e.value/total*100;
+    const from=acc;acc+=pct;
+    return `${e.color} ${from.toFixed(2)}% ${acc.toFixed(2)}%`;
+  }).join(', ');
+  const legend=entries.map(e=>{
+    const pct=(e.value/total*100).toFixed(1);
+    return `<div class="rp-legend-row"><span class="rp-legend-sw" style="background:${e.color};"></span><span class="rp-legend-label">${esc(e.label)}</span><span class="rp-legend-val">USD ${fmt2(e.value)}</span><span class="rp-legend-pct">${pct}%</span></div>`;
+  }).join('');
+  return `
+  <h3 class="rp-h3">Distribución por sector</h3>
+  <div class="rp-donut-wrap">
+    <div class="rp-donut" style="background:conic-gradient(${stops});">
+      <div class="rp-donut-hole"><div class="rp-donut-hole-v">${entries.length}</div><div class="rp-donut-hole-l">sectores</div></div>
+    </div>
+    <div class="rp-legend">${legend}</div>
+  </div>`;
+}
 const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acción local':'Acciones'};
 function buildPositionReportHTML(clientId,tenencias){
   const client=DB.clients.find(c=>c.id===clientId);
@@ -954,6 +1022,14 @@ function buildPositionReportHTML(clientId,tenencias){
   const positions=(tenencias&&tenencias.positions)||[];
   const totalUSD=positions.reduce((s,p)=>s+p.valorUSD,0);
   const cashARS=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+p.valorARS,0);
+
+  const sectorTotals={};
+  positions.filter(p=>p.tipo!=='Moneda').forEach(p=>{
+    const sec=sectorFor(p.ticker)||'Sin clasificar';
+    sectorTotals[sec]=(sectorTotals[sec]||0)+p.valorUSD;
+  });
+  const sectorEntries=Object.entries(sectorTotals).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
+  const donutHtml=buildSectorDonutHTML(sectorEntries);
 
   const byTipo={};
   positions.filter(p=>p.tipo!=='Moneda').forEach(p=>{
@@ -986,6 +1062,7 @@ function buildPositionReportHTML(clientId,tenencias){
         <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalUSD)}</div><div class="rp-kpi-l">Posición total en USD</div></div>
         ${cashARS>0?`<div class="rp-kpi"><div class="rp-kpi-v">$ ${fmt2(cashARS)}</div><div class="rp-kpi-l">Efectivo en pesos</div></div>`:''}
       </div>
+      ${donutHtml}
       ${posSections||'<p class="rp-p">Sin posiciones en el archivo cargado.</p>'}
       <h3 class="rp-h3">Cobros ${y1}-${y2}</h3>
       <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Monto</th></tr></thead>

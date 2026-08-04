@@ -1209,9 +1209,9 @@ function buildPositionReportHTML(clientId,tenencias){
       const iss=issuerLineHTML(tk);
       return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.total)}</td><td>${fmtDateShort(d.next)}</td></tr>`;
     }).join('');
-    const detailRows=mf.map(f=>{
-      const iss=issuerLineHTML(f.ticker);
-      return `<tr><td>${fmtDateShort(f.fecha)}</td><td>${esc(f.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(f.monto)}</td></tr>`;
+    const yearRows=Object.keys(byYear).sort().map(y=>{
+      const d=byYear[y],total=d.renta+d.amort;
+      return `<tr><td>${y}</td><td class="num">${fmt2(total)}</td><td class="num">${fmt2(total/12)}</td></tr>`;
     }).join('');
     return `
     <div>
@@ -1223,9 +1223,10 @@ function buildPositionReportHTML(clientId,tenencias){
       <h3 class="rp-h3">Resumen por instrumento</h3>
       <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total (${moneda})</th><th>Próximo pago</th></tr></thead>
       <tbody>${tickerRows}</tbody></table>
-      <h3 class="rp-h3">Detalle cronológico</h3>
-      <table class="rp-table"><thead><tr><th>Fecha</th><th>Instrumento</th><th>Monto (${moneda})</th></tr></thead>
-      <tbody>${detailRows}</tbody></table>
+      <h3 class="rp-h3">Resumen por año</h3>
+      <table class="rp-table"><thead><tr><th>Año</th><th>Total (${moneda})</th><th>Promedio mensual</th></tr></thead>
+      <tbody>${yearRows}</tbody></table>
+      <div class="rp-note">El cronograma de pagos día a día se puede compartir aparte, como reporte de Flujo de Cobros.</div>
     </div>`;
   }).join('');
 

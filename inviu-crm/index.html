@@ -255,6 +255,8 @@ async function loadDBFromSupabase(){
     sb.from('issuers').select('*'),
     sb.from('advisor_settings').select('*').maybeSingle()
   ]);
+  const failed=[clientsRes,flowsRes,agendaRes,issuersRes,advisorRes].find(r=>r.error);
+  if(failed)throw failed.error; // no pisar los datos en memoria con vacío si falló la carga
   DB.clients=(clientsRes.data||[]).map(rowToClient);
   DB.flows=(flowsRes.data||[]).map(rowToFlow);
   DB.agenda=(agendaRes.data||[]).map(rowToAgenda);
@@ -756,7 +758,7 @@ function renderClientes(){
         <div style="color:var(--muted);">›</div>
       </div>
     </div>`;
-  }).join(''):'<div class="empty">Todavía no cargaste clientes.<br>Tocá "+ Nuevo cliente" para empezar.</div>'}
+  }).join(''):(cliSearchQuery.trim()?`<div class="empty">Ningún cliente coincide con "${esc(cliSearchQuery.trim())}".<br>Probá con otro nombre o borrá el buscador.</div>`:'<div class="empty">Todavía no cargaste clientes.<br>Tocá "+ Nuevo cliente" para empezar.</div>')}
   `);
 }
 function openClientModal(existing){
@@ -2008,6 +2010,9 @@ async function afterLogin(){
     await loadDBFromSupabase();
   }catch(err){
     dbError(err);
+    document.getElementById('app').classList.remove('hidden');
+    document.getElementById('view').innerHTML='<div class="empty">No se pudo cargar tu información (error de conexión).<br>Tus datos siguen guardados, esto es solo un problema de red.<br><button class="ib pri" style="margin-top:10px;" onclick="location.reload()">↻ Reintentar</button></div>';
+    return;
   }
   const stored=localStorage.getItem(PIN_KEY);
   if(stored){

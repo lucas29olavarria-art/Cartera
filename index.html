@@ -8478,6 +8478,13 @@ async function delGasto(invId,gastoId){
     }
     // Token invalid → fall through to PIN screen
   }
+  // ?view=lucas → auto-load Lucas Olavarria portfolio without PIN
+  const viewParam=new URLSearchParams(location.search).get('view');
+  if(viewParam==='lucas'){
+    const{data}=await sb.from('investors').select('*').ilike('name','Lucas Olavarria').maybeSingle();
+    if(data){CU=data;await showApp();return;}
+  }
+
   const saved=localStorage.getItem('cu');
   if(saved){
     CU=JSON.parse(saved);

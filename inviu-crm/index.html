@@ -390,6 +390,7 @@ function daysUntil(d){
   return Math.round((dt-now)/86400000);
 }
 function initials(name){return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
+function firstName(name){return (name||'').trim().split(/\s+/)[0]||name||'';}
 function colorFor(id){
   const palette=['#5b9cf6','#2dd4a0','#f5a623','#9b7ff4','#f06c6c','#1ecbe1','#e879c9'];
   let h=0;for(const c of id)h=(h*31+c.charCodeAt(0))>>>0;
@@ -1268,7 +1269,7 @@ function buildPositionReportHTML(clientId,tenencias){
       </div>
       <div class="rp-comment">
         <div class="rp-comment-label">Comentario del asesor</div>
-        <p class="rp-p" style="margin:0;">Hola ${esc(client.name)}. ${(()=>{
+        <p class="rp-p" style="margin:0;">Hola ${esc(firstName(client.name))}. ${(()=>{
           const pctRF=tenenciasTotal>0?(totalRentaFija/tenenciasTotal*100):0;
           const pctRV=tenenciasTotal>0?(totalRentaVariable/tenenciasTotal*100):0;
           if(totalRentaFija>0&&totalRentaVariable>0)return `Hoy tu cartera está compuesta por ${pctRF.toFixed(0)}% en renta fija y ${pctRV.toFixed(0)}% en renta variable.`;

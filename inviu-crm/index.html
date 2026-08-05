@@ -1165,7 +1165,7 @@ function buildPositionReportHTML(clientId,tenencias){
     cuponMonths[f.ticker].add(+f.fecha.slice(5,7));
   });
 
-  function buildTipoTableHTML(tipo,items){
+  function buildTipoTableHTML(tipo,items,gainColLabel){
     if(!items.length)return'';
     const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
     const subtotal=sorted.reduce((s,p)=>s+p.valorUSD,0);
@@ -1184,7 +1184,7 @@ function buildPositionReportHTML(clientId,tenencias){
       return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9px;color:#6b7280;font-weight:400;">${esc(iss)}</div>`:''}<div style="font-size:9px;color:#9ca3af;font-weight:400;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
     }).join('');
     const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${sectionGainUSD>=0?'+':''}USD ${fmt2(sectionGainUSD)}</div></td>`:'<td class="num">—</td>'):'';
-    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?'<th>Result.</th>':''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?`<th style="white-space:normal;min-width:76px;">${esc(gainColLabel||'Rendimiento')}</th>`:''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
   }
 
   const rvGain=gainSummary(rvPositions);
@@ -1194,15 +1194,15 @@ function buildPositionReportHTML(clientId,tenencias){
   const rvSectionHtml=totalRentaVariable>0?`
     <h2 class="rp-h2">Renta Variable</h2>
     ${buildDistributionHTML(rvPositions,'renta variable')}
-    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'))}
-    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'))}
+    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'),'Rendimiento (sin dividendos)')}
+    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'),'Rendimiento (sin dividendos)')}
     ${gainKpiHtml(rvGain,'Resultado no realizado — Renta Variable')}
   `:'';
 
   const rfSectionHtml=totalRentaFija>0?`
     <h2 class="rp-h2">Renta Fija</h2>
     ${buildDistributionHTML(rfPositions,'renta fija')}
-    ${buildTipoTableHTML('Bonos',rfPositions)}
+    ${buildTipoTableHTML('Bonos',rfPositions,'Rendimiento (sin cupones)')}
     ${gainKpiHtml(rfGain,'Resultado no realizado — Renta Fija')}
   `:'';
 
@@ -1268,12 +1268,12 @@ function buildPositionReportHTML(clientId,tenencias){
       </div>
       <div class="rp-comment">
         <div class="rp-comment-label">Comentario del asesor</div>
-        <p class="rp-p" style="margin:0;">Escribí acá tu análisis para ${esc(client.name)}: qué pasó en el período, por qué la cartera está armada así, y en qué vas a estar atento los próximos meses. Este texto se puede editar directamente, tocá y escribí antes de generar el PDF.</p>
+        <p class="rp-p" style="margin:0;">Tu cartera está armada buscando un equilibrio entre renta fija y renta variable acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición. (Podés tocar este texto y editarlo antes de generar el PDF.)</p>
       </div>
       ${rvSectionHtml}
       ${rfSectionHtml}
       ${combinedGainHtml}
-      ${anyGain?`<div class="rp-note">La columna "Result." y el "Resultado no realizado" muestran la ganancia o pérdida respecto al costo promedio de compra de cada posición. No incluye comisiones de venta ni impuestos.</div>`:''}
+      ${anyGain?`<div class="rp-note">La columna "Rendimiento" y el "Resultado no realizado" muestran la variación del precio respecto al costo promedio de compra de cada posición. No incluye dividendos ni cupones ya cobrados, ni comisiones de venta o impuestos.</div>`:''}
       ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}

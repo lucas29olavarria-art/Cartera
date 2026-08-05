@@ -1268,7 +1268,14 @@ function buildPositionReportHTML(clientId,tenencias){
       </div>
       <div class="rp-comment">
         <div class="rp-comment-label">Comentario del asesor</div>
-        <p class="rp-p" style="margin:0;">Tu cartera está armada buscando un equilibrio entre renta fija y renta variable acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición. (Podés tocar este texto y editarlo antes de generar el PDF.)</p>
+        <p class="rp-p" style="margin:0;">Hola ${esc(client.name)}. ${(()=>{
+          const pctRF=tenenciasTotal>0?(totalRentaFija/tenenciasTotal*100):0;
+          const pctRV=tenenciasTotal>0?(totalRentaVariable/tenenciasTotal*100):0;
+          if(totalRentaFija>0&&totalRentaVariable>0)return `Hoy tu cartera está compuesta por ${pctRF.toFixed(0)}% en renta fija y ${pctRV.toFixed(0)}% en renta variable.`;
+          if(totalRentaFija>0)return 'Hoy tu cartera está 100% en renta fija.';
+          if(totalRentaVariable>0)return 'Hoy tu cartera está 100% en renta variable.';
+          return '';
+        })()} Está armada buscando un equilibrio acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición.</p>
       </div>
       ${rvSectionHtml}
       ${rfSectionHtml}

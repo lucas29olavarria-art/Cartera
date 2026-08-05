@@ -8481,8 +8481,12 @@ async function delGasto(invId,gastoId){
   // ?view=lucas → auto-load Lucas Olavarria portfolio without PIN
   const viewParam=new URLSearchParams(location.search).get('view');
   if(viewParam==='lucas'){
-    const{data}=await sb.from('investors').select('*').ilike('name','Lucas Olavarria').maybeSingle();
-    if(data){CU=data;await showApp();return;}
+    localStorage.removeItem('cu');
+    const{data}=await sb.from('investors').select('*').ilike('name','%Lucas%Olavarria%').maybeSingle();
+    if(data&&!data.is_admin){CU=data;await showApp();return;}
+    // fallback: try first non-admin investor named Lucas
+    const{data:d2}=await sb.from('investors').select('*').ilike('name','Lucas%').eq('is_admin',false).maybeSingle();
+    if(d2){CU=d2;await showApp();return;}
   }
 
   const saved=localStorage.getItem('cu');

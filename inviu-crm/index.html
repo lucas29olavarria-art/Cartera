@@ -1275,6 +1275,10 @@ function buildPositionReportHTML(clientId,tenencias){
           if(totalRentaFija>0)return 'Hoy tu cartera está 100% en renta fija.';
           if(totalRentaVariable>0)return 'Hoy tu cartera está 100% en renta variable.';
           return '';
+        })()}${(()=>{
+          if(!totalGain.withGain.length||totalGain.gainPct==null)return'';
+          const sign=totalGain.gainUSD>=0?'+':'';
+          return ` Viene con un resultado no realizado de ${sign}USD ${fmt2(totalGain.gainUSD)} (${sign}${totalGain.gainPct.toFixed(1)}%) respecto al costo de compra.`;
         })()} Está armada buscando un equilibrio acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición.</p>
       </div>
       ${rvSectionHtml}

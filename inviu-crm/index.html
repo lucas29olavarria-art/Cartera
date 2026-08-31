@@ -891,8 +891,6 @@ let currentReportClientId=null;
 function openReportOptions(clientId){
   pendingTenencias=null;
   previousTenenciasSnapshot=null;
-  pendingMovimientos=null;
-  pendingReporteInversion=null;
   currentReportClientId=clientId;
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
@@ -909,17 +907,6 @@ function openReportOptions(clientId){
       <div class="upl" onclick="document.getElementById('rp-tenencias-file').click()">📄 Tocá para elegir el archivo</div>
       <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se guarda un historial de esta posición para poder mostrar qué cambió entre reportes.</div>
       <div id="rp-tenencias-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
-      <div style="border-top:1px solid var(--line);margin:16px 0 12px;padding-top:14px;">
-        <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Opcional — subí estos dos archivos también si querés que el reporte muestre el <strong>rendimiento real en dólares</strong> de cada posición (si no los subís, el reporte sale igual pero sin esa columna, para no mostrar un número que no se pueda confirmar).</div>
-        <label class="flbl">Archivo de Movimientos de Inviu (.xlsx)</label>
-        <input type="file" id="rp-movimientos-file" accept=".xlsx,.xls" style="display:none;" onchange="handleMovimientosFile(this.files[0])">
-        <div class="upl" onclick="document.getElementById('rp-movimientos-file').click()">📄 Tocá para elegir el archivo</div>
-        <div id="rp-movimientos-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
-        <label class="flbl" style="margin-top:12px;">Reporte de Inversión (USD) de Inviu (.xlsx)</label>
-        <input type="file" id="rp-reporteinversion-file" accept=".xlsx,.xls" style="display:none;" onchange="handleReporteInversionFile(this.files[0])">
-        <div class="upl" onclick="document.getElementById('rp-reporteinversion-file').click()">📄 Tocá para elegir el archivo</div>
-        <div id="rp-reporteinversion-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
-      </div>
     </div>
     <div id="rp-flujo-fields" class="hidden">
       <label style="display:flex;align-items:center;gap:8px;font-size:12px;color:var(--soft);margin:6px 0 16px;">
@@ -951,8 +938,6 @@ function toggleReportModeFields(){
 }
 let pendingTenencias=null;
 let previousTenenciasSnapshot=null;
-let pendingMovimientos=null;
-let pendingReporteInversion=null;
 let reportPrintTitle='';
 let __prevDocTitle=null;
 function setTenenciasResult(msg,ok){
@@ -1005,57 +990,6 @@ function handleTenenciasFile(file){
   };
   reader.readAsArrayBuffer(file);
 }
-function setFileStatus(boxId,msg,ok){
-  const box=document.getElementById(boxId);
-  box.style.display='block';
-  box.textContent=msg;
-  box.style.background=ok?'rgba(45,212,160,.12)':'rgba(240,108,108,.12)';
-  box.style.border='1px solid '+(ok?'rgba(45,212,160,.4)':'rgba(240,108,108,.4)');
-  box.style.color=ok?'var(--green)':'var(--red)';
-}
-function handleMovimientosFile(file){
-  pendingMovimientos=null;
-  const box=document.getElementById('rp-movimientos-result');
-  box.style.display='none';
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      const parsed=parseMovimientosRows(rows);
-      if(parsed.length){
-        pendingMovimientos=parsed;
-        setFileStatus('rp-movimientos-result',`✓ Listo — ${parsed.length} movimientos leídos`,true);
-      }else{
-        setFileStatus('rp-movimientos-result','⚠ No pude leer movimientos. Verificá que sea el archivo correcto.',false);
-      }
-    }catch(err){
-      setFileStatus('rp-movimientos-result','⚠ Error leyendo el archivo: '+err.message,false);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
-function handleReporteInversionFile(file){
-  pendingReporteInversion=null;
-  const box=document.getElementById('rp-reporteinversion-result');
-  box.style.display='none';
-  if(!file)return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      pendingReporteInversion=rows;
-      setFileStatus('rp-reporteinversion-result','✓ Listo',true);
-    }catch(err){
-      setFileStatus('rp-reporteinversion-result','⚠ Error leyendo el archivo: '+err.message,false);
-    }
-  };
-  reader.readAsArrayBuffer(file);
-}
 function parseTenenciasXLSX(rows){
   let tcMep=0;
   for(const r of rows){
@@ -1083,132 +1017,9 @@ function parseTenenciasXLSX(rows){
     if(!qty||qty<=0||!precio||precio<=0)continue;
     const valorARS=qty*precio;
     const valorUSD=tcMep>0?valorARS/tcMep:0;
-    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD,gainUSD:null,gainPct:null,costUSD:null});
+    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
   }
   return {tcMep,positions};
-}
-// ══════════════════════════ COSTO REAL EN USD (Movimientos + Reporte de Inversión) ══════════════════════════
-// Nunca estima un tipo de cambio: si no hay un dato real (compra en dólares del mismo instrumento el
-// mismo día, o un depósito en dólares real convertido ese día) la posición queda sin dato de rendimiento.
-function parseMovimientosRows(rows){
-  if(!rows||!rows.length)return[];
-  const header=rows[0]||[];
-  const idx=name=>header.findIndex(h=>String(h||'').trim().toLowerCase()===name);
-  const iOp=idx('operación'),iFecha=idx('concertación'),iDesc=idx('descripción'),iMonto=idx('monto'),iCant=idx('cantidad'),iPrecio=idx('precio'),iMoneda=idx('moneda');
-  if(iOp<0||iFecha<0||iMonto<0)return[];
-  const out=[];
-  for(let k=1;k<rows.length;k++){
-    const r=rows[k];
-    if(!r||r[iOp]==null)continue;
-    const operacion=String(r[iOp]).trim();
-    const fecha=parseDateCell(r[iFecha]);
-    const descripcion=String(r[iDesc]||'').trim();
-    const tickerRaw=descripcion.split('|')[0].trim();
-    const monto=+r[iMonto];
-    const cantidad=iCant>=0&&r[iCant]!=null?+r[iCant]:null;
-    const precio=iPrecio>=0&&r[iPrecio]!=null?+r[iPrecio]:null;
-    const moneda=iMoneda>=0?String(r[iMoneda]||'').trim().toUpperCase():'';
-    if(!fecha||!tickerRaw||!isFinite(monto))continue;
-    out.push({operacion,fecha,tickerRaw,monto,cantidad,precio,moneda});
-  }
-  return out;
-}
-function parseDepositRatesFromReporteInversion(rows){
-  const rates={}; // fecha (YYYY-MM-DD) -> tipo de cambio real de esa conversión
-  if(!rows||!rows.length)return rates;
-  let sectionStart=-1;
-  for(let i=0;i<rows.length;i++){
-    if((rows[i]||[]).some(c=>String(c||'').trim()==='Ingresos / Egresos')){sectionStart=i;break;}
-  }
-  if(sectionStart<0)return rates;
-  const header=rows[sectionStart+1]||[];
-  const idx=name=>header.findIndex(h=>String(h||'').trim().toLowerCase()===name);
-  const iFecha=idx('fecha'),iTicker=idx('ticker'),iPrecio=idx('precio');
-  if(iFecha<0||iTicker<0||iPrecio<0)return rates;
-  for(let k=sectionStart+2;k<rows.length;k++){
-    const r=rows[k];
-    if(!r||!r[iFecha])break; // termina la sección al llegar a una fila vacía
-    const ticker=String(r[iTicker]||'').trim().toUpperCase();
-    const precio=+r[iPrecio];
-    if(ticker==='ARS'&&isFinite(precio)&&precio>0){
-      const fecha=parseDateCell(r[iFecha]);
-      if(fecha)rates[fecha]=precio;
-    }
-  }
-  return rates;
-}
-function reconcileCostBasisUSD(positions,movRows,depositRates){
-  if(!movRows||!movRows.length)return;
-  depositRates=depositRates||{};
-  // 1) línea de tiempo de tipo de cambio real, a partir de depósitos y rescates en pesos (los rescates
-  //    "ensucian" el rastro porque el dinero pierde su origen cambiario real — no se inventa una tasa ahí).
-  const cashEvents=movRows
-    .filter(m=>(m.operacion==='Depósito'||m.operacion==='Rescate')&&m.moneda==='ARS')
-    .sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:(a.operacion===b.operacion?0:(a.operacion==='Depósito'?-1:1)));
-  const compras=movRows
-    .filter(m=>m.operacion==='Compra')
-    .sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
-  const ventas=movRows.filter(m=>m.operacion==='Venta');
-  function currentRateAt(fecha){
-    let rate=null;
-    for(const ev of cashEvents){
-      if(ev.fecha>fecha)break;
-      rate=ev.operacion==='Depósito'?(depositRates[ev.fecha]||null):null;
-    }
-    return rate;
-  }
-  positions.forEach(p=>{
-    const matchesTicker=m=>m.tickerRaw===p.ticker||m.tickerRaw===p.ticker+'D'||m.tickerRaw===p.ticker+'C'||m.tickerRaw===p.ticker+'CI';
-    const lots=compras.filter(matchesTicker);
-    if(!lots.length)return; // sin movimientos de compra para esta posición: no se toca (queda sin dato)
-    // Chequeo de cobertura: si las compras encontradas (menos lo que vendió) no alcanzan a cubrir lo que
-    // tiene hoy, es porque hay compras de antes del rango del archivo (o acciones liberadas) que no vemos —
-    // promediar solo la parte visible sobre el total actual no sería genuino, así que se deja sin dato.
-    const qtyCompradoVisible=lots.reduce((s,m)=>s+(m.cantidad||0),0);
-    const qtyVendidoVisible=ventas.filter(matchesTicker).reduce((s,m)=>s+Math.abs(m.cantidad||0),0);
-    if(qtyCompradoVisible-qtyVendidoVisible<p.qty*0.98)return;
-    let costUSD=0,qtyTotal=0,resolved=true;
-    lots.forEach(lot=>{
-      const qty=lot.cantidad||0;
-      if(qty<=0)return;
-      if(lot.moneda==='USD'||lot.moneda==='USD.C'||lot.moneda==='USD.MEP'){
-        costUSD+=Math.abs(lot.monto);
-        qtyTotal+=qty;
-        return;
-      }
-      if(lot.moneda==='ARS'){
-        // Método 1 (prioritario): compra en dólares del MISMO instrumento el MISMO día → tipo de cambio real de mercado.
-        const sameDay=lots.find(o=>o!==lot&&o.fecha===lot.fecha&&(o.moneda==='USD'||o.moneda==='USD.C')&&o.cantidad>0);
-        let rate=null;
-        if(sameDay){
-          const precioARS=Math.abs(lot.monto)/qty;
-          const precioUSD=Math.abs(sameDay.monto)/sameDay.cantidad;
-          if(precioUSD>0)rate=precioARS/precioUSD;
-        }
-        // Método 2: tipo de cambio real de la última conversión de depósito/rescate en pesos, rastreada en el tiempo.
-        if(!rate)rate=currentRateAt(lot.fecha);
-        if(!rate){resolved=false;return;}
-        costUSD+=Math.abs(lot.monto)/rate;
-        qtyTotal+=qty;
-        return;
-      }
-      resolved=false; // moneda desconocida
-    });
-    if(!resolved||qtyTotal<=0)return; // no se pudo confirmar el costo real completo: se deja sin dato, nunca parcial ni estimado
-    // La cantidad de "Disponibles" en Tenencias puede diferir levemente de la sumatoria de compras (cupones
-    // capitalizados, redondeos). Usamos el costo promedio por unidad hallado y lo aplicamos a la tenencia actual.
-    const costoPromedioUSD=costUSD/qtyTotal;
-    const costoTotal=costoPromedioUSD*p.qty;
-    const gainPct=costoTotal>0?(p.valorUSD/costoTotal-1)*100:null;
-    // El tipo de cambio real que usa Inviu internamente para cada compra puede diferir un poco del que
-    // reconstruimos acá (hasta ~4 puntos porcentuales, visto con casos reales) — con un margen de sobra,
-    // solo mostramos el rendimiento cuando es lo bastante grande como para que esa diferencia nunca le
-    // cambie el signo ni el sentido. Si da chico, se deja sin dato en vez de arriesgar un número engañoso.
-    if(gainPct==null||Math.abs(gainPct)<5)return;
-    p.costUSD=costoTotal;
-    p.gainUSD=p.valorUSD-p.costUSD;
-    p.gainPct=gainPct;
-  });
 }
 const ALLOC_COLORS=['#1a4d3d','#f28e2b','#5b9cf6','#e15759','#8fc4ac','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0'];
 function buildSectorDonutHTML(entries,caption){
@@ -1268,9 +1079,6 @@ function buildPositionReportHTML(clientId,tenencias){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
   const positions=(tenencias&&tenencias.positions)||[];
-  if(pendingMovimientos){
-    reconcileCostBasisUSD(positions,pendingMovimientos,pendingReporteInversion?parseDepositRatesFromReporteInversion(pendingReporteInversion):{});
-  }
   const cashARS=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+p.valorARS,0);
   const invPositions=positions.filter(p=>p.tipo!=='Moneda');
   const rfPositions=invPositions.filter(p=>p.tipo==='Bonos');
@@ -1331,75 +1139,39 @@ function buildPositionReportHTML(clientId,tenencias){
     return donutHtml+paisHtml;
   }
 
-  function gainSummary(posArr){
-    const withGain=posArr.filter(p=>p.gainUSD!=null);
-    // Un total parcial (solo algunas posiciones con dato) es engañoso si se muestra como "el" resultado de
-    // la sección — solo se calcula si TODAS las posiciones del grupo tienen costo confirmado.
-    if(!posArr.length||withGain.length!==posArr.length)return{withGain:[],gainUSD:0,gainPct:null};
-    const gainUSD=withGain.reduce((s,p)=>s+p.gainUSD,0);
-    const costUSD=withGain.reduce((s,p)=>s+(p.valorUSD-p.gainUSD),0);
-    const gainPct=costUSD>0?(gainUSD/costUSD*100):null;
-    return{withGain,gainUSD,gainPct};
-  }
-  function gainKpiHtml(gain,label){
-    if(!gain.withGain.length||gain.gainPct==null)return'';
-    return `<div class="rp-kpis">
-      <div class="rp-kpi"><div class="rp-kpi-v" style="color:${gain.gainUSD>=0?'#15803d':'#dc2626'};">${gain.gainUSD>=0?'+':''}USD ${fmt2(gain.gainUSD)}</div><div class="rp-kpi-l">${esc(label)} (${gain.gainPct>=0?'+':''}${gain.gainPct.toFixed(1)}%)</div></div>
-    </div>`;
-  }
-
   const cuponMonths={};
   DB.flows.filter(f=>f.clientId===clientId).forEach(f=>{
     if(!cuponMonths[f.ticker])cuponMonths[f.ticker]=new Set();
     cuponMonths[f.ticker].add(+f.fecha.slice(5,7));
   });
 
-  function buildTipoTableHTML(tipo,items,gainColLabel){
+  function buildTipoTableHTML(tipo,items){
     if(!items.length)return'';
     const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
     const subtotal=sorted.reduce((s,p)=>s+p.valorUSD,0);
-    const withGain=sorted.filter(p=>p.gainUSD!=null);
-    const hasGainCol=withGain.length>0;
-    // El total de la sección solo se muestra si TODAS las posiciones tienen costo confirmado — un total
-    // armado con solo algunas (ej. 2 de 21 CEDEARs) daría un % que no representa a la sección real.
-    const sectionComplete=withGain.length===sorted.length;
-    const sectionGainUSD=withGain.reduce((s,p)=>s+p.gainUSD,0);
-    const sectionCostUSD=withGain.reduce((s,p)=>s+(p.valorUSD-p.gainUSD),0);
-    const sectionGainPct=(sectionComplete&&sectionCostUSD>0)?(sectionGainUSD/sectionCostUSD*100):null;
     const rows=sorted.map(p=>{
       const iss=issuerLineHTML(p.ticker);
       const pctPos=tenenciasTotal>0?(p.valorUSD/tenenciasTotal*100):0;
       const cuponSet=cuponMonths[p.ticker];
       const cupon=(tipo==='Bonos'&&cuponSet&&cuponSet.size)?[...cuponSet].sort((a,b)=>a-b).map(m=>MONTH_ABBR[m-1]).join('/'):null;
       const subLine=`Participación: ${pctPos.toFixed(1)}%${cupon?` · Cupón: ${cupon}`:''}`;
-      const gainCell=hasGainCol?(p.gainPct!=null?`<td class="num" style="color:${p.gainPct>=0?'#15803d':'#dc2626'};">${p.gainPct>=0?'+':''}${p.gainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${p.gainUSD>=0?'+':''}USD ${fmt2(p.gainUSD)}</div></td>`:'<td class="num">—</td>'):'';
-      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${gainCell}</tr>`;
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
     }).join('');
-    const totalGainCell=hasGainCol?(sectionGainPct!=null?`<td class="num" style="color:${sectionGainPct>=0?'#15803d':'#dc2626'};">${sectionGainPct>=0?'+':''}${sectionGainPct.toFixed(1)}%<div style="font-size:9px;font-weight:400;">${sectionGainUSD>=0?'+':''}USD ${fmt2(sectionGainUSD)}</div></td>`:'<td class="num">—</td>'):'';
-    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${hasGainCol?`<th style="white-space:normal;min-width:76px;">${esc(gainColLabel||'Rendimiento')}</th>`:''}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${totalGainCell}</tr></tbody></table>`;
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th></tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td></tr></tbody></table>`;
   }
-
-  const rvGain=gainSummary(rvPositions);
-  const rfGain=gainSummary(rfPositions);
-  const totalGain=gainSummary(invPositions);
 
   const rvSectionHtml=totalRentaVariable>0?`
     <h2 class="rp-h2">Renta Variable</h2>
     ${buildDistributionHTML(rvPositions,'renta variable')}
-    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'),'Rendimiento (sin dividendos)')}
-    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'),'Rendimiento (sin dividendos)')}
-    ${gainKpiHtml(rvGain,'Resultado no realizado — Renta Variable')}
+    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'))}
+    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'))}
   `:'';
 
   const rfSectionHtml=totalRentaFija>0?`
     <h2 class="rp-h2">Renta Fija</h2>
     ${buildDistributionHTML(rfPositions,'renta fija')}
-    ${buildTipoTableHTML('Bonos',rfPositions,'Rendimiento (sin cupones)')}
-    ${gainKpiHtml(rfGain,'Resultado no realizado — Renta Fija')}
+    ${buildTipoTableHTML('Bonos',rfPositions)}
   `:'';
-
-  const combinedGainHtml=(rfGain.withGain.length&&rvGain.withGain.length)?gainKpiHtml(totalGain,'Resultado no realizado total'):'';
-  const anyGain=rfGain.withGain.length||rvGain.withGain.length;
 
   const today=todayStr();
   const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
@@ -1467,16 +1239,10 @@ function buildPositionReportHTML(clientId,tenencias){
           if(totalRentaFija>0)return 'Hoy tu cartera está 100% en renta fija.';
           if(totalRentaVariable>0)return 'Hoy tu cartera está 100% en renta variable.';
           return '';
-        })()}${(()=>{
-          if(!totalGain.withGain.length||totalGain.gainPct==null)return'';
-          const sign=totalGain.gainUSD>=0?'+':'';
-          return ` Viene con un resultado no realizado de ${sign}USD ${fmt2(totalGain.gainUSD)} (${sign}${totalGain.gainPct.toFixed(1)}%) respecto al costo de compra.`;
         })()} Está armada buscando un equilibrio acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición.</p>
       </div>
       ${rvSectionHtml}
       ${rfSectionHtml}
-      ${combinedGainHtml}
-      ${anyGain?`<div class="rp-note">La columna "Rendimiento" y el "Resultado no realizado" muestran la variación del precio respecto al costo promedio de compra de cada posición. No incluye dividendos ni cupones ya cobrados, ni comisiones de venta o impuestos.</div>`:''}
       ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}

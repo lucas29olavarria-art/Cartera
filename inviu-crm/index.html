@@ -1878,13 +1878,35 @@ function showImportPreview(){
       <div style="font-size:11px;color:var(--green);">${d.nr?d.nr+' cupón(es) · '+fmtMoney(d.renta,d.moneda):''}</div>
       <div style="font-size:11px;color:var(--amber);">${d.na?d.na+' amort. · '+fmtMoney(d.amort,d.moneda):''}</div>
     </div>`).join('');
+  const clientId=document.getElementById('imp-cli').value;
+  const newTickers=new Set(impParsed.map(f=>f.ticker));
+  const pendingByTicker={};
+  if(clientId){
+    DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&!newTickers.has(f.ticker)).forEach(f=>{
+      if(!pendingByTicker[f.ticker])pendingByTicker[f.ticker]={count:0,moneda:f.moneda,total:0};
+      pendingByTicker[f.ticker].count++;
+      pendingByTicker[f.ticker].total+=f.monto;
+    });
+  }
+  const removeTickers=Object.keys(pendingByTicker);
+  const removeHtml=removeTickers.length?`
+    <div class="card" style="border-color:rgba(240,108,108,.3);">
+      <div class="ct" style="color:var(--red);">⚠ No aparecen en este archivo (${removeTickers.length})</div>
+      ${removeTickers.map(tk=>{
+        const d=pendingByTicker[tk];
+        return `<div class="row"><div style="flex:1;font-family:var(--mono);font-weight:700;font-size:12px;">${esc(tk)}</div><div style="font-size:11px;color:var(--soft);">${d.count} cobro(s) pendiente(s) · ${fmtMoney(d.total,d.moneda)}</div></div>`;
+      }).join('')}
+      <div style="font-size:10px;color:var(--soft);margin-top:8px;line-height:1.5;">Asumo que ya no los tenés (los vendiste) — se van a borrar sus cobros <strong>pendientes</strong>. Lo que ya cobraste de estos instrumentos queda en tu historial, no se toca.</div>
+    </div>
+  `:'';
   el.innerHTML=`
     <div class="card">
       <div class="ct">${impParsed.length} flujos · ${Object.keys(byTicker).length} instrumento(s)</div>
       ${rows}
     </div>
+    ${removeHtml}
     <div style="font-size:10px;color:var(--muted);margin-bottom:10px;line-height:1.5;">Si ya tenías flujos cargados para este cliente: lo que ya está marcado como cobrado no se toca. Lo pendiente se actualiza si cambió el monto (por ej. si recomprás). Los cupones nuevos se agregan.</div>
-    <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmImport()">📥 Importar ${impParsed.length} flujos</button>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="confirmImport()">📥 Importar ${impParsed.length} flujos${removeTickers.length?` y borrar ${removeTickers.length} instrumento(s) vendido(s)`:''}</button>
   `;
 }
 async function confirmImport(){
@@ -1912,6 +1934,10 @@ async function confirmImport(){
       toInsert.push({id:uid(),clientId,...f,cobrado:false,source:'import'});
     }
   });
+  // Instrumentos que no aparecen para nada en el archivo nuevo: asumimos que se vendieron, y se borran
+  // sus cobros pendientes (lo ya cobrado nunca se toca, queda como historial real).
+  const newTickers=new Set(impParsed.map(f=>f.ticker));
+  const toRemove=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&!newTickers.has(f.ticker));
   for(const u of toUpdate){
     const{error}=await sb.from('flows').update({monto:u.monto}).eq('id',u.id);
     if(error){dbError(error);return;}
@@ -1922,8 +1948,16 @@ async function confirmImport(){
     if(error){dbError(error);return;}
     DB.flows.push(...toInsert);
   }
+  for(const r of toRemove){
+    const{error}=await sb.from('flows').delete().eq('id',r.id);
+    if(error){dbError(error);return;}
+  }
+  if(toRemove.length){
+    const removedIds=new Set(toRemove.map(r=>r.id));
+    DB.flows=DB.flows.filter(f=>!removedIds.has(f.id));
+  }
   impParsed=[];
-  toast(`✓ ${toInsert.length} nuevo(s) · ${toUpdate.length} actualizado(s) · ${preserved} ya cobrado(s) sin tocar`);
+  toast(`✓ ${toInsert.length} nuevo(s) · ${toUpdate.length} actualizado(s) · ${preserved} ya cobrado(s) sin tocar · ${toRemove.length} borrado(s) por venta`);
   nav('cal');
 }
 

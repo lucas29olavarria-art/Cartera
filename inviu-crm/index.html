@@ -260,7 +260,7 @@ const SUPABASE_ANON_KEY='sb_publishable_DBhPfwrGlvI-41Cmo2NfKQ_WYdoGnT5';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
 const PIN_KEY='inviuCRM:pin:v1';
 function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
-let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''}};
+let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''},lastReporte:{}};
 
 function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',patrimonioARS:r.patrimonio_ars!=null?+r.patrimonio_ars:null,patrimonioUSD:r.patrimonio_usd!=null?+r.patrimonio_usd:null,patrimonioFecha:r.patrimonio_fecha||null,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 function rowToFlow(r){return {id:r.id,clientId:r.client_id,ticker:r.ticker,tipo:r.tipo,moneda:r.moneda,fecha:r.fecha,monto:+r.monto,cobrado:!!r.cobrado,source:r.source||''};}
@@ -388,6 +388,19 @@ function fmtDate(d){
 function daysUntil(d){
   const dt=new Date(d+'T00:00:00'),now=new Date();now.setHours(0,0,0,0);
   return Math.round((dt-now)/86400000);
+}
+function mesesDesde(fecha){
+  const d1=new Date(fecha+'T00:00:00'),d2=new Date();
+  let meses=(d2.getFullYear()-d1.getFullYear())*12+(d2.getMonth()-d1.getMonth());
+  if(d2.getDate()<d1.getDate())meses--;
+  return Math.max(0,meses);
+}
+function reporteStatusHTML(clientId){
+  const fecha=DB.lastReporte&&DB.lastReporte[clientId];
+  if(!fecha)return `<span style="color:var(--red);">⚠ nunca le generaste un reporte</span>`;
+  const meses=mesesDesde(fecha);
+  const label=meses<=0?'reporte este mes':meses===1?'reporte hace 1 mes':`reporte hace ${meses} meses`;
+  return meses>=3?`<span style="color:var(--amber);">⚠ ${esc(label)}</span>`:`<span>${esc(label)}</span>`;
 }
 function initials(name){return (name||'?').trim().split(/\s+/).slice(0,2).map(w=>w[0]).join('').toUpperCase();}
 function firstName(name){return (name||'').trim().split(/\s+/)[0]||name||'';}
@@ -804,6 +817,7 @@ function renderClientes(){
         <div style="flex:1;min-width:0;">
           <div style="font-size:13px;font-weight:600;">${esc(c.name)}</div>
           <div style="font-size:11px;color:var(--soft);">${flows.length} cobro${flows.length!==1?'s':''} pendiente${flows.length!==1?'s':''}${next?' · próx. '+fmtDate(next.fecha):''}</div>
+          <div style="font-size:10px;color:var(--muted);font-family:var(--mono);margin-top:2px;">${reporteStatusHTML(c.id)}</div>
         </div>
         ${hasAUM?`<div style="text-align:right;flex-shrink:0;">
           ${c.patrimonioUSD!=null?`<div style="font-family:var(--mono);font-size:11px;color:var(--green);">${fmtMoney(c.patrimonioUSD,'USD')}</div>`:''}
@@ -958,6 +972,7 @@ async function saveTenenciasSnapshot(clientId,tenencias){
     }
     const{error:insErr}=await sb.from('tenencias_snapshots').insert({client_id:clientId,fecha:today,tc_mep:tenencias.tcMep||null,positions:tenencias.positions});
     if(insErr)console.warn('No se pudo guardar el historial de tenencias:',insErr);
+    else if(!DB.lastReporte[clientId]||today>DB.lastReporte[clientId])DB.lastReporte[clientId]=today;
   }catch(err){
     console.warn('No se pudo guardar el historial de tenencias:',err);
   }
@@ -2382,6 +2397,19 @@ async function logout(){
   await sb.auth.signOut();
   location.reload();
 }
+async function loadLastReportes(){
+  try{
+    const{data,error}=await sb.from('tenencias_snapshots').select('client_id,fecha');
+    if(error||!data)return;
+    const map={};
+    data.forEach(r=>{
+      if(!map[r.client_id]||r.fecha>map[r.client_id])map[r.client_id]=r.fecha;
+    });
+    DB.lastReporte=map;
+  }catch(err){
+    console.warn('No se pudo cargar el historial de reportes:',err);
+  }
+}
 async function afterLogin(){
   try{
     await loadDBFromSupabase();
@@ -2391,6 +2419,7 @@ async function afterLogin(){
     document.getElementById('view').innerHTML='<div class="empty">No se pudo cargar tu información (error de conexión).<br>Tus datos siguen guardados, esto es solo un problema de red.<br><button class="ib pri" style="margin-top:10px;" onclick="location.reload()">↻ Reintentar</button></div>';
     return;
   }
+  await loadLastReportes();
   const stored=localStorage.getItem(PIN_KEY);
   if(stored){
     document.getElementById('lock').classList.remove('hidden');

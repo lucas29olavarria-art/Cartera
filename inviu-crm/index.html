@@ -1014,9 +1014,18 @@ function parseTenenciasXLSX(rows){
     const ticker=c0.replace(/\s+(D|C|CI)$/,'');
     const qty=+r[4]; // Disponibles
     const precio=+r[6]; // Precio actual
+    const moneda=String(r[5]||'').trim().toUpperCase();
     if(!qty||qty<=0||!precio||precio<=0)continue;
-    const valorARS=qty*precio;
-    const valorUSD=tcMep>0?valorARS/tcMep:0;
+    // Los Fondos en dólares cotizan su cuotaparte directo en USD (a diferencia de bonos/acciones/cedears,
+    // que siempre vienen en ARS acá) — si se divide por el tipo de cambio igual, se convierte dos veces.
+    let valorARS,valorUSD;
+    if(currentTipo==='Fondos'&&moneda==='USD'){
+      valorUSD=qty*precio;
+      valorARS=tcMep>0?valorUSD*tcMep:0;
+    }else{
+      valorARS=qty*precio;
+      valorUSD=tcMep>0?valorARS/tcMep:0;
+    }
     positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
   }
   return {tcMep,positions};
@@ -1065,7 +1074,26 @@ function paisForPosition(p){
   if(p.tipo==='Cedear')return CEDEAR_PAIS[p.ticker]||'Estados Unidos';
   return'';
 }
-const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acciones':'Acciones'};
+const TIPO_LABELS={Moneda:'Efectivo',Bonos:'Renta Fija',Cedear:'Renta Variable (CEDEARs)','Acciones':'Acciones',Fondos:'Fondos'};
+// Info estable de cada fondo (qué es, en qué invierte en general, objetivo) — nunca rendimientos ni
+// composición puntual, porque eso cambia todo el tiempo y se desactualizaría en el reporte.
+const FONDOS_INFO={
+  'Estra I A':{
+    nombre:'Balanz Estrategia I USD — Clase A',
+    categoria:'Renta fija en dólares · corto plazo',
+    objetivo:'Fondo de liquidez en dólares: invierte en una cartera diversificada de obligaciones negociables de empresas argentinas de primera línea, complementada con Bopreales, T-Bills del Tesoro americano, plazos fijos y cauciones en dólares. Mantiene una duración corta para que la volatilidad sea baja. Pensado para que los dólares no queden sin rendimiento mientras se usan.'
+  },
+  'Aho Pes A':{
+    nombre:'Adcap Ahorro Pesos — Clase A',
+    categoria:'Money market en pesos · liquidez inmediata (T+0)',
+    objetivo:'Fondo de money market: invierte exclusivamente en instrumentos de muy corto plazo del sistema financiero (plazos fijos en bancos de primera línea, cauciones bursátiles y cuentas remuneradas). No tiene bonos ni acciones, por lo que su valor no fluctúa con el mercado: la cuotaparte sube todos los días. Rescate inmediato (T+0). Pensado para pesos transaccionales que no deben perder rendimiento mientras se usan.'
+  },
+  'Ret Total 4 B':{
+    nombre:'Schroder Retorno Total — Clase 4-B',
+    categoria:'Renta fija en dólares · crédito corporativo, mediano plazo',
+    objetivo:'Fondo de crédito corporativo y subsoberano argentino en moneda dura, con horizonte de mediano plazo. Invierte en obligaciones negociables de empresas líderes y en bonos provinciales de crédito sólido que pagan cupones elevados en dólares. Al asumir algo más de duración y riesgo de crédito que un fondo de liquidez, busca una renta mayor a cambio de una volatilidad moderada en el corto plazo. Pensado para el excedente en dólares que se puede mantener invertido varios meses. Rescate en 24 horas hábiles (T+1).'
+  }
+};
 const MONTH_ABBR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 function dolarizacionPct(pos,tcMep){
   const arr=pos||[];
@@ -1083,9 +1111,11 @@ function buildPositionReportHTML(clientId,tenencias){
   const invPositions=positions.filter(p=>p.tipo!=='Moneda');
   const rfPositions=invPositions.filter(p=>p.tipo==='Bonos');
   const rvPositions=invPositions.filter(p=>p.tipo==='Cedear'||p.tipo==='Acciones');
+  const fondoPositions=invPositions.filter(p=>p.tipo==='Fondos');
   const totalRentaFija=rfPositions.reduce((s,p)=>s+p.valorUSD,0);
   const totalRentaVariable=rvPositions.reduce((s,p)=>s+p.valorUSD,0);
-  const tenenciasTotal=totalRentaFija+totalRentaVariable;
+  const totalFondos=fondoPositions.reduce((s,p)=>s+p.valorUSD,0);
+  const tenenciasTotal=totalRentaFija+totalRentaVariable+totalFondos;
 
   let cambiosHtml='';
   if(previousTenenciasSnapshot&&previousTenenciasSnapshot.positions){
@@ -1173,6 +1203,21 @@ function buildPositionReportHTML(clientId,tenencias){
     ${buildTipoTableHTML('Bonos',rfPositions)}
   `:'';
 
+  const fondosInfoHtml=fondoPositions.map(p=>{
+    const info=FONDOS_INFO[p.ticker];
+    if(!info)return `<div class="rp-comment" style="margin-top:10px;"><div class="rp-comment-label">${esc(p.nombre||p.ticker)}</div><p class="rp-p" style="margin:0;">Sin información cargada todavía para este fondo.</p></div>`;
+    return `<div class="rp-comment" style="margin-top:10px;">
+      <div class="rp-comment-label">${esc(info.nombre)} · ${esc(info.categoria)}</div>
+      <p class="rp-p" style="margin:0;">${esc(info.objetivo)}</p>
+    </div>`;
+  }).join('');
+  const fondosSectionHtml=totalFondos>0?`
+    <h2 class="rp-h2">Fondos</h2>
+    ${buildTipoTableHTML('Fondos',fondoPositions)}
+    <h3 class="rp-h3">Info básica del fondo</h3>
+    ${fondosInfoHtml}
+  `:'';
+
   const today=todayStr();
   const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
   const yearsAll=[...new Set(flows.map(f=>f.fecha.slice(0,4)))].sort();
@@ -1229,20 +1274,24 @@ function buildPositionReportHTML(clientId,tenencias){
         <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(tenenciasTotal)}</div><div class="rp-kpi-l">Tenencias</div></div>
         ${totalRentaFija>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaFija)}</div><div class="rp-kpi-l">Total renta fija</div></div>`:''}
         ${totalRentaVariable>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaVariable)}</div><div class="rp-kpi-l">Total renta variable</div></div>`:''}
+        ${totalFondos>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalFondos)}</div><div class="rp-kpi-l">Total fondos</div></div>`:''}
       </div>
       <div class="rp-comment">
         <div class="rp-comment-label">Comentario del asesor</div>
         <p class="rp-p" style="margin:0;">Hola ${esc(firstName(client.name))}. ${(()=>{
-          const pctRF=tenenciasTotal>0?(totalRentaFija/tenenciasTotal*100):0;
-          const pctRV=tenenciasTotal>0?(totalRentaVariable/tenenciasTotal*100):0;
-          if(totalRentaFija>0&&totalRentaVariable>0)return `Hoy tu cartera está compuesta por ${pctRF.toFixed(0)}% en renta fija y ${pctRV.toFixed(0)}% en renta variable.`;
-          if(totalRentaFija>0)return 'Hoy tu cartera está 100% en renta fija.';
-          if(totalRentaVariable>0)return 'Hoy tu cartera está 100% en renta variable.';
-          return '';
+          const partes=[];
+          if(totalRentaFija>0)partes.push(`${(totalRentaFija/tenenciasTotal*100).toFixed(0)}% en renta fija`);
+          if(totalRentaVariable>0)partes.push(`${(totalRentaVariable/tenenciasTotal*100).toFixed(0)}% en renta variable`);
+          if(totalFondos>0)partes.push(`${(totalFondos/tenenciasTotal*100).toFixed(0)}% en fondos`);
+          if(!partes.length)return'';
+          if(partes.length===1)return `Hoy tu cartera está 100% ${partes[0].replace(/^\d+% /,'')}.`;
+          const ultima=partes.pop();
+          return `Hoy tu cartera está compuesta por ${partes.join(', ')} y ${ultima}.`;
         })()} Está armada buscando un equilibrio acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición.</p>
       </div>
       ${rvSectionHtml}
       ${rfSectionHtml}
+      ${fondosSectionHtml}
       ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}

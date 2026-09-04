@@ -905,6 +905,7 @@ let currentReportClientId=null;
 function openReportOptions(clientId){
   pendingTenencias=null;
   previousTenenciasSnapshot=null;
+  pendingMovimientosReport=null;
   currentReportClientId=clientId;
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
@@ -914,6 +915,8 @@ function openReportOptions(clientId){
       <option value="posicion">Tenencias (para el cliente)</option>
       <option value="flujo">Flujo de cobros (próximos pagos)</option>
       <option value="rendimiento">Resumen de rendimiento (cuánto cobró)</option>
+      <option value="ingresos">Ingresos de la cartera (cupones + dividendos)</option>
+      <option value="actividad">Resumen de actividad (compras, ventas, depósitos)</option>
     </select>
     <div id="rp-posicion-fields">
       <label class="flbl">Archivo de Tenencias de Inviu (.xlsx)</label>
@@ -940,6 +943,13 @@ function openReportOptions(clientId){
         <div style="flex:1;"><label class="flbl">Hasta</label><input class="fi" type="date" id="rp-hasta" value="${todayStr()}"></div>
       </div>
     </div>
+    <div id="rp-movimientos-fields" class="hidden">
+      <label class="flbl">Archivo de Movimientos de Inviu (.xlsx)</label>
+      <input type="file" id="rp-movimientos-report-file" accept=".xlsx,.xls" style="display:none;" onchange="handleMovimientosReportFile(this.files[0])">
+      <div class="upl" onclick="document.getElementById('rp-movimientos-report-file').click()">📄 Tocá para elegir el archivo</div>
+      <div id="rp-movimientos-report-status" style="font-size:10px;color:var(--muted);margin-top:8px;margin-bottom:14px;line-height:1.5;">Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.</div>
+      <div id="rp-movimientos-report-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
+    </div>
     <button class="ib pri" style="width:100%;padding:10px;margin-top:6px;" onclick="previewClientReport('${clientId}')">👁 Vista previa y edición</button>
     <div style="font-size:10px;color:var(--muted);margin-top:10px;">Vas a poder tocar y editar el texto antes de generar el PDF. Los cambios no se guardan, son solo para esa copia.</div>
   `);
@@ -948,10 +958,14 @@ function toggleReportModeFields(){
   const mode=document.getElementById('rp-mode').value;
   document.getElementById('rp-posicion-fields').classList.toggle('hidden',mode!=='posicion');
   document.getElementById('rp-flujo-fields').classList.toggle('hidden',mode!=='flujo');
-  document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',mode!=='rendimiento');
+  document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',!['rendimiento','ingresos','actividad'].includes(mode));
+  document.getElementById('rp-movimientos-fields').classList.toggle('hidden',!['ingresos','actividad'].includes(mode));
+  const status=document.getElementById('rp-movimientos-report-status');
+  if(status)status.textContent=mode==='actividad'?'Obligatorio para este reporte — de acá salen las compras, ventas y depósitos.':'Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.';
 }
 let pendingTenencias=null;
 let previousTenenciasSnapshot=null;
+let pendingMovimientosReport=null;
 let reportPrintTitle='';
 let __prevDocTitle=null;
 function setTenenciasResult(msg,ok){
@@ -1004,6 +1018,73 @@ function handleTenenciasFile(file){
     }
   };
   reader.readAsArrayBuffer(file);
+}
+function setMovimientosReportStatus(msg,ok){
+  const box=document.getElementById('rp-movimientos-report-result');
+  box.style.display='block';
+  box.textContent=msg;
+  box.style.background=ok?'rgba(45,212,160,.12)':'rgba(240,108,108,.12)';
+  box.style.border='1px solid '+(ok?'rgba(45,212,160,.4)':'rgba(240,108,108,.4)');
+  box.style.color=ok?'var(--green)':'var(--red)';
+}
+function handleMovimientosReportFile(file){
+  pendingMovimientosReport=null;
+  const box=document.getElementById('rp-movimientos-report-result');
+  box.style.display='none';
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    try{
+      const wb=XLSX.read(e.target.result,{type:'array'});
+      const ws=wb.Sheets[wb.SheetNames[0]];
+      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+      const parsed=parseMovimientosRows(rows);
+      if(parsed.length){
+        pendingMovimientosReport=parsed;
+        setMovimientosReportStatus(`✓ Listo — ${parsed.length} movimientos leídos`,true);
+      }else{
+        setMovimientosReportStatus('⚠ No pude leer movimientos. Verificá que sea el archivo correcto.',false);
+      }
+    }catch(err){
+      setMovimientosReportStatus('⚠ Error leyendo el archivo: '+err.message,false);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+// Ticker base sin el sufijo de moneda (ej. "ABBVD"→"ABBV", "SPYC"→"SPY") para agrupar dividendos y
+// operaciones del mismo instrumento sin importar en qué sub-cuenta (pesos/MEP/cable) se liquidó.
+// Cuidado: hay tickers reales que ya terminan en D (ej. "YPFD") — por eso solo se saca la letra si ese
+// ticker no aparece tal cual en ninguna fila en pesos del mismo archivo (ahí sí sabemos que es real).
+function buildArsTickerSet(movRows){
+  return new Set((movRows||[]).filter(m=>m.moneda==='ARS').map(m=>m.tickerRaw));
+}
+function stripMovTickerSuffix(t,arsTickers){
+  const s=String(t||'');
+  if(arsTickers&&arsTickers.has(s))return s;
+  return s.replace(/(D|C)$/,'');
+}
+function parseMovimientosRows(rows){
+  if(!rows||!rows.length)return[];
+  const header=rows[0]||[];
+  const idx=name=>header.findIndex(h=>String(h||'').trim().toLowerCase()===name);
+  const iOp=idx('operación'),iFecha=idx('concertación'),iDesc=idx('descripción'),iMonto=idx('monto'),iCant=idx('cantidad'),iPrecio=idx('precio'),iMoneda=idx('moneda');
+  if(iOp<0||iFecha<0||iMonto<0)return[];
+  const out=[];
+  for(let k=1;k<rows.length;k++){
+    const r=rows[k];
+    if(!r||r[iOp]==null)continue;
+    const operacion=String(r[iOp]).trim();
+    const fecha=parseDateCell(r[iFecha]);
+    const descripcion=String(r[iDesc]||'').trim();
+    const tickerRaw=descripcion.split('|')[0].trim();
+    const monto=+r[iMonto];
+    const cantidad=iCant>=0&&r[iCant]!=null?+r[iCant]:null;
+    const precio=iPrecio>=0&&r[iPrecio]!=null?+r[iPrecio]:null;
+    const moneda=iMoneda>=0?String(r[iMoneda]||'').trim().toUpperCase():'';
+    if(!fecha||!isFinite(monto))continue;
+    out.push({operacion,fecha,tickerRaw,descripcion,monto,cantidad,precio,moneda});
+  }
+  return out;
 }
 function parseTenenciasXLSX(rows){
   let tcMep=0;
@@ -1547,6 +1628,151 @@ function buildPerformanceReportHTML(clientId,desde,hasta){
     ${advisorFooterHTML('Resumen de Rendimiento')}
   </div>`;
 }
+function buildIngresosReportHTML(clientId,desde,hasta,movRows){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  let flows=DB.flows.filter(f=>f.clientId===clientId&&f.fecha<=hasta&&(!desde||f.fecha>=desde));
+  flows=flows.slice().sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
+  const periodLabel=desde?`${fmtDateLong(desde)} – ${fmtDateLong(hasta)}`:`hasta el ${fmtDateLong(hasta)}`;
+
+  const arsTickers=buildArsTickerSet(movRows);
+  const dividendos=(movRows||[])
+    .filter(m=>m.operacion==='Ingreso dividendo'&&m.monto>0&&m.fecha<=hasta&&(!desde||m.fecha>=desde))
+    .map(m=>({...m,ticker:stripMovTickerSuffix(m.tickerRaw,arsTickers)}));
+
+  if(!flows.length&&!dividendos.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Ingresos de la Cartera</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">No hay cupones ni dividendos registrados para ${esc(client.name)} en el período ${periodLabel}.</p></div>
+    </div>`;
+  }
+
+  const monedas=[...new Set([...flows.map(f=>f.moneda),...dividendos.map(d=>d.moneda)])];
+
+  const blocksHtml=monedas.map(moneda=>{
+    const mf=flows.filter(f=>f.moneda===moneda);
+    const md=dividendos.filter(d=>d.moneda===moneda);
+    const totalRenta=mf.filter(f=>f.tipo==='Renta').reduce((s,f)=>s+f.monto,0);
+    const totalAmort=mf.filter(f=>f.tipo==='Amortización').reduce((s,f)=>s+f.monto,0);
+    const totalDiv=md.reduce((s,d)=>s+d.monto,0);
+    const totalGeneral=totalRenta+totalAmort+totalDiv;
+
+    const byTickerBonos={};
+    mf.forEach(f=>{
+      if(!byTickerBonos[f.ticker])byTickerBonos[f.ticker]={renta:0,amort:0};
+      byTickerBonos[f.ticker][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const bonosRows=Object.entries(byTickerBonos).map(([tk,d])=>{
+      const iss=issuerLineHTML(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
+    }).join('');
+
+    const byTickerDiv={};
+    md.forEach(d=>{
+      if(!byTickerDiv[d.ticker])byTickerDiv[d.ticker]={total:0,n:0};
+      byTickerDiv[d.ticker].total+=d.monto;
+      byTickerDiv[d.ticker].n++;
+    });
+    const divRows=Object.entries(byTickerDiv).sort((a,b)=>b[1].total-a[1].total).map(([tk,d])=>{
+      const iss=issuerLineHTML(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}</td><td class="num">${d.n}</td><td class="num">${fmt2(d.total)}</td></tr>`;
+    }).join('');
+
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalGeneral)}</div><div class="rp-kpi-l">Total de ingresos en el período</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalRenta+totalAmort)}</div><div class="rp-kpi-l">Renta fija (cupones)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalDiv)}</div><div class="rp-kpi-l">Dividendos</div></div>
+      </div>
+      ${bonosRows?`<h3 class="rp-h3">Renta fija — por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Renta</th><th>Amortización</th><th>Total</th></tr></thead>
+      <tbody>${bonosRows}<tr class="rp-total-row"><td>Total</td><td class="num">${fmt2(totalRenta)}</td><td class="num">${fmt2(totalAmort)}</td><td class="num">${fmt2(totalRenta+totalAmort)}</td></tr></tbody></table>`:''}
+      ${divRows?`<h3 class="rp-h3">Dividendos — por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Pagos</th><th>Total</th></tr></thead>
+      <tbody>${divRows}<tr class="rp-total-row"><td>Total</td><td class="num">${md.length}</td><td class="num">${fmt2(totalDiv)}</td></tr></tbody></table>`:''}
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Ingresos de la Cartera</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div>
+    </div>
+    <div class="rp-body">
+      <p class="rp-p">Todo lo que tu cartera te generó en efectivo durante el período <strong>${periodLabel}</strong>: cupones e intereses de renta fija, y dividendos de acciones y CEDEARs.</p>
+      ${blocksHtml}
+      ${!movRows?`<div class="rp-note">Este resumen incluye solo cupones de renta fija — para sumar los dividendos de acciones y CEDEARs, subí también el archivo de Movimientos.</div>`:''}
+      <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}. Refleja los pagos con fecha dentro del período indicado.</div>
+    </div>
+    ${advisorFooterHTML('Ingresos de la Cartera')}
+  </div>`;
+}
+function buildActividadReportHTML(clientId,desde,hasta,movRows){
+  const client=DB.clients.find(c=>c.id===clientId);
+  if(!client)return'';
+  const periodLabel=desde?`${fmtDateLong(desde)} – ${fmtDateLong(hasta)}`:`hasta el ${fmtDateLong(hasta)}`;
+  if(!movRows||!movRows.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Resumen de Actividad</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">Subí el archivo de Movimientos para armar este reporte.</p></div>
+    </div>`;
+  }
+  const OPS=['Compra','Venta','Depósito','Retiro'];
+  let mov=movRows.filter(m=>OPS.includes(m.operacion)&&m.fecha<=hasta&&(!desde||m.fecha>=desde));
+  mov=mov.slice().sort((a,b)=>a.fecha<b.fecha?1:a.fecha>b.fecha?-1:0);
+
+  if(!mov.length){
+    return `<div class="rp-page">
+      <div class="rp-header"><h1>Resumen de Actividad</h1><div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div></div>
+      <div class="rp-body"><p class="rp-p">No hay movimientos registrados para ${esc(client.name)} en el período ${periodLabel}.</p></div>
+    </div>`;
+  }
+
+  const arsTickers=buildArsTickerSet(movRows);
+  const monedas=[...new Set(mov.map(m=>m.moneda))];
+  const blocksHtml=monedas.map(moneda=>{
+    const mm=mov.filter(m=>m.moneda===moneda);
+    const totalCompras=mm.filter(m=>m.operacion==='Compra').reduce((s,m)=>s+Math.abs(m.monto),0);
+    const totalVentas=mm.filter(m=>m.operacion==='Venta').reduce((s,m)=>s+Math.abs(m.monto),0);
+    const totalDepositos=mm.filter(m=>m.operacion==='Depósito').reduce((s,m)=>s+Math.abs(m.monto),0);
+    const rows=mm.map(m=>{
+      const ticker=(m.operacion==='Compra'||m.operacion==='Venta')?stripMovTickerSuffix(m.tickerRaw,arsTickers):null;
+      const iss=ticker?issuerLineHTML(ticker):'';
+      const instrumento=ticker?`${esc(ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}`:'—';
+      const opColor=m.operacion==='Compra'?'#dc2626':(m.operacion==='Venta'||m.operacion==='Depósito')?'#15803d':'#6b7280';
+      return `<tr><td>${fmtDateShort(m.fecha)}</td><td style="color:${opColor};font-weight:600;">${esc(m.operacion)}</td><td>${instrumento}</td><td class="num">${fmt2(Math.abs(m.monto))}</td></tr>`;
+    }).join('');
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v" style="color:#dc2626;">${moneda} ${fmt2(totalCompras)}</div><div class="rp-kpi-l">Comprado</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v" style="color:#15803d;">${moneda} ${fmt2(totalVentas)}</div><div class="rp-kpi-l">Vendido</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalDepositos)}</div><div class="rp-kpi-l">Depositado</div></div>
+      </div>
+      <h3 class="rp-h3">Detalle de movimientos</h3>
+      <table class="rp-table"><thead><tr><th>Fecha</th><th>Operación</th><th>Instrumento</th><th>Monto (${moneda})</th></tr></thead>
+      <tbody>${rows}</tbody></table>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="rp-page">
+    <div class="rp-header">
+      <h1>Resumen de Actividad</h1>
+      <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría</div>
+    </div>
+    <div class="rp-body">
+      <p class="rp-p">Detalle de lo que se operó en tu cuenta durante el período <strong>${periodLabel}</strong>: compras, ventas y movimientos de dinero.</p>
+      ${blocksHtml}
+      <div class="rp-note">Documento informativo generado el ${fmtDateLong(todayStr())}.</div>
+    </div>
+    ${advisorFooterHTML('Resumen de Actividad')}
+  </div>`;
+}
 function showReportPreview(html){
   const el=document.getElementById('report-print');
   el.innerHTML=html;
@@ -1566,14 +1792,23 @@ function previewClientReport(clientId){
     if(!pendingTenencias||!pendingTenencias.positions.length){toast('Subí el archivo de Tenencias primero');return;}
     html=buildPositionReportHTML(clientId,pendingTenencias);
     label='Tenencias';
-  }else if(mode==='rendimiento'){
+  }else if(mode==='rendimiento'||mode==='ingresos'||mode==='actividad'){
     const period=document.getElementById('rp-period').value;
     let desde=null,hasta=document.getElementById('rp-hasta').value||todayStr();
     if(period==='6'){const d=new Date();d.setMonth(d.getMonth()-6);desde=d.toISOString().slice(0,10);}
     else if(period==='12'){const d=new Date();d.setMonth(d.getMonth()-12);desde=d.toISOString().slice(0,10);}
     else if(period==='custom'){desde=document.getElementById('rp-desde').value||null;hasta=document.getElementById('rp-hasta').value||todayStr();}
-    html=buildPerformanceReportHTML(clientId,desde,hasta);
-    label='Rendimiento';
+    if(mode==='rendimiento'){
+      html=buildPerformanceReportHTML(clientId,desde,hasta);
+      label='Rendimiento';
+    }else if(mode==='ingresos'){
+      html=buildIngresosReportHTML(clientId,desde,hasta,pendingMovimientosReport);
+      label='Ingresos';
+    }else{
+      if(!pendingMovimientosReport||!pendingMovimientosReport.length){toast('Subí el archivo de Movimientos primero');return;}
+      html=buildActividadReportHTML(clientId,desde,hasta,pendingMovimientosReport);
+      label='Actividad';
+    }
   }else{
     const includeCollected=document.getElementById('rp-include-collected').checked;
     html=buildReportHTML(clientId,includeCollected);

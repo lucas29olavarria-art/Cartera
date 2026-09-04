@@ -6,6 +6,8 @@
 <title>Inviu CRM · Lucas Olavarria</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>I</text></svg>">
 <link rel="manifest" href="manifest.json">
@@ -944,8 +946,8 @@ function openReportOptions(clientId){
       </div>
     </div>
     <div id="rp-movimientos-fields" class="hidden">
-      <label class="flbl">Archivo de Movimientos de Inviu (.xlsx)</label>
-      <input type="file" id="rp-movimientos-report-file" accept=".xlsx,.xls" style="display:none;" onchange="handleMovimientosReportFile(this.files[0])">
+      <label class="flbl">Archivo de Movimientos de Inviu (.xlsx o comprobante .pdf)</label>
+      <input type="file" id="rp-movimientos-report-file" accept=".xlsx,.xls,.pdf" style="display:none;" onchange="handleMovimientosReportFile(this.files[0])">
       <div class="upl" onclick="document.getElementById('rp-movimientos-report-file').click()">📄 Tocá para elegir el archivo</div>
       <div id="rp-movimientos-report-status" style="font-size:10px;color:var(--muted);margin-top:8px;margin-bottom:14px;line-height:1.5;">Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.</div>
       <div id="rp-movimientos-report-result" style="display:none;margin-top:8px;padding:9px 12px;border-radius:var(--r);font-size:12px;font-weight:600;"></div>
@@ -1032,13 +1034,20 @@ function handleMovimientosReportFile(file){
   const box=document.getElementById('rp-movimientos-report-result');
   box.style.display='none';
   if(!file)return;
+  const isPdf=/\.pdf$/i.test(file.name);
   const reader=new FileReader();
-  reader.onload=e=>{
+  reader.onload=async e=>{
     try{
-      const wb=XLSX.read(e.target.result,{type:'array'});
-      const ws=wb.Sheets[wb.SheetNames[0]];
-      const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
-      const parsed=parseMovimientosRows(rows);
+      let parsed;
+      if(isPdf){
+        const text=await extractPdfText(e.target.result);
+        parsed=parsePdfComprobanteMovimientos(text);
+      }else{
+        const wb=XLSX.read(e.target.result,{type:'array'});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:null});
+        parsed=parseMovimientosRows(rows);
+      }
       if(parsed.length){
         pendingMovimientosReport=parsed;
         setMovimientosReportStatus(`✓ Listo — ${parsed.length} movimientos leídos`,true);
@@ -1050,6 +1059,54 @@ function handleMovimientosReportFile(file){
     }
   };
   reader.readAsArrayBuffer(file);
+}
+// Reconstruye el texto del "comprobante de movimientos" en PDF línea por línea, agrupando los
+// fragmentos de texto por su posición vertical (el PDF no trae una grilla real, son textos sueltos).
+async function extractPdfText(arrayBuffer){
+  const pdf=await pdfjsLib.getDocument({data:arrayBuffer}).promise;
+  const lines=[];
+  for(let p=1;p<=pdf.numPages;p++){
+    const page=await pdf.getPage(p);
+    const content=await page.getTextContent();
+    let curY=null,curLine=[];
+    for(const item of content.items){
+      const y=item.transform[5];
+      if(curY===null||Math.abs(y-curY)>3){
+        if(curLine.length)lines.push(curLine.join(' '));
+        curLine=[item.str];
+        curY=y;
+      }else{
+        curLine.push(item.str);
+      }
+    }
+    if(curLine.length)lines.push(curLine.join(' '));
+  }
+  return lines.join('\n');
+}
+// El "comprobante de movimientos" en PDF trae las mismas operaciones que el Excel de Movimientos,
+// pero en un formato de texto distinto: Descripción con "Boleto / <id> / CPRA|VENTA / <n> / TICKER / $"
+// para compras/ventas, "Dividendo en efectivo / TICKER" para dividendos, y no trae Cantidad ni Precio
+// por separado (van embebidos en la Descripción). Alcanza para Ingresos y Actividad, que no los usan.
+function parsePdfComprobanteMovimientos(text){
+  const OPS=['Ingreso dividendo','Compra','Venta','Depósito','Retiro','Rescate','Suscripción','Renta','Amortización'];
+  const opsPattern=OPS.map(o=>o.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
+  const re=new RegExp(`^(${opsPattern})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+\\d{2}/\\d{2}/\\d{4}\\s+(.+?)\\s+(ARS|USD)\\s+(-?[\\d.,]+)$`);
+  const out=[];
+  for(const raw of text.split('\n')){
+    const line=raw.trim().replace(/\s{2,}/g,' ');
+    const m=re.exec(line);
+    if(!m)continue;
+    const[,operacion,fechaStr,descripcion,moneda,montoStr]=m;
+    const fecha=parseDateCell(fechaStr);
+    const monto=+montoStr.replace(/\./g,'').replace(',','.');
+    if(!fecha||!isFinite(monto))continue;
+    const parts=descripcion.split('/').map(s=>s.trim());
+    let tickerRaw='';
+    if((operacion==='Compra'||operacion==='Venta')&&parts.length>=5)tickerRaw=parts[4];
+    else if(operacion==='Ingreso dividendo'&&parts.length>=2)tickerRaw=parts[1];
+    out.push({operacion,fecha,tickerRaw,descripcion,monto,cantidad:null,precio:null,moneda});
+  }
+  return out;
 }
 // Ticker base sin el sufijo de moneda (ej. "ABBVD"→"ABBV", "SPYC"→"SPY") para agrupar dividendos y
 // operaciones del mismo instrumento sin importar en qué sub-cuenta (pesos/MEP/cable) se liquidó.

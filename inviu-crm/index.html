@@ -300,7 +300,6 @@ const SEED_ISSUERS={
   DICP:{name:'República Argentina',sector:'Soberano'},DICY:{name:'República Argentina',sector:'Soberano'},
   YM42O:{name:'YPF S.A.',sector:'Energía'},YM34O:{name:'YPF S.A.',sector:'Energía'},YMCXO:{name:'YPF S.A.',sector:'Energía'},
   VSCVO:{name:'Vista Energy',sector:'Energía'},VSCRO:{name:'Vista Energy',sector:'Energía'},
-  PLC4O:{name:'Pluspetrol',sector:'Energía'},PLC5O:{name:'Pluspetrol',sector:'Energía'},
   MGCOO:{name:'Compañía Mega',sector:'Midstream'},
   TTC8O:{name:'TGS',sector:'Gas'},
   TLCMO:{name:'Telecom Argentina',sector:'Telecomunicaciones'},TLCPO:{name:'Telecom Argentina',sector:'Telecomunicaciones'},
@@ -342,18 +341,28 @@ const SEED_ISSUERS={
   SPY:{name:'SPDR S&P 500 ETF',sector:'ETF USA'},QQQ:{name:'Invesco QQQ Trust',sector:'ETF USA'},IWM:{name:'iShares Russell 2000',sector:'ETF USA'},
   EWZ:{name:'iShares MSCI Brazil',sector:'ETF USA'},VTI:{name:'Vanguard Total Market',sector:'ETF USA'},GLD:{name:'SPDR Gold Trust',sector:'Commodities'}
 };
+// Series de ONs que comparten emisor pero cuyo código completo cambia con cada colocación
+// (ej. Pluspetrol siempre arranca "PLC") — se resuelven por prefijo en vez de listar cada ticker.
+const SEED_ISSUER_PREFIXES=[
+  {prefix:'PLC',name:'Pluspetrol',sector:'Energía'},
+];
+function seedIssuerFor(ticker){
+  if(SEED_ISSUERS[ticker])return SEED_ISSUERS[ticker];
+  const pre=SEED_ISSUER_PREFIXES.find(p=>String(ticker||'').startsWith(p.prefix));
+  return pre?{name:pre.name,sector:pre.sector}:null;
+}
 function issuerFor(ticker){
   const custom=DB.issuers&&DB.issuers[ticker];
   const customName=custom?(typeof custom==='string'?custom:custom.name):'';
   if(customName)return customName;
-  const seed=SEED_ISSUERS[ticker];
+  const seed=seedIssuerFor(ticker);
   return seed?seed.name:'';
 }
 function sectorFor(ticker){
   const custom=DB.issuers&&DB.issuers[ticker];
   const customSector=(custom&&typeof custom==='object')?custom.sector:'';
   if(customSector)return customSector;
-  const seed=SEED_ISSUERS[ticker];
+  const seed=seedIssuerFor(ticker);
   return seed?seed.sector:'';
 }
 function issuerLineHTML(ticker){

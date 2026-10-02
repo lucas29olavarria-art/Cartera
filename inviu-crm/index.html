@@ -1209,8 +1209,7 @@ function parseTenenciasXLSX(rows){
       valorARS=qty*precio;
       valorUSD=tcMep>0?valorARS/tcMep:0;
     }
-    const varPct=r[12]!=null&&r[12]!==''&&isFinite(+r[12])?+r[12]:null; // "Var %" ya calculado por Inviu contra su costo (PPC)
-    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD,varPct});
+    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
   }
   return {tcMep,positions};
 }
@@ -1456,12 +1455,7 @@ function buildPositionReportHTML(clientId,tenencias){
     cuponMonths[f.ticker].add(+f.fecha.slice(5,7));
   });
 
-  function rendimientoCellHTML(p){
-    if(p.varPct==null)return'<td class="num">—</td>';
-    const color=p.varPct>0?'#15803d':p.varPct<0?'#dc2626':'#6b7280';
-    return `<td class="num" style="color:${color};font-weight:600;">${p.varPct>0?'+':''}${p.varPct.toFixed(1)}%</td>`;
-  }
-  function buildTipoTableHTML(tipo,items,showRendimiento){
+  function buildTipoTableHTML(tipo,items){
     if(!items.length)return'';
     const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
     const subtotal=sorted.reduce((s,p)=>s+p.valorUSD,0);
@@ -1471,21 +1465,16 @@ function buildPositionReportHTML(clientId,tenencias){
       const cuponSet=cuponMonths[p.ticker];
       const cupon=(tipo==='Bonos'&&cuponSet&&cuponSet.size)?[...cuponSet].sort((a,b)=>a-b).map(m=>MONTH_ABBR[m-1]).join('/'):null;
       const subLine=`Participación: ${pctPos.toFixed(1)}%${cupon?` · Cupón: ${cupon}`:''}`;
-      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${showRendimiento?rendimientoCellHTML(p):''}</tr>`;
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
     }).join('');
-    const rendTh=showRendimiento?'<th>Rendimiento</th>':'';
-    const rendTotalTd=showRendimiento?'<td></td>':'';
-    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${rendTh}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${rendTotalTd}</tr></tbody></table>`;
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th></tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td></tr></tbody></table>`;
   }
 
-  const rvConVarPct=rvPositions.filter(p=>p.varPct!=null);
-  const rvRendProm=rvConVarPct.length?rvConVarPct.reduce((s,p)=>s+p.valorUSD*p.varPct,0)/rvConVarPct.reduce((s,p)=>s+p.valorUSD,0):null;
   const rvSectionHtml=totalRentaVariable>0?`
     <h2 class="rp-h2">Renta Variable</h2>
-    ${rvRendProm!=null?`<div class="rp-kpis"><div class="rp-kpi"><div class="rp-kpi-v" style="color:${rvRendProm>=0?'#15803d':'#dc2626'};">${rvRendProm>0?'+':''}${rvRendProm.toFixed(1)}%</div><div class="rp-kpi-l">Rendimiento promedio${rvConVarPct.length<rvPositions.length?' (posiciones con dato)':''}</div></div></div>`:''}
     ${buildDistributionHTML(rvPositions,'renta variable')}
-    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'),true)}
-    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'),true)}
+    ${buildTipoTableHTML('Acciones',rvPositions.filter(p=>p.tipo==='Acciones'))}
+    ${buildTipoTableHTML('Cedear',rvPositions.filter(p=>p.tipo==='Cedear'))}
   `:'';
 
   const rfSectionHtml=totalRentaFija>0?`

@@ -319,7 +319,6 @@ const SEED_ISSUERS={
   GD41:{name:'República Argentina',sector:'Soberano'},GD46:{name:'República Argentina',sector:'Soberano'},
   PARP:{name:'República Argentina',sector:'Soberano'},PARY:{name:'República Argentina',sector:'Soberano'},
   DICP:{name:'República Argentina',sector:'Soberano'},DICY:{name:'República Argentina',sector:'Soberano'},
-  YM42O:{name:'YPF S.A.',sector:'Energía'},YM34O:{name:'YPF S.A.',sector:'Energía'},YMCXO:{name:'YPF S.A.',sector:'Energía'},
   VSCVO:{name:'Vista Energy',sector:'Energía'},VSCRO:{name:'Vista Energy',sector:'Energía'},
   MGCOO:{name:'Compañía Mega',sector:'Midstream'},
   TTC8O:{name:'TGS',sector:'Gas'},
@@ -366,6 +365,7 @@ const SEED_ISSUERS={
 // (ej. Pluspetrol siempre arranca "PLC") — se resuelven por prefijo en vez de listar cada ticker.
 const SEED_ISSUER_PREFIXES=[
   {prefix:'PLC',name:'Pluspetrol',sector:'Energía'},
+  {prefix:'YM',name:'YPF S.A.',sector:'Energía'},
 ];
 function seedIssuerFor(ticker){
   if(SEED_ISSUERS[ticker])return SEED_ISSUERS[ticker];

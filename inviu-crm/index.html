@@ -177,7 +177,28 @@ select.fi{cursor:pointer;}
 .rp-comment{background:#f8f9fa;border-left:3px solid #1a4d3d;border-radius:4px;padding:14px 16px;margin:16px 0 20px;}
 .rp-comment-label{font-size:10.5px;color:#1a4d3d;text-transform:uppercase;letter-spacing:.03em;margin-bottom:6px;font-weight:800;font-family:Arial,Helvetica,sans-serif;}
 .rp-note{font-size:10.5px;color:#4b5563;font-style:italic;margin:20px 0 4px;line-height:1.5;border-top:1px solid #e5e7eb;padding-top:10px;}
+.rp-note-plain{font-size:10.5px;color:#4b5563;font-style:italic;margin:0 0 14px;line-height:1.5;}
 .rp-footer{font-size:9.5px;color:#6b7280;margin-top:16px;padding:0 32px 20px;}
+.rp-hero-kpi{background:#1a4d3d;border-radius:8px;padding:20px 18px;text-align:center;margin:14px 0 20px;}
+.rp-hero-kpi-v{font-size:27px;font-weight:800;color:#fff;font-family:'Courier New',monospace;letter-spacing:-.01em;}
+.rp-hero-kpi-l{font-size:10px;color:#cfe3da;font-weight:700;text-transform:uppercase;letter-spacing:.04em;margin-top:5px;}
+.rp-holdings{margin:4px 0 6px;}
+.rp-holding-row{padding:8px 0;border-bottom:1px solid #f1f3f5;}
+.rp-holding-top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;margin-bottom:5px;}
+.rp-holding-label{font-size:11px;color:#1f2937;font-weight:700;}
+.rp-holding-iss{display:block;font-size:9px;color:#4b5563;font-weight:500;}
+.rp-holding-nums{display:flex;gap:10px;flex-shrink:0;white-space:nowrap;}
+.rp-holding-val{font-family:'Courier New',monospace;font-size:10.5px;color:#374151;}
+.rp-holding-pct{font-family:'Courier New',monospace;font-size:10.5px;font-weight:700;color:#1a4d3d;min-width:38px;text-align:right;}
+.rp-holding-bar-track{background:#eef5f1;border-radius:4px;height:7px;overflow:hidden;}
+.rp-holding-bar-fill{background:#1a4d3d;height:100%;border-radius:4px;}
+.rp-callout{background:#eef5f1;border-radius:6px;padding:11px 14px;margin:10px 0 14px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;}
+.rp-callout-label{font-size:9.5px;color:#4b5563;font-weight:700;text-transform:uppercase;letter-spacing:.03em;margin-bottom:2px;}
+.rp-callout-main{font-size:12.5px;color:#1a4d3d;font-weight:800;}
+.rp-callout-val{font-size:14px;color:#1a4d3d;font-weight:800;font-family:'Courier New',monospace;}
+.rp-objetivos{list-style:none;margin:10px 0 4px;padding:0;}
+.rp-objetivo-item{display:flex;gap:11px;align-items:flex-start;padding:9px 0;border-bottom:1px solid #f1f3f5;font-size:12px;line-height:1.55;color:#374151;}
+.rp-objetivo-num{flex-shrink:0;width:20px;height:20px;border-radius:50%;background:#eef5f1;color:#1a4d3d;font-weight:800;font-size:10.5px;display:flex;align-items:center;justify-content:center;font-family:Arial,Helvetica,sans-serif;margin-top:1px;}
 
 /* ── On-screen preview (editable, before printing) ── */
 #report-toolbar{display:none;}
@@ -1194,7 +1215,7 @@ function parseTenenciasXLSX(rows){
   return {tcMep,positions};
 }
 const ALLOC_COLORS=['#1a4d3d','#f28e2b','#5b9cf6','#e15759','#8fc4ac','#edc948','#b07aa1','#76b7b2','#ff9da7','#9c755f','#bab0ac','#4472c4','#70ad47','#c55a11','#7030a0','#00b0f0'];
-function buildSectorDonutHTML(entries,caption){
+function buildSectorDonutHTML(entries,caption,title,holeLabel){
   const total=entries.reduce((s,e)=>s+e.value,0);
   if(!total||!entries.length)return'';
   let acc=0;
@@ -1207,12 +1228,14 @@ function buildSectorDonutHTML(entries,caption){
     const pct=(e.value/total*100).toFixed(1);
     return `<div class="rp-legend-row"><span class="rp-legend-sw" style="background:${e.color};"></span><span class="rp-legend-label">${esc(e.label)}</span><span class="rp-legend-val">USD ${fmt2(e.value)}</span><span class="rp-legend-pct">${pct}%</span></div>`;
   }).join('');
+  let holeLabelTxt=holeLabel||'sectores';
+  if(entries.length===1)holeLabelTxt=holeLabelTxt.endsWith('es')?holeLabelTxt.slice(0,-2):holeLabelTxt.slice(0,-1);
   return `
-  <h3 class="rp-h3">Distribución por sector</h3>
+  <h3 class="rp-h3">${esc(title||'Distribución por sector')}</h3>
   ${caption?`<div class="rp-chart-caption">${esc(caption)}</div>`:''}
   <div class="rp-donut-wrap">
     <div class="rp-donut" style="background:conic-gradient(${stops});">
-      <div class="rp-donut-hole"><div class="rp-donut-hole-v">${entries.length}</div><div class="rp-donut-hole-l">sectores</div></div>
+      <div class="rp-donut-hole"><div class="rp-donut-hole-v">${entries.length}</div><div class="rp-donut-hole-l">${esc(holeLabelTxt)}</div></div>
     </div>
     <div class="rp-legend">${legend}</div>
   </div>`;
@@ -1273,7 +1296,11 @@ const FONDOS_INFO={
   }
 };
 const MONTH_ABBR=['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
-function dolarizacionPct(pos,tcMep){
+// Ojo: pese al nombre de las variables, esto NO mide dolarización real (moneda de denominación de
+// cada bono) — el archivo de Tenencias no distingue eso de forma confiable (la columna "Moneda" es
+// la moneda de liquidación, no la de emisión). Lo que sí mide con los datos disponibles es qué parte
+// del patrimonio está invertida vs. en efectivo/liquidez.
+function pctInvertido(pos,tcMep){
   const arr=pos||[];
   const totalUSDinv=arr.filter(p=>p.tipo!=='Moneda').reduce((s,p)=>s+(p.valorUSD||0),0);
   const cashARSval=arr.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+(p.valorARS||0),0);
@@ -1306,28 +1333,35 @@ function buildPositionReportHTML(clientId,tenencias){
     const prevTotal=prevInv.reduce((s,p)=>s+(p.valorUSD||0),0);
     const changeUSD=tenenciasTotal-prevTotal;
     const changePct=prevTotal>0?(changeUSD/prevTotal*100):null;
-    const prevDolar=dolarizacionPct(prevPositions,+previousTenenciasSnapshot.tc_mep||0);
-    const currDolar=dolarizacionPct(positions,tenencias.tcMep||0);
+    const prevPctInv=pctInvertido(prevPositions,+previousTenenciasSnapshot.tc_mep||0);
+    const currPctInv=pctInvertido(positions,tenencias.tcMep||0);
     const desde=previousTenenciasSnapshot.fecha;
     const cobradosPeriodo=DB.flows.filter(f=>f.clientId===clientId&&f.cobrado&&f.fecha>=desde&&f.fecha<=todayStr());
     const cobradoTotales={};
     cobradosPeriodo.forEach(f=>{cobradoTotales[f.moneda]=(cobradoTotales[f.moneda]||0)+f.monto;});
     const cobradoStr=Object.entries(cobradoTotales).map(([m,v])=>`${m} ${fmt2(v)}`).join(' + ');
 
-    const items=[];
-    items.push(`Valor total: USD ${fmt2(prevTotal)} → USD ${fmt2(tenenciasTotal)}${changePct!=null?` (${changeUSD>=0?'+':''}${changePct.toFixed(1)}%)`:''}`);
-    items.push(nuevos.length?`${nuevos.length} activo${nuevos.length!==1?'s':''} nuevo${nuevos.length!==1?'s':''}: ${nuevos.join(', ')}`:'Sin activos nuevos');
-    items.push(vendidos.length?`${vendidos.length} activo${vendidos.length!==1?'s':''} vendido${vendidos.length!==1?'s':''}: ${vendidos.join(', ')}`:'Sin ventas');
-    items.push(cobradosPeriodo.length?`${cobradosPeriodo.length} cupón${cobradosPeriodo.length!==1?'es':''} cobrado${cobradosPeriodo.length!==1?'s':''}: ${cobradoStr}`:'Sin cupones cobrados en el período');
-    if(prevDolar!=null&&currDolar!=null)items.push(`Exposición en USD: ${prevDolar.toFixed(0)}% → ${currDolar.toFixed(0)}%`);
+    const queCambioPartes=[];
+    if(nuevos.length)queCambioPartes.push(`se incorporaron ${nuevos.length} activo${nuevos.length!==1?'s':''} nuevo${nuevos.length!==1?'s':''} (${nuevos.join(', ')})`);
+    if(vendidos.length)queCambioPartes.push(`se vendieron ${vendidos.length} activo${vendidos.length!==1?'s':''} (${vendidos.join(', ')})`);
+    if(cobradosPeriodo.length)queCambioPartes.push(`se cobraron ${cobradosPeriodo.length} cupón${cobradosPeriodo.length!==1?'es':''} (${cobradoStr})`);
+    if(prevPctInv!=null&&currPctInv!=null&&Math.abs(currPctInv-prevPctInv)>=3)queCambioPartes.push(`el nivel de liquidez pasó de ${(100-prevPctInv).toFixed(0)}% a ${(100-currPctInv).toFixed(0)}% del patrimonio`);
+    const queCambioTxt=queCambioPartes.length?`Desde el último informe, ${queCambioPartes.join('; ')}.`:'No hubo cambios relevantes en la composición de la cartera desde el último informe.';
 
     cambiosHtml=`
-    <h2 class="rp-h2">Cambios desde el ${fmtDateLong(desde)}</h2>
-    <ul style="font-size:12px;line-height:1.9;color:#374151;margin:0 0 8px 18px;padding:0;">
-      ${items.map(it=>`<li>${esc(it)}</li>`).join('')}
-    </ul>`;
+    <h2 class="rp-h2">Evolución del Valor de la Cartera</h2>
+    <div class="rp-kpis">
+      <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(prevTotal)}</div><div class="rp-kpi-l">Valor anterior · ${fmtDateShort(desde)}</div></div>
+      <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(tenenciasTotal)}</div><div class="rp-kpi-l">Valor actual</div></div>
+      ${changePct!=null?`<div class="rp-kpi"><div class="rp-kpi-v" style="color:${changeUSD>=0?'#15803d':'#dc2626'};">${changeUSD>=0?'+':''}${changePct.toFixed(1)}%</div><div class="rp-kpi-l">Variación</div></div>`:''}
+    </div>
+    <div class="rp-note-plain">La variación del valor de la cartera puede incluir aportes, retiros, variaciones de mercado y cobros realizados — no representa necesariamente el rendimiento de la inversión.</div>
+    <h3 class="rp-h3">¿Qué cambió?</h3>
+    <p class="rp-p">${esc(queCambioTxt)}</p>`;
   }
 
+  // La distribución geográfica combinada (RF+RV) ya se muestra una sola vez en el Mapa de la Cartera,
+  // así que acá solo queda el detalle de sector, que sí es información distinta dentro de cada bloque.
   function buildDistributionHTML(posArr,labelSuffix){
     if(!posArr.length)return'';
     const sectorTotals={};
@@ -1336,15 +1370,84 @@ function buildPositionReportHTML(clientId,tenencias){
       sectorTotals[sec]=(sectorTotals[sec]||0)+p.valorUSD;
     });
     const sectorEntries=Object.entries(sectorTotals).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-    const donutHtml=buildSectorDonutHTML(sectorEntries,`Distribución por sector de tu ${labelSuffix}, valuado en USD.`);
-    const paisTotals={};
-    posArr.forEach(p=>{
-      const pais=paisForPosition(p)||'Sin clasificar';
-      paisTotals[pais]=(paisTotals[pais]||0)+p.valorUSD;
+    return buildSectorDonutHTML(sectorEntries,`Distribución por sector de tu ${labelSuffix}, valuado en USD.`);
+  }
+  function buildTopHoldingsHTML(items,denom){
+    if(!items.length||denom<=0)return'';
+    const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD).slice(0,5);
+    const maxVal=sorted[0].valorUSD;
+    const rows=sorted.map(p=>{
+      const iss=issuerLineHTML(p.ticker);
+      const pct=p.valorUSD/denom*100;
+      const barPct=maxVal>0?(p.valorUSD/maxVal*100):0;
+      return `<div class="rp-holding-row">
+        <div class="rp-holding-top">
+          <div class="rp-holding-label">${esc(p.ticker)}${iss?`<span class="rp-holding-iss">${esc(iss)}</span>`:''}</div>
+          <div class="rp-holding-nums"><span class="rp-holding-val">USD ${fmt2(p.valorUSD)}</span><span class="rp-holding-pct">${pct.toFixed(1)}%</span></div>
+        </div>
+        <div class="rp-holding-bar-track"><div class="rp-holding-bar-fill" style="width:${barPct.toFixed(1)}%;"></div></div>
+      </div>`;
+    }).join('');
+    return `<h3 class="rp-h3">Principales posiciones</h3><div class="rp-holdings">${rows}</div>`;
+  }
+  function buildMapaInterpretacion(totalRF,totalRV,totalFondosArg,cashArg,patrimonio,topHolding){
+    if(patrimonio<=0)return'';
+    const candidatos=[['renta fija',totalRF],['renta variable',totalRV],['fondos',totalFondosArg],['liquidez',cashArg]].filter(([,v])=>v>0).sort((a,b)=>b[1]-a[1]);
+    if(!candidatos.length)return'';
+    const [label,valor]=candidatos[0];
+    const pct=valor/patrimonio*100;
+    let frase=pct>=55?`Actualmente, la cartera mantiene una participación elevada en ${label} (${pct.toFixed(0)}% del patrimonio).`
+      :`Actualmente, la cartera está distribuida entre varias clases de activos, con mayor peso en ${label} (${pct.toFixed(0)}%).`;
+    if(topHolding){
+      const pctTop=topHolding.valorUSD/patrimonio*100;
+      if(pctTop>=15)frase+=` La posición más relevante es ${topHolding.ticker}, con el ${pctTop.toFixed(0)}% del patrimonio total.`;
+    }
+    return frase;
+  }
+  function buildProximosObjetivosHTML(rfPos,rvPos,fondoPos,cashArg,patrimonio,flowsArg){
+    const hoy=new Date(todayStr()+'T00:00:00');
+    const especificos=[];
+    const investedTotal=rfPos.reduce((s,p)=>s+p.valorUSD,0)+rvPos.reduce((s,p)=>s+p.valorUSD,0);
+    const secTotals={};
+    [...rfPos,...rvPos].forEach(p=>{
+      const sec=sectorFor(p.ticker);
+      if(sec)secTotals[sec]=(secTotals[sec]||0)+p.valorUSD;
     });
-    const paisEntries=Object.entries(paisTotals).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
-    const paisHtml=buildSegBarHTML('Distribución por país',`Según el país de origen de tu ${labelSuffix}.`,paisEntries);
-    return donutHtml+paisHtml;
+    const topSec=Object.entries(secTotals).sort((a,b)=>b[1]-a[1])[0];
+    if(topSec&&investedTotal>0&&(topSec[1]/investedTotal*100)>=40){
+      especificos.push(`Monitorear la concentración en el sector ${topSec[0]} (${(topSec[1]/investedTotal*100).toFixed(0)}% de la cartera invertida).`);
+    }
+    const en12m=new Date(hoy);en12m.setMonth(en12m.getMonth()+12);
+    rfPos.forEach(p=>{
+      const m=/Vto\.?\s*(\d{2})\/(\d{2})\/(\d{4})/i.exec(p.nombre||'');
+      if(!m)return;
+      const fv=new Date(`${m[3]}-${m[2]}-${m[1]}T00:00:00`);
+      if(fv>=hoy&&fv<=en12m)especificos.push(`Revisar el vencimiento de ${p.ticker}, previsto para ${fv.toLocaleDateString('es-AR',{day:'2-digit',month:'long',year:'numeric'})}, y evaluar alternativas de reinversión.`);
+    });
+    if(patrimonio>0&&(cashArg/patrimonio*100)>=15){
+      especificos.push(`Evaluar destino para el excedente de liquidez, que hoy representa el ${(cashArg/patrimonio*100).toFixed(0)}% del patrimonio.`);
+    }
+    if(rvPos.length===1||rvPos.length===2){
+      especificos.push(`Evaluar diversificar la renta variable, hoy concentrada en ${rvPos.length===1?'un solo instrumento':'solo dos instrumentos'}.`);
+    }
+    const en3m=new Date(hoy);en3m.setMonth(en3m.getMonth()+3);
+    const nCobrosProximos=(flowsArg||[]).filter(f=>{const fd=new Date(f.fecha+'T00:00:00');return fd>=hoy&&fd<=en3m;}).length;
+    if(nCobrosProximos>0){
+      especificos.push(nCobrosProximos===1?'Evaluar la reinversión del cobro previsto para los próximos tres meses.':`Evaluar la reinversión de los ${nCobrosProximos} cobros previstos para los próximos tres meses.`);
+    }
+    if(fondoPos.length){
+      especificos.push('Revisar que los fondos utilizados para la porción de liquidez sigan siendo la alternativa más conveniente disponible.');
+    }
+    const generales=[];
+    generales.push('Mantener la diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado.');
+    generales.push('Continuar monitoreando la evolución de cada posición y las condiciones de mercado.');
+    generales.push('Revisar periódicamente que la composición de la cartera siga alineada con tu horizonte y objetivos de inversión.');
+    const elegidos=[...especificos,...generales].slice(0,5);
+    if(elegidos.length<3)return'';
+    const rows=elegidos.map((c,i)=>`<li class="rp-objetivo-item"><span class="rp-objetivo-num">${i+1}</span><span>${esc(c)}</span></li>`).join('');
+    return `<h2 class="rp-h2">Próximos Objetivos</h2>
+    <ul class="rp-objetivos">${rows}</ul>
+    <p class="rp-p" style="margin-top:10px;">Vamos a seguir estas variables de cerca y revisarlas en nuestra próxima actualización. Ante cualquier duda, estoy a disposición.</p>`;
   }
 
   const cuponMonths={};
@@ -1409,17 +1512,21 @@ function buildPositionReportHTML(clientId,tenencias){
   const today=todayStr();
   const flows=DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado&&f.fecha>=today).sort((a,b)=>a.fecha<b.fecha?-1:a.fecha>b.fecha?1:0);
   const yearsAll=[...new Set(flows.map(f=>f.fecha.slice(0,4)))].sort();
-  const cobrosTitle=yearsAll.length?(yearsAll[0]===yearsAll[yearsAll.length-1]?`Cobros ${yearsAll[0]}`:`Cobros ${yearsAll[0]}-${yearsAll[yearsAll.length-1]}`):'Cobros';
+  const cobrosTitle=yearsAll.length?(yearsAll[0]===yearsAll[yearsAll.length-1]?`Flujo Futuro de Cobros ${yearsAll[0]}`:`Flujo Futuro de Cobros ${yearsAll[0]}-${yearsAll[yearsAll.length-1]}`):'Flujo Futuro de Cobros';
   const monedasCobros=[...new Set(flows.map(f=>f.moneda))];
   const cobrosBlocks=monedasCobros.map(moneda=>{
     const mf=flows.filter(f=>f.moneda===moneda);
     const totalMoneda=mf.reduce((s,f)=>s+f.monto,0);
+    const proximoPago=mf[0]||null;
     const byYear={};
     mf.forEach(f=>{
       const k=f.fecha.slice(0,4);
       if(!byYear[k])byYear[k]={renta:0,amort:0};
       byYear[k][f.tipo==='Amortización'?'amort':'renta']+=f.monto;
     });
+    const yearEntries=Object.entries(byYear).map(([y,d])=>[y,d.renta+d.amort]);
+    const maxYearEntry=yearEntries.length>=2?yearEntries.slice().sort((a,b)=>b[1]-a[1])[0]:null;
+    const yearInterpretacion=(maxYearEntry&&totalMoneda>0)?`La mayor concentración de cobros en ${moneda} está en ${maxYearEntry[0]}, con el ${(maxYearEntry[1]/totalMoneda*100).toFixed(0)}% del total previsto.`:'';
     const byTicker={};
     mf.forEach(f=>{
       if(!byTicker[f.ticker])byTicker[f.ticker]={total:0,next:null};
@@ -1440,7 +1547,10 @@ function buildPositionReportHTML(clientId,tenencias){
       <div class="rp-kpis">
         <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalMoneda)}</div><div class="rp-kpi-l">Total a cobrar (todos los años pendientes)</div></div>
       </div>
+      ${proximoPago?`<div class="rp-callout"><div><div class="rp-callout-label">Próximo cobro en ${moneda}</div><div class="rp-callout-main">${esc(proximoPago.ticker)} · ${fmtDateShort(proximoPago.fecha)}</div></div><div class="rp-callout-val">${moneda} ${fmt2(proximoPago.monto)}</div></div>`:''}
       ${buildYearChartHTML(byYear)}
+      ${yearInterpretacion?`<p class="rp-chart-caption" style="margin-top:-8px;">${esc(yearInterpretacion)}</p>`:''}
+      <div class="rp-note-plain">Estos cobros incluyen tanto renta (intereses) como amortización (devolución de capital) — no representan rendimiento adicional sobre lo ya invertido.</div>
       <h3 class="rp-h3">Resumen por instrumento</h3>
       <table class="rp-table"><thead><tr><th>Instrumento</th><th>Total (${moneda})</th><th>Próximo pago</th></tr></thead>
       <tbody>${tickerRows}</tbody></table>
@@ -1451,43 +1561,59 @@ function buildPositionReportHTML(clientId,tenencias){
     </div>`;
   }).join('');
 
+  const cashUSD=positions.filter(p=>p.tipo==='Moneda').reduce((s,p)=>s+(p.valorUSD||0),0);
+  const patrimonioTotal=tenenciasTotal+cashUSD;
+
+  const allocEntries=[];
+  if(totalRentaFija>0)allocEntries.push({label:'Renta Fija',value:totalRentaFija,color:ALLOC_COLORS[0]});
+  if(totalRentaVariable>0)allocEntries.push({label:'Renta Variable',value:totalRentaVariable,color:ALLOC_COLORS[2]});
+  if(totalFondos>0)allocEntries.push({label:'Fondos',value:totalFondos,color:ALLOC_COLORS[1]});
+  if(cashUSD>0)allocEntries.push({label:'Efectivo',value:cashUSD,color:ALLOC_COLORS[9]});
+
+  const paisTotalsCombinado={};
+  [...rfPositions,...rvPositions].forEach(p=>{
+    const pais=paisForPosition(p);
+    if(pais)paisTotalsCombinado[pais]=(paisTotalsCombinado[pais]||0)+p.valorUSD;
+  });
+  const paisEntriesCombinado=Object.entries(paisTotalsCombinado).sort((a,b)=>b[1]-a[1]).map(([label,value],i)=>({label,value,color:ALLOC_COLORS[i%ALLOC_COLORS.length]}));
+
+  const topHoldingsItems=[...rfPositions,...rvPositions,...fondoPositions];
+  const topHolding=topHoldingsItems.slice().sort((a,b)=>b.valorUSD-a.valorUSD)[0]||null;
+  const mapaInterpretacion=buildMapaInterpretacion(totalRentaFija,totalRentaVariable,totalFondos,cashUSD,patrimonioTotal,topHolding);
+
+  const mapaCarteraHtml=patrimonioTotal>0?`
+    <h2 class="rp-h2">Mapa de la Cartera</h2>
+    <div class="rp-hero-kpi"><div class="rp-hero-kpi-v">USD ${fmt2(patrimonioTotal)}</div><div class="rp-hero-kpi-l">Patrimonio Total</div></div>
+    ${buildSectorDonutHTML(allocEntries,'Distribución entre renta fija, renta variable, fondos y liquidez, valuado en USD.','Distribución del patrimonio','categorías')}
+    ${paisEntriesCombinado.length?buildSegBarHTML('Distribución geográfica','Según el país de origen de tus bonos, acciones y CEDEARs.',paisEntriesCombinado):''}
+    ${buildTopHoldingsHTML(topHoldingsItems,patrimonioTotal)}
+    ${mapaInterpretacion?`<p class="rp-chart-caption" style="margin-top:-2px;">${esc(mapaInterpretacion)}</p>`:''}
+  `:'';
+
+  const objetivosHtml=buildProximosObjetivosHTML(rfPositions,rvPositions,fondoPositions,cashUSD,patrimonioTotal,DB.flows.filter(f=>f.clientId===clientId&&!f.cobrado));
+
   return `
   <div class="rp-page">
     <div class="rp-header">
-      <h1>Tus Tenencias</h1>
+      <h1>Informe de Cartera</h1>
       <div class="rp-sub">Preparado para ${esc(client.name)} · por Lucas Olavarría · ${fmtDateLong(todayStr())}</div>
     </div>
     <div class="rp-body">
-      <div class="rp-kpis">
-        <div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(tenenciasTotal)}</div><div class="rp-kpi-l">Tenencias</div></div>
-        ${totalRentaFija>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaFija)}</div><div class="rp-kpi-l">Total renta fija</div></div>`:''}
-        ${totalRentaVariable>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalRentaVariable)}</div><div class="rp-kpi-l">Total renta variable</div></div>`:''}
-        ${totalFondos>0?`<div class="rp-kpi"><div class="rp-kpi-v">USD ${fmt2(totalFondos)}</div><div class="rp-kpi-l">Total fondos</div></div>`:''}
-      </div>
       <div class="rp-comment">
         <div class="rp-comment-label">Comentario del asesor</div>
-        <p class="rp-p" style="margin:0;">Hola ${esc(firstName(client.name))}. ${(()=>{
-          const partes=[];
-          if(totalRentaFija>0)partes.push(`${(totalRentaFija/tenenciasTotal*100).toFixed(0)}% en renta fija`);
-          if(totalRentaVariable>0)partes.push(`${(totalRentaVariable/tenenciasTotal*100).toFixed(0)}% en renta variable`);
-          if(totalFondos>0)partes.push(`${(totalFondos/tenenciasTotal*100).toFixed(0)}% en fondos`);
-          if(!partes.length)return'';
-          if(partes.length===1)return `Hoy tu cartera está 100% ${partes[0].replace(/^\d+% /,'')}.`;
-          const ultima=partes.pop();
-          return `Hoy tu cartera está compuesta por ${partes.join(', ')} y ${ultima}.`;
-        })()} Está armada buscando un equilibrio acorde a tu perfil de riesgo, con diversificación por sector y por país para reducir la exposición a eventos puntuales de un solo instrumento o mercado. Vamos a seguir monitoreando de cerca la evolución de cada posición y las condiciones de mercado, ajustando la estrategia cuando haga falta. Ante cualquier duda, estoy a disposición.</p>
+        <p class="rp-p" style="margin:0;">Hola ${esc(firstName(client.name))}, este es tu informe de seguimiento de cartera. A continuación encontrás cómo está compuesta tu inversión, qué cambió desde el último informe y qué vamos a monitorear hacia adelante. Ante cualquier duda, estoy a disposición.</p>
       </div>
+      ${mapaCarteraHtml}
       ${rvSectionHtml}
       ${rfSectionHtml}
       ${fondosSectionHtml}
       ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}
-      <h3 class="rp-h3">Próximos pasos</h3>
-      <p class="rp-p">Durante los próximos meses vamos a seguir monitoreando la cartera y evaluando oportunidades para mejorar el perfil riesgo-retorno. Ante cualquier duda o si querés revisar la estrategia, estoy a disposición.</p>
-      <p class="rp-p" style="margin-top:10px;font-weight:700;">Lucas Olavarría${(DB.advisor&&DB.advisor.cnv)?` · Asesor Financiero CNV ${esc(DB.advisor.cnv)}`:' · Asesor Financiero'}</p>
+      ${objetivosHtml}
+      <p class="rp-p" style="margin-top:16px;font-weight:700;">Lucas Olavarría${(DB.advisor&&DB.advisor.cnv)?` · Asesor Financiero CNV ${esc(DB.advisor.cnv)}`:' · Asesor Financiero'}</p>
     </div>
-    ${advisorFooterHTML('Tus Tenencias')}
+    ${advisorFooterHTML('Informe de Cartera')}
   </div>`;
 }
 function toggleCustomPeriod(){

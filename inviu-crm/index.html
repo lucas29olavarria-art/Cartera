@@ -985,15 +985,20 @@ function openReportOptions(clientId){
     <button class="ib pri" style="width:100%;padding:10px;margin-top:6px;" onclick="previewClientReport('${clientId}')">👁 Vista previa y edición</button>
     <div style="font-size:10px;color:var(--muted);margin-top:10px;">Vas a poder tocar y editar el texto antes de generar el PDF. Los cambios no se guardan, son solo para esa copia.</div>
   `);
+  toggleReportModeFields();
 }
 function toggleReportModeFields(){
   const mode=document.getElementById('rp-mode').value;
   document.getElementById('rp-posicion-fields').classList.toggle('hidden',mode!=='posicion');
   document.getElementById('rp-flujo-fields').classList.toggle('hidden',mode!=='flujo');
   document.getElementById('rp-rendimiento-fields').classList.toggle('hidden',!['rendimiento','ingresos','actividad'].includes(mode));
-  document.getElementById('rp-movimientos-fields').classList.toggle('hidden',!['ingresos','actividad'].includes(mode));
+  document.getElementById('rp-movimientos-fields').classList.toggle('hidden',!['posicion','ingresos','actividad'].includes(mode));
   const status=document.getElementById('rp-movimientos-report-status');
-  if(status)status.textContent=mode==='actividad'?'Obligatorio para este reporte — de acá salen las compras, ventas y depósitos.':'Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.';
+  if(status){
+    if(mode==='actividad')status.textContent='Obligatorio para este reporte — de acá salen las compras, ventas y depósitos.';
+    else if(mode==='posicion')status.textContent='Obligatorio a partir del segundo informe del cliente — de acá se detectan los cupones realmente cobrados desde el último informe (no depende de lo marcado a mano en Flujo de Cobros). En el primer informe no hace falta.';
+    else status.textContent='Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.';
+  }
 }
 let pendingTenencias=null;
 let previousTenenciasSnapshot=null;
@@ -1120,7 +1125,9 @@ async function extractPdfText(arrayBuffer){
 function parsePdfComprobanteMovimientos(text){
   const OPS=['Ingreso dividendo','Compra','Venta','Depósito','Retiro','Rescate','Suscripción','Renta','Amortización'];
   const opsPattern=OPS.map(o=>o.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')).join('|');
-  const re=new RegExp(`^(${opsPattern})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+\\d{2}/\\d{2}/\\d{4}\\s+(.+?)\\s+(ARS|USD)\\s+(-?[\\d.,]+)$`);
+  // La moneda puede venir como ARS, USD o USD.C (dólar cable/CCL) — "USD.C" tiene que probarse antes que
+  // "USD" solo, porque si no el regex corta ahí y deja colgado el ".C" sin matchear nada.
+  const re=new RegExp(`^(${opsPattern})\\s+(\\d{2}/\\d{2}/\\d{4})\\s+\\d{2}/\\d{2}/\\d{4}\\s+(.+?)\\s+(ARS|USD\\.C|USD)\\s+(-?[\\d.,]+)$`);
   const out=[];
   for(const raw of text.split('\n')){
     const line=raw.trim().replace(/\s{2,}/g,' ');
@@ -1134,6 +1141,9 @@ function parsePdfComprobanteMovimientos(text){
     let tickerRaw='';
     if((operacion==='Compra'||operacion==='Venta')&&parts.length>=5)tickerRaw=parts[4];
     else if(operacion==='Ingreso dividendo'&&parts.length>=2)tickerRaw=parts[1];
+    // "Interest payment (INTR) - DISN / TICKER" (Renta) y, se asume, el mismo patrón para Amortización:
+    // el ticker siempre es el último tramo después de la última "/".
+    else if((operacion==='Renta'||operacion==='Amortización')&&parts.length>=2)tickerRaw=parts[parts.length-1];
     out.push({operacion,fecha,tickerRaw,descripcion,monto,cantidad:null,precio:null,moneda});
   }
   return out;
@@ -1209,7 +1219,12 @@ function parseTenenciasXLSX(rows){
       valorARS=qty*precio;
       valorUSD=tcMep>0?valorARS/tcMep:0;
     }
-    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD});
+    // "Var %" de Inviu compara precio actual contra costo (PPC), ambos en la misma moneda de esta fila.
+    // Para Fondos eso es un rendimiento real y comparable (todo en la moneda del fondo). Para Bonos/Acciones/
+    // Cedears NO sirve: el precio siempre viene en ARS acá aunque el instrumento cotice en USD, así que esa
+    // "ganancia" no refleja el rendimiento real en dólares — por eso solo se usa para Fondos.
+    const varPct=r[12]!=null&&r[12]!==''&&isFinite(+r[12])?+r[12]:null;
+    positions.push({tipo:currentTipo,ticker,nombre:(r[1]||'').toString().trim(),qty,precio,valorARS,valorUSD,varPct});
   }
   return {tcMep,positions};
 }
@@ -1307,7 +1322,7 @@ function pctInvertido(pos,tcMep){
   const total=totalUSDinv+cashUSDeq;
   return total>0?(totalUSDinv/total*100):null;
 }
-function buildPositionReportHTML(clientId,tenencias){
+function buildPositionReportHTML(clientId,tenencias,movRows){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
   const positions=(tenencias&&tenencias.positions)||[];
@@ -1335,7 +1350,13 @@ function buildPositionReportHTML(clientId,tenencias){
     const prevPctInv=pctInvertido(prevPositions,+previousTenenciasSnapshot.tc_mep||0);
     const currPctInv=pctInvertido(positions,tenencias.tcMep||0);
     const desde=previousTenenciasSnapshot.fecha;
-    const cobradosPeriodo=DB.flows.filter(f=>f.clientId===clientId&&f.cobrado&&f.fecha>=desde&&f.fecha<=todayStr());
+    // Para saber qué se cobró de verdad usamos el archivo de Movimientos (plata real que entró a la
+    // cuenta) en vez de depender de que los cobros estén marcados "cobrado" a mano en Flujo de Cobros —
+    // así no se pierde ningún cupón por un olvido o una falla al tildarlo. Si no se subió Movimientos
+    // (reportes viejos, u otros modos que llaman a esta función sin ese archivo), cae al método anterior.
+    const cobradosPeriodo=movRows&&movRows.length
+      ?movRows.filter(f=>(f.operacion==='Renta'||f.operacion==='Amortización')&&f.monto>0&&f.fecha>=desde&&f.fecha<=todayStr())
+      :DB.flows.filter(f=>f.clientId===clientId&&f.cobrado&&f.fecha>=desde&&f.fecha<=todayStr());
     const cobradoTotales={};
     cobradosPeriodo.forEach(f=>{cobradoTotales[f.moneda]=(cobradoTotales[f.moneda]||0)+f.monto;});
     const cobradoStr=Object.entries(cobradoTotales).map(([m,v])=>`${m} ${fmt2(v)}`).join(' + ');
@@ -1343,7 +1364,7 @@ function buildPositionReportHTML(clientId,tenencias){
     const queCambioPartes=[];
     if(nuevos.length)queCambioPartes.push(`se incorporaron ${nuevos.length} activo${nuevos.length!==1?'s':''} nuevo${nuevos.length!==1?'s':''} (${nuevos.join(', ')})`);
     if(vendidos.length)queCambioPartes.push(`se vendieron ${vendidos.length} activo${vendidos.length!==1?'s':''} (${vendidos.join(', ')})`);
-    if(cobradosPeriodo.length)queCambioPartes.push(`se cobraron ${cobradosPeriodo.length} cupón${cobradosPeriodo.length!==1?'es':''} (${cobradoStr})`);
+    if(cobradosPeriodo.length)queCambioPartes.push(`se cobraron ${cobradosPeriodo.length} ${cobradosPeriodo.length===1?'cupón':'cupones'} (${cobradoStr})`);
     if(prevPctInv!=null&&currPctInv!=null&&Math.abs(currPctInv-prevPctInv)>=3)queCambioPartes.push(`el nivel de liquidez pasó de ${(100-prevPctInv).toFixed(0)}% a ${(100-currPctInv).toFixed(0)}% del patrimonio`);
     const queCambioTxt=queCambioPartes.length?`Desde el último informe, ${queCambioPartes.join('; ')}.`:'No hubo cambios relevantes en la composición de la cartera desde el último informe.';
 
@@ -1455,7 +1476,12 @@ function buildPositionReportHTML(clientId,tenencias){
     cuponMonths[f.ticker].add(+f.fecha.slice(5,7));
   });
 
-  function buildTipoTableHTML(tipo,items){
+  function rendimientoCellHTML(p){
+    if(p.varPct==null)return'<td class="num">—</td>';
+    const color=p.varPct>0?'#15803d':p.varPct<0?'#dc2626':'#6b7280';
+    return `<td class="num" style="color:${color};font-weight:600;">${p.varPct>0?'+':''}${p.varPct.toFixed(1)}%</td>`;
+  }
+  function buildTipoTableHTML(tipo,items,showRendimiento){
     if(!items.length)return'';
     const sorted=items.slice().sort((a,b)=>b.valorUSD-a.valorUSD);
     const subtotal=sorted.reduce((s,p)=>s+p.valorUSD,0);
@@ -1465,9 +1491,11 @@ function buildPositionReportHTML(clientId,tenencias){
       const cuponSet=cuponMonths[p.ticker];
       const cupon=(tipo==='Bonos'&&cuponSet&&cuponSet.size)?[...cuponSet].sort((a,b)=>a-b).map(m=>MONTH_ABBR[m-1]).join('/'):null;
       const subLine=`Participación: ${pctPos.toFixed(1)}%${cupon?` · Cupón: ${cupon}`:''}`;
-      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td></tr>`;
+      return `<tr><td>${esc(p.ticker)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}<div style="font-size:9.5px;color:#4b5563;font-weight:500;">${esc(subLine)}</div></td><td>${esc(p.nombre)}</td><td class="num">USD ${fmt2(p.valorUSD)}</td>${showRendimiento?rendimientoCellHTML(p):''}</tr>`;
     }).join('');
-    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th></tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td></tr></tbody></table>`;
+    const rendTh=showRendimiento?'<th>Rendimiento</th>':'';
+    const rendTotalTd=showRendimiento?'<td></td>':'';
+    return `<h3 class="rp-h3">${esc(TIPO_LABELS[tipo]||tipo)}</h3><table class="rp-table"><thead><tr><th>Instrumento</th><th>Nombre</th><th>Valor</th>${rendTh}</tr></thead><tbody>${rows}<tr class="rp-total-row"><td colspan="2">Total ${esc(TIPO_LABELS[tipo]||tipo)}</td><td class="num">USD ${fmt2(subtotal)}</td>${rendTotalTd}</tr></tbody></table>`;
   }
 
   const rvSectionHtml=totalRentaVariable>0?`
@@ -1483,6 +1511,8 @@ function buildPositionReportHTML(clientId,tenencias){
     ${buildTipoTableHTML('Bonos',rfPositions)}
   `:'';
 
+  const fondosConVarPct=fondoPositions.filter(p=>p.varPct!=null);
+  const fondosRendProm=fondosConVarPct.length?fondosConVarPct.reduce((s,p)=>s+p.valorUSD*p.varPct,0)/fondosConVarPct.reduce((s,p)=>s+p.valorUSD,0):null;
   const fondosInfoHtml=fondoPositions.map(p=>{
     const info=FONDOS_INFO[p.ticker];
     if(!info)return `<div class="rp-comment" style="margin-top:10px;"><div class="rp-comment-label">${esc(p.nombre||p.ticker)}</div><p class="rp-p" style="margin:0;">Sin información cargada todavía para este fondo.</p></div>`;
@@ -1493,7 +1523,8 @@ function buildPositionReportHTML(clientId,tenencias){
   }).join('');
   const fondosSectionHtml=totalFondos>0?`
     <h2 class="rp-h2">Fondos</h2>
-    ${buildTipoTableHTML('Fondos',fondoPositions)}
+    ${fondosRendProm!=null?`<div class="rp-kpis"><div class="rp-kpi"><div class="rp-kpi-v" style="color:${fondosRendProm>=0?'#15803d':'#dc2626'};">${fondosRendProm>0?'+':''}${fondosRendProm.toFixed(1)}%</div><div class="rp-kpi-l">Rendimiento promedio${fondosConVarPct.length<fondoPositions.length?' (posiciones con dato)':''}</div></div></div>`:''}
+    ${buildTipoTableHTML('Fondos',fondoPositions,true)}
     <h3 class="rp-h3">Info básica del fondo</h3>
     ${fondosInfoHtml}
   `:'';
@@ -1987,7 +2018,8 @@ function previewClientReport(clientId){
   let html,label;
   if(mode==='posicion'){
     if(!pendingTenencias||!pendingTenencias.positions.length){toast('Subí el archivo de Tenencias primero');return;}
-    html=buildPositionReportHTML(clientId,pendingTenencias);
+    if(previousTenenciasSnapshot&&(!pendingMovimientosReport||!pendingMovimientosReport.length)){toast('Subí también el archivo de Movimientos — de ahí se detectan los cupones cobrados');return;}
+    html=buildPositionReportHTML(clientId,pendingTenencias,pendingMovimientosReport);
     label='Tenencias';
   }else if(mode==='rendimiento'||mode==='ingresos'||mode==='actividad'){
     const period=document.getElementById('rp-period').value;

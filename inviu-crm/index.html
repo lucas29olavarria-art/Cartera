@@ -1322,6 +1322,73 @@ function pctInvertido(pos,tcMep){
   const total=totalUSDinv+cashUSDeq;
   return total>0?(totalUSDinv/total*100):null;
 }
+// Resumen de lo que ya cobró el cliente (renta fija + dividendos), sacado íntegramente del archivo de
+// Movimientos — mismo criterio que "cupones cobrados" en Evolución: plata real que entró a la cuenta,
+// no depende de nada tildado a mano. Se omite por completo si no hay archivo de Movimientos o no trae nada.
+function buildIngresosRecibidosHTML(movRows){
+  if(!movRows||!movRows.length)return'';
+  const arsTickers=buildArsTickerSet(movRows);
+  const renta=movRows.filter(m=>(m.operacion==='Renta'||m.operacion==='Amortización')&&m.monto>0)
+    .map(m=>({...m,ticker:stripMovTickerSuffix(m.tickerRaw,arsTickers)}));
+  const dividendos=movRows.filter(m=>m.operacion==='Ingreso dividendo'&&m.monto>0)
+    .map(m=>({...m,ticker:stripMovTickerSuffix(m.tickerRaw,arsTickers)}));
+  if(!renta.length&&!dividendos.length)return'';
+
+  const fechas=[...renta,...dividendos].map(m=>m.fecha).sort();
+  const periodLabel=fechas.length?`${fmtDateLong(fechas[0])} – ${fmtDateLong(fechas[fechas.length-1])}`:'';
+
+  const monedas=[...new Set([...renta.map(f=>f.moneda),...dividendos.map(d=>d.moneda)])];
+  const blocksHtml=monedas.map(moneda=>{
+    const mf=renta.filter(f=>f.moneda===moneda);
+    const md=dividendos.filter(d=>d.moneda===moneda);
+    const totalRenta=mf.filter(f=>f.operacion==='Renta').reduce((s,f)=>s+f.monto,0);
+    const totalAmort=mf.filter(f=>f.operacion==='Amortización').reduce((s,f)=>s+f.monto,0);
+    const totalDiv=md.reduce((s,d)=>s+d.monto,0);
+    const totalGeneral=totalRenta+totalAmort+totalDiv;
+
+    const byTickerBonos={};
+    mf.forEach(f=>{
+      if(!byTickerBonos[f.ticker])byTickerBonos[f.ticker]={renta:0,amort:0};
+      byTickerBonos[f.ticker][f.operacion==='Amortización'?'amort':'renta']+=f.monto;
+    });
+    const bonosRows=Object.entries(byTickerBonos).map(([tk,d])=>{
+      const iss=issuerLineHTML(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}</td><td class="num">${fmt2(d.renta)}</td><td class="num">${fmt2(d.amort)}</td><td class="num">${fmt2(d.renta+d.amort)}</td></tr>`;
+    }).join('');
+
+    const byTickerDiv={};
+    md.forEach(d=>{
+      if(!byTickerDiv[d.ticker])byTickerDiv[d.ticker]={total:0,n:0};
+      byTickerDiv[d.ticker].total+=d.monto;
+      byTickerDiv[d.ticker].n++;
+    });
+    const divRows=Object.entries(byTickerDiv).sort((a,b)=>b[1].total-a[1].total).map(([tk,d])=>{
+      const iss=issuerLineHTML(tk);
+      return `<tr><td>${esc(tk)}${iss?`<div style="font-size:9.5px;color:#4b5563;font-weight:600;">${esc(iss)}</div>`:''}</td><td class="num">${d.n}</td><td class="num">${fmt2(d.total)}</td></tr>`;
+    }).join('');
+
+    return `
+    <div>
+      ${monedas.length>1?`<h2 class="rp-h2">En ${moneda}</h2>`:''}
+      <div class="rp-kpis">
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalGeneral)}</div><div class="rp-kpi-l">Total cobrado</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalRenta+totalAmort)}</div><div class="rp-kpi-l">Renta fija (cupones)</div></div>
+        <div class="rp-kpi"><div class="rp-kpi-v">${moneda} ${fmt2(totalDiv)}</div><div class="rp-kpi-l">Dividendos</div></div>
+      </div>
+      ${bonosRows?`<h3 class="rp-h3">Renta fija — por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Renta</th><th>Amortización</th><th>Total</th></tr></thead>
+      <tbody>${bonosRows}<tr class="rp-total-row"><td>Total</td><td class="num">${fmt2(totalRenta)}</td><td class="num">${fmt2(totalAmort)}</td><td class="num">${fmt2(totalRenta+totalAmort)}</td></tr></tbody></table>`:''}
+      ${divRows?`<h3 class="rp-h3">Dividendos — por instrumento</h3>
+      <table class="rp-table"><thead><tr><th>Instrumento</th><th>Pagos</th><th>Total</th></tr></thead>
+      <tbody>${divRows}<tr class="rp-total-row"><td>Total</td><td class="num">${md.length}</td><td class="num">${fmt2(totalDiv)}</td></tr></tbody></table>`:''}
+    </div>`;
+  }).join('');
+
+  return `
+  <h2 class="rp-h2">Ingresos Recibidos</h2>
+  <p class="rp-p">Cupones de renta fija y dividendos efectivamente cobrados${periodLabel?`, entre el ${periodLabel}`:''} — según tu archivo de Movimientos.</p>
+  ${blocksHtml}`;
+}
 function buildPositionReportHTML(clientId,tenencias,movRows){
   const client=DB.clients.find(c=>c.id===clientId);
   if(!client)return'';
@@ -1630,6 +1697,7 @@ function buildPositionReportHTML(clientId,tenencias,movRows){
       ${cambiosHtml}
       <h2 class="rp-h2">${esc(cobrosTitle)}</h2>
       ${cobrosBlocks||'<p class="rp-p">Sin cobros pendientes.</p>'}
+      ${buildIngresosRecibidosHTML(movRows)}
       ${objetivosHtml}
       <p class="rp-p" style="margin-top:16px;font-weight:700;">Lucas Olavarría${(DB.advisor&&DB.advisor.cnv)?` · Asesor Financiero CNV ${esc(DB.advisor.cnv)}`:' · Asesor Financiero'}</p>
     </div>

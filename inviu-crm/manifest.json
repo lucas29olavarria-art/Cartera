@@ -1,7 +1,7 @@
 {
-  "name": "Inviu CRM",
-  "short_name": "Inviu CRM",
-  "description": "Calendario de cobros, clientes y reportes para Inviu",
+  "name": "CRM Lucas Olavarria",
+  "short_name": "CRM Olavarria",
+  "description": "Calendario de cobros, clientes y reportes",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

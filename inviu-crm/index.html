@@ -3,18 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no">
-<title>Inviu CRM · Lucas Olavarria</title>
+<title>CRM Lucas Olavarria</title>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
-<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>I</text></svg>">
+<link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>L</text></svg>">
 <link rel="manifest" href="manifest.json">
 <link rel="apple-touch-icon" href="icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<meta name="apple-mobile-web-app-title" content="Inviu CRM">
+<meta name="apple-mobile-web-app-title" content="CRM Lucas Olavarria">
 <meta name="mobile-web-app-capable" content="yes">
 <meta name="theme-color" content="#07080b">
 <style>
@@ -229,7 +229,7 @@ body.previewing-report #report-print{
 
 <div id="login" class="hidden">
   <div class="lk-box" style="width:300px;">
-    <div class="lk-title">Inviu CRM</div>
+    <div class="lk-title">CRM Lucas Olavarria</div>
     <div class="lk-sub">Iniciá sesión para ver tus datos</div>
     <label class="flbl" style="text-align:left;">Email</label>
     <input class="fi" type="email" id="lg-email" autocomplete="username" style="margin-bottom:10px;">
@@ -242,7 +242,7 @@ body.previewing-report #report-print{
 
 <div id="lock" class="hidden">
   <div class="lk-box">
-    <div class="lk-title">Inviu CRM</div>
+    <div class="lk-title">CRM Lucas Olavarria</div>
     <div class="lk-sub" id="lk-sub">Ingresá tu PIN</div>
     <div class="lk-dots" id="lk-dots"></div>
     <div class="lk-grid" id="lk-grid"></div>
@@ -254,7 +254,7 @@ body.previewing-report #report-print{
   <div class="topbar">
     <div class="tlogo">
       <svg width="20" height="20" viewBox="0 0 42 40" fill="none"><circle cx="21" cy="20" r="12.5" stroke="#5b9cf6" stroke-width="2.2"/><line x1="12" y1="6" x2="12" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/><line x1="12" y1="34" x2="25" y2="34" stroke="#5b9cf6" stroke-width="2.2" stroke-linecap="round"/></svg>
-      INVIU CRM
+      CRM LUCAS OLAVARRIA
     </div>
     <button class="ib" onclick="openSettings()">⚙ Ajustes</button>
   </div>
@@ -265,7 +265,7 @@ body.previewing-report #report-print{
     <button class="tb" id="tb-stat" onclick="nav('stat')">📊 Estadísticas</button>
   </div>
   <div class="content" id="view"></div>
-  <div class="foot-note">inviu crm · sincronizado en la nube · disponible en cualquier dispositivo</div>
+  <div class="foot-note">crm lucas olavarria · sincronizado en la nube · disponible en cualquier dispositivo</div>
 </div>
 
 <div id="toast"></div>
@@ -951,7 +951,7 @@ function openReportOptions(clientId){
       <option value="actividad">Resumen de actividad (compras, ventas, depósitos)</option>
     </select>
     <div id="rp-posicion-fields">
-      <label class="flbl">Archivo de Tenencias de Inviu (.xlsx)</label>
+      <label class="flbl">Archivo de Tenencias (.xlsx)</label>
       <input type="file" id="rp-tenencias-file" accept=".xlsx,.xls" style="display:none;" onchange="handleTenenciasFile(this.files[0])">
       <div class="upl" onclick="document.getElementById('rp-tenencias-file').click()">📄 Tocá para elegir el archivo</div>
       <div id="rp-tenencias-status" style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Se guarda un historial de esta posición para poder mostrar qué cambió entre reportes.</div>
@@ -976,7 +976,7 @@ function openReportOptions(clientId){
       </div>
     </div>
     <div id="rp-movimientos-fields" class="hidden">
-      <label class="flbl">Archivo de Movimientos de Inviu (.xlsx o comprobante .pdf)</label>
+      <label class="flbl">Archivo de Movimientos (.xlsx o comprobante .pdf)</label>
       <input type="file" id="rp-movimientos-report-file" accept=".xlsx,.xls,.pdf" style="display:none;" onchange="handleMovimientosReportFile(this.files[0])">
       <div class="upl" onclick="document.getElementById('rp-movimientos-report-file').click()">📄 Tocá para elegir el archivo</div>
       <div id="rp-movimientos-report-status" style="font-size:10px;color:var(--muted);margin-top:8px;margin-bottom:14px;line-height:1.5;">Para incluir dividendos de acciones/CEDEARs además de los cupones de bonos.</div>
@@ -2437,10 +2437,10 @@ function renderImportar(){
   <div class="card">
     <label class="flbl">Cliente</label>
     <select class="fi" id="imp-cli" style="margin-bottom:12px;">${DB.clients.map(c=>`<option value="${c.id}">${esc(c.name)}</option>`).join('')}</select>
-    <label class="flbl">Archivo de flujo de cobros (.xlsx o .csv de Inviu)</label>
+    <label class="flbl">Archivo de flujo de cobros (.xlsx o .csv)</label>
     <input type="file" id="imp-file" accept=".xlsx,.xls,.csv" style="display:none;" onchange="handleImportFile(this.files[0])">
     <div class="upl" onclick="document.getElementById('imp-file').click()">📄 Tocá para elegir el archivo</div>
-    <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Formato esperado: Instrumento · Tipo de pago · Moneda · Fecha · Monto (el mismo export de "Flujo de Cobros" de Inviu).</div>
+    <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.5;">Formato esperado: Instrumento · Tipo de pago · Moneda · Fecha · Monto (el mismo export de "Flujo de Cobros").</div>
   </div>
   <div id="imp-preview"></div>
   `}
@@ -2777,7 +2777,7 @@ function exportBackup(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
   const a=document.createElement('a');
   a.href=URL.createObjectURL(blob);
-  a.download=`inviu-crm-backup-${todayStr()}.json`;
+  a.download=`crm-lucas-olavarria-backup-${todayStr()}.json`;
   a.click();
   toast('✓ Backup descargado');
 }

@@ -325,8 +325,15 @@ input[type=range]{flex:1;accent-color:var(--blue);}
   .krow{grid-template-columns:1fr;}
   .fg{grid-template-columns:1fr;}
   .an-sum{grid-template-columns:1fr;}
-  .content{padding:12px 10px;}
+  .content{padding:10px 8px;}
   .kv{font-size:15px;}
+  .topbar{padding:8px 10px;}
+  .tlogo{display:none;}
+  .tabbar{padding:0 4px;}
+  .tb{padding:8px 10px 9px;font-size:10px;}
+  .ihdr-av{width:30px;height:30px;font-size:14px;}
+  .ihdr-name{font-size:14px;}
+  .ihdr-sub{font-size:10px;}
 }
 @media(max-height:500px) and (orientation:landscape){
   .topbar{padding:6px 16px;}
@@ -1643,7 +1650,11 @@ async function refreshPrices(){
       const chg=+r.changePercent.toFixed(2);
       // Apply % change to THIS row's own valor (not the merged sum)
       const oldValor=p.valor;
-      const newValor=p.valor>0?+(p.valor*(1+chg/100)).toFixed(2):p.valor;
+      // Use last_price as reference to avoid compounding on repeated clicks:
+      // newValor = oldValor * (currentPrice / lastPrice) — ratio-agnostic
+      const newValor=p.valor>0
+        ?(p.last_price>0&&r.price>0?+(p.valor*r.price/p.last_price).toFixed(2):+(p.valor*(1+chg/100)).toFixed(2))
+        :p.valor;
       await sb.from('positions_rv').update({
         valor:newValor,
         last_price:r.price,
@@ -2613,7 +2624,8 @@ function renderInv(inv){
       <button class="ib" onclick="editNotes('${inv.id}')">📝 Notas</button>
       <button class="ib" onclick="resetPPC('${inv.id}')" style="background:rgba(245,166,35,.1);border-color:rgba(245,166,35,.3);color:var(--amber);" title="Iguala el costo base (PPC) al valor actual de cada posición RV">🔄 Reset PPC</button>
       <button class="ib" onclick="confirmarEliminarPortfolio('${inv.id}')" style="background:rgba(240,108,108,.1);border-color:rgba(240,108,108,.3);color:var(--red);">🗑 Portfolio</button>`
-      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>`}
+      :`<button class="ib" onclick="openImport()" style="background:rgba(91,156,246,.12);border-color:rgba(91,156,246,.35);color:var(--blue);">⬆ Importar</button>
+      ${CU.olas_enabled?`<button class="ib" onclick="openImport();setTimeout(()=>impTab('flujo'),50)" style="background:rgba(245,166,35,.12);border-color:rgba(245,166,35,.35);color:var(--amber);">🌊 Agregar Ola</button>`:''}`}
     </div>
   </div>`;
 
@@ -2665,23 +2677,23 @@ function rClienteSimple(inv,liq,rend,tot,rendPct){
     </div>`).join('');
 
   return `
-  <div style="max-width:480px;margin:0 auto;padding:8px 0;">
+  <div style="max-width:480px;margin:0 auto;padding:4px 0;">
     <!-- HERO -->
-    <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.12);border-radius:22px;padding:32px 24px 26px;margin-bottom:12px;position:relative;overflow:hidden;">
+    <div style="background:linear-gradient(160deg,#0d1422 0%,#09111c 55%,#070a12 100%);border:1px solid rgba(91,156,246,.12);border-radius:18px;padding:22px 18px 18px;margin-bottom:10px;position:relative;overflow:hidden;">
       <div style="position:absolute;top:-80px;right:-60px;width:240px;height:240px;background:radial-gradient(circle,rgba(91,156,246,.07),transparent 65%);pointer-events:none;"></div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:16px;">${inv.name}</div>
-      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:8px;">Patrimonio total</div>
-      <div style="font-family:var(--mono);font-size:46px;font-weight:700;color:#fff;letter-spacing:-2px;line-height:1;margin-bottom:22px;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:16px;">
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
-          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Rendimiento</div>
-          <div style="font-family:var(--mono);font-size:24px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
-          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.22em;text-transform:uppercase;color:rgba(255,255,255,.25);margin-bottom:10px;">${inv.name}</div>
+      <div style="font-family:var(--mono);font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.28);margin-bottom:6px;">Patrimonio total</div>
+      <div style="font-family:var(--mono);font-size:clamp(28px,8vw,40px);font-weight:700;color:#fff;letter-spacing:-1px;line-height:1;margin-bottom:16px;" data-countup="${tot}" data-prefix="u$s ">u$s ${fmt(tot)}</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;margin-bottom:12px;">
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:10px 12px;">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:4px;font-family:var(--mono);">Rendimiento</div>
+          <div style="font-family:var(--mono);font-size:clamp(18px,5vw,22px);font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}${rendPct}%</div>
+          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:2px;">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
         </div>
-        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:14px;padding:14px 16px;">
-          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:6px;font-family:var(--mono);">Ganancia</div>
-          <div style="font-family:var(--mono);font-size:20px;font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
-          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:3px;">sobre capital invertido</div>
+        <div style="background:rgba(255,255,255,.04);border:1px solid rgba(255,255,255,.07);border-radius:12px;padding:10px 12px;">
+          <div style="font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:rgba(255,255,255,.32);margin-bottom:4px;font-family:var(--mono);">Ganancia</div>
+          <div style="font-family:var(--mono);font-size:clamp(16px,4.5vw,20px);font-weight:700;color:${rend>=0?'#2dd4a0':'#f06c6c'};">${rend>=0?'+':''}u$s ${fmt(Math.abs(rend))}</div>
+          <div style="font-family:var(--mono);font-size:10px;color:rgba(255,255,255,.28);margin-top:2px;">sobre capital invertido</div>
         </div>
       </div>
       ${staleInfo?`<div style="font-family:var(--mono);font-size:9px;color:${staleDays>=7?'rgba(245,166,35,.65)':'rgba(255,255,255,.2)'};">Actualizado: ${staleInfo}</div>`:''}
@@ -8473,6 +8485,17 @@ async function delGasto(invId,gastoId){
     }
     // Token invalid → fall through to PIN screen
   }
+  // ?view=lucas → auto-load Lucas Olavarria portfolio without PIN
+  const viewParam=new URLSearchParams(location.search).get('view');
+  if(viewParam==='lucas'){
+    localStorage.removeItem('cu');
+    const{data}=await sb.from('investors').select('*').ilike('name','%Lucas%Olavarria%').maybeSingle();
+    if(data&&!data.is_admin){CU=data;await showApp();return;}
+    // fallback: try first non-admin investor named Lucas
+    const{data:d2}=await sb.from('investors').select('*').ilike('name','Lucas%').eq('is_admin',false).maybeSingle();
+    if(d2){CU=d2;await showApp();return;}
+  }
+
   const saved=localStorage.getItem('cu');
   if(saved){
     CU=JSON.parse(saved);

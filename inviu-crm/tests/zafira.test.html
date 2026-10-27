@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Tests — Zafira</title>
+<style>
+body{font-family:monospace;background:#0b0f16;color:#eee;padding:20px;}
+.ok{color:#5fc48a;} .fail{color:#f08a5d;font-weight:bold;}
+#summary{font-size:18px;margin-top:16px;padding-top:12px;border-top:1px solid #333;}
+</style>
+</head>
+<body>
+<h1>Zafira — tests del motor de reglas</h1>
+<div id="out"></div>
+<div id="summary"></div>
+<script src="../js/zafira.js"></script>
+<script>
+let pass=0, fail=0;
+const out=document.getElementById('out');
+function assert(desc, cond){
+  const line=document.createElement('div');
+  line.className=cond?'ok':'fail';
+  line.textContent=(cond?'✓ ':'✗ ')+desc;
+  out.appendChild(line);
+  if(cond)pass++; else fail++;
+}
+function assertEq(desc, actual, expected){
+  assert(`${desc} (got ${JSON.stringify(actual)}, expected ${JSON.stringify(expected)})`, JSON.stringify(actual)===JSON.stringify(expected));
+}
+
+const HOY='2026-10-27';
+const CFG={dias_sin_contacto:45,dias_sin_deposito:90,dias_cobro_cerca:7,dias_reinversion:3,dias_cliente_nuevo:30,
+  templates:{sin_contacto:'Hola {nombre}, tanto tiempo',sin_deposito:'Hola {nombre}',cobro_cerca:'{nombre} cobra {ticker} el {fecha}',
+    reinversion:'{nombre} cobró {monto}',cumpleanos:'Feliz cumple {nombre}',cliente_nuevo:'Bienvenido {nombre}'}};
+
+// 1) Sin contacto hace 50 días (> 45) -> alerta alta
+{
+  const clients=[{id:'c1',name:'Martín Gómez',createdAt:'2020-01-01'}];
+  const contactos=[{clientId:'c1',fecha:'2026-09-07'}]; // 50 días antes de HOY
+  const alerts=computeZafira(clients,[],contactos,CFG,HOY);
+  const a=alerts.find(x=>x.tipo==='sin_contacto');
+  assert('Cliente sin contacto hace 50 días genera alerta sin_contacto', !!a);
+  assertEq('sin_contacto es prioridad alta', a&&a.prioridad, 'alta');
+  assert('sugerenciaMensaje usa el primer nombre', a&&a.sugerenciaMensaje==='Hola Martín, tanto tiempo');
+}
+
+// 2) Contacto reciente -> no genera sin_contacto
+{
+  const clients=[{id:'c2',name:'Laura Pérez',createdAt:'2020-01-01'}];
+  const contactos=[{clientId:'c2',fecha:'2026-10-22'}]; // 5 días antes
+  const alerts=computeZafira(clients,[],contactos,CFG,HOY);
+  assert('Contacto reciente no genera sin_contacto', !alerts.find(x=>x.tipo==='sin_contacto'));
+}
+
+// 3) Sin depósito hace 100 días (> 90) -> alerta alta
+{
+  const clients=[{id:'c3',name:'Diego Ruiz',createdAt:'2020-01-01',ultimoDeposito:'2026-07-19'}];
+  const alerts=computeZafira(clients,[],[{clientId:'c3',fecha:'2026-10-20'}],CFG,HOY);
+  const a=alerts.find(x=>x.tipo==='sin_deposito');
+  assertEq('Sin depósito hace 100 días -> alerta alta', a&&a.prioridad, 'alta');
+}
+
+// 4) Cobro pendiente en 3 días (dentro de la ventana de 7) -> cobro_cerca
+{
+  const clients=[{id:'c4',name:'Sofía Martín',createdAt:'2020-01-01'}];
+  const flows=[{clientId:'c4',ticker:'AL30',fecha:'2026-10-30',cobrado:false}];
+  const alerts=computeZafira(clients,flows,[{clientId:'c4',fecha:'2026-10-20'}],CFG,HOY);
+  const a=alerts.find(x=>x.tipo==='cobro_cerca');
+  assert('Cobro en 3 días genera cobro_cerca', !!a);
+  assertEq('mensaje de cobro_cerca incluye ticker y fecha', a&&a.sugerenciaMensaje, 'Sofía cobra AL30 el 2026-10-30');
+}
+
+// 5) Cobro pendiente en 20 días (fuera de la ventana) -> no genera cobro_cerca
+{
+  const clients=[{id:'c5',name:'Pablo Vera',createdAt:'2020-01-01'}];
+  const flows=[{clientId:'c5',ticker:'GD30',fecha:'2026-11-16',cobrado:false}];
+  const alerts=computeZafira(clients,flows,[{clientId:'c5',fecha:'2026-10-20'}],CFG,HOY);
+  assert('Cobro en 20 días NO genera cobro_cerca', !alerts.find(x=>x.tipo==='cobro_cerca'));
+}
+
+// 6) Cobrado hace 1 día -> reinversion
+{
+  const clients=[{id:'c6',name:'Ana López',createdAt:'2020-01-01'}];
+  const flows=[{clientId:'c6',ticker:'YPFD',fecha:'2026-10-26',cobrado:true,monto:500}];
+  const alerts=computeZafira(clients,flows,[{clientId:'c6',fecha:'2026-10-20'}],CFG,HOY);
+  assert('Cobrado hace 1 día genera reinversion', !!alerts.find(x=>x.tipo==='reinversion'));
+}
+
+// 7) Cumpleaños hoy
+{
+  const clients=[{id:'c7',name:'Marta Díaz',createdAt:'2020-01-01',birthday:'1980-10-27'}];
+  const alerts=computeZafira(clients,[],[{clientId:'c7',fecha:'2026-10-20'}],CFG,HOY);
+  const a=alerts.find(x=>x.tipo==='cumpleanos');
+  assertEq('Cumpleaños hoy -> motivo correcto', a&&a.motivo, 'Cumple hoy');
+  assertEq('cumpleanos es prioridad baja', a&&a.prioridad, 'baja');
+}
+
+// 8) Cumpleaños mañana
+{
+  const clients=[{id:'c8',name:'Juan Soto',createdAt:'2020-01-01',birthday:'1975-10-28'}];
+  const alerts=computeZafira(clients,[],[{clientId:'c8',fecha:'2026-10-20'}],CFG,HOY);
+  const a=alerts.find(x=>x.tipo==='cumpleanos');
+  assertEq('Cumpleaños mañana -> motivo correcto', a&&a.motivo, 'Cumple mañana');
+}
+
+// 9) Cliente nuevo (alta hace 25 días, dentro de los 30) contactado una
+// sola vez al entrar y nada más -> 25 días sin contacto (>14) -> cliente_nuevo
+{
+  const clients=[{id:'c9',name:'Noel Castro',createdAt:'2026-10-02'}];
+  const contactos=[{clientId:'c9',fecha:'2026-10-02'}];
+  const alerts=computeZafira(clients,[],contactos,CFG,HOY);
+  assert('Cliente nuevo sin seguimiento genera cliente_nuevo', !!alerts.find(x=>x.tipo==='cliente_nuevo'));
+  assert('Cliente nuevo NO genera sin_contacto', !alerts.find(x=>x.tipo==='sin_contacto'));
+}
+
+// 10) Orden por prioridad: alta antes que media antes que baja
+{
+  const clients=[
+    {id:'ca',name:'A',createdAt:'2020-01-01',birthday:'1980-10-27'}, // baja (cumple hoy)
+    {id:'cb',name:'B',createdAt:'2020-01-01'}, // alta (sin contacto)
+  ];
+  const contactos=[{clientId:'ca',fecha:'2026-10-20'},{clientId:'cb',fecha:'2026-09-01'}];
+  const flows=[{clientId:'ca',ticker:'X',fecha:'2026-10-29',cobrado:false}]; // media (cobro_cerca)
+  const alerts=computeZafira(clients,flows,contactos,CFG,HOY);
+  const prioridades=alerts.map(a=>a.prioridad);
+  const ok=prioridades.every((p,i)=>i===0||['alta','media','baja'].indexOf(p)>=['alta','media','baja'].indexOf(prioridades[i-1]));
+  assert('Las alertas quedan ordenadas alta → media → baja', ok);
+}
+
+// 11) fillTemplate reemplaza variables y deja intacto lo que no matchea
+{
+  assertEq('fillTemplate reemplaza variables conocidas', fillTemplate('Hola {nombre}, cobrás {ticker}',{nombre:'Lu',ticker:'AL30'}), 'Hola Lu, cobrás AL30');
+  assertEq('fillTemplate deja el placeholder si falta la variable', fillTemplate('Hola {nombre}',{}), 'Hola {nombre}');
+}
+
+document.getElementById('summary').innerHTML=`<b>${pass} OK</b> · <span style="color:${fail?'#f08a5d':'#5fc48a'}">${fail} fallaron</span>`;
+</script>
+</body>
+</html>

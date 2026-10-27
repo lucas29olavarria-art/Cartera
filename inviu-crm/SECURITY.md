@@ -39,15 +39,13 @@ Detalle completo en `migrations/001_findings.md`.
 2. [x] **"Allow new users to sign up" desactivado.** Confirmado por captura.
    Segunda capa además de `shouldCreateUser:false` en el frontend.
 
-3. [~] **Template de email con `{{ .Token }}` — bloqueado, pero no es grave.**
-   El dashboard no deja editar el `Source` del template ("Magic link or OTP")
-   sin configurar SMTP propio (limitación del mail gratuito de Supabase, no
-   algo que dependa de nosotros). Como el template ya se llama "Magic link
-   **or OTP**", lo más probable es que el default de Supabase ya mande el
-   código solo. **Pendiente de confirmar probando el login real una vez que
-   el código OTP esté en `main`** (hoy sigue solo en la rama de feature). Si
-   al probarlo el mail no trae el código, ahí se configura SMTP propio
-   (gratis con Gmail o un proveedor tipo Resend) — se resuelve en ese momento.
+3. [x] **SMTP propio configurado (Gmail) + template con `{{ .Token }}`.**
+   El default de Supabase sin SMTP propio solo mandaba el link (no el
+   código), y el link daba 404. Se configuró SMTP con Gmail (contraseña de
+   aplicación) y se editó el `Source` de "Magic link or OTP" para incluir
+   `{{ .Token }}`. **Ojo:** el proyecto genera códigos de **8 dígitos**, no 6
+   — el frontend tenía `maxlength="6"` y cortaba el código, arreglado en el
+   commit "el código OTP puede tener más de 6 dígitos".
 
 4. [x] **Site URL / Redirect URLs corregidos.** Estaba en el default de
    desarrollo `http://localhost:3000` y sin ninguna Redirect URL cargada —
@@ -66,10 +64,14 @@ Detalle completo en `migrations/001_findings.md`.
      `auth.uid()` y `NOT NULL` correctos). Repetir desde otra red si se quiere
      la contraprueba completa.
 
-## Importante: falta mergear a `main`
+## Estado final — PASO 0 cerrado (27/oct/2026)
 
-Todo el trabajo de este checklist (login OTP, `onAuthStateChange`, etc.) está
-commiteado y pusheado en la rama `claude/inviu-crm-github-push-hk90co`, **no
-en `main`**. GitHub Pages publica desde `main`, así que el CRM que está online
-hoy todavía usa el login viejo (contraseña). Mergear es un paso aparte,
-pendiente de decisión explícita (no se pushea a `main` sin mostrar el diff).
+Mergeado a `main` y probado de punta a punta en producción: login con código
+OTP real, recibido por mail, verificado contra Supabase, entrada al CRM
+confirmada. La anon key sola (sin sesión) confirmado que no devuelve datos
+en ninguna de las 6 tablas. No quedan pendientes de este checklist.
+
+Nota de hábito: la contraseña vieja de `lucas29olavarria@gmail.com` en
+Supabase (usada una vez como workaround de emergencia durante esta migración)
+quedó visible en el historial de este chat — conviene no reusarla en otro
+lado si se reusaba antes.

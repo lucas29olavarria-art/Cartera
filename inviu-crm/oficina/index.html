@@ -38,7 +38,7 @@ body{background:var(--night);color:var(--ink);font-family:var(--body);overflow:h
 canvas{display:block;width:100%;height:100%;touch-action:manipulation;image-rendering:pixelated}
 .hint{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-family:var(--display);font-size:13px;
   background:rgba(0,0,0,.45);color:var(--ink);padding:6px 12px;border-radius:4px;pointer-events:none;white-space:nowrap}
-.dock{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--panel);border-top:2px solid var(--line);
+.dock{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;background:var(--panel);border-top:2px solid var(--line);
   padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 .dock button{position:relative;font:inherit;color:var(--ink);background:var(--panel-2);border:2px solid var(--line);border-radius:6px;
   padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:0}
@@ -102,8 +102,8 @@ sb.auth.onAuthStateChange((event,session)=>{
 
 <div class="app">
   <header class="top">
-    <div class="brand">Lucas Olavarria<small>Tocá el piso para caminar · tocá a alguien para hablar</small></div>
-    <div class="tools"><a class="zoom" href="../index.html" style="text-decoration:none;">↩ Volver al CRM</a><button class="zoom" id="zoom" aria-pressed="false">+ Acercar</button><div class="clock" id="clock">--:--</div></div>
+    <div class="brand">Lucas Olavarria<small>Los accesos de abajo abren directo · caminar es opcional</small></div>
+    <div class="tools"><button class="zoom" id="hoy-btn" onclick="openHoy()">📋 Hoy</button><a class="zoom" href="../index.html" style="text-decoration:none;">↩ Volver al CRM</a><button class="zoom" id="zoom" aria-pressed="false">+ Acercar</button><div class="clock" id="clock">--:--</div></div>
   </header>
   <main class="stage" id="stage">
     <canvas id="cv" aria-label="Oficina virtual isométrica con cuatro agentes"></canvas>
@@ -198,7 +198,9 @@ const AGENTS = [
 ];
 
 // Mi despacho: no es un personaje, es la puerta de entrada al CRM real.
-const DESPACHO={gx:7,gy:4,desk:[7,4],despacho:true,name:"Mi despacho",role:"Entrar al CRM"};
+// Oficina privada vidriada junto a la ventana (x8-9,y0-1), para que se note
+// a simple vista como el lugar protagonista, no un escritorio más.
+const DESPACHO={gx:9,gy:0,desk:[9,0],despacho:true,name:"Mi despacho",role:"Entrar al CRM"};
 
 // ---------- Mundo isométrico ----------
 const W=12,H=12,TW=64,TH=32,WALLH=136,M=20;
@@ -213,6 +215,10 @@ function blockEdge(a,b,c,d){edgeBlock.add(ek(a,b,c,d));edgeBlock.add(ek(c,d,a,b)
 // sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10)
 for(let y=6;y<H;y++) if(y!==10) blockEdge(7,y,8,y);
 for(let x=8;x<W;x++) blockEdge(x,5,x,6);
+// despacho vidriado: x 8..9, y 0..1 (puerta en el lateral oeste, y=1)
+blockEdge(7,0,8,0);
+blockEdge(9,0,10,0);blockEdge(9,1,10,1);
+blockEdge(8,1,8,2);blockEdge(9,1,9,2);
 
 const FURN=[];
 const add=(type,gx,gy,extra={})=>{FURN.push({type,gx,gy,...extra});blocked.add(key(gx,gy));};
@@ -221,11 +227,15 @@ add("shelf",1,0);blocked.add(key(2,0));add("plant",0,0);add("cooler",5,0);add("p
 add("recep",1,8,{end:"l"});add("recep",2,8,{mon:true,logo:true});add("recep",3,8,{end:"r",phone:true});
 add("desk",4,3,{mon:true});add("desk",5,3,{plant:true});add("desk",6,3,{laptop:true});add("desk",10,3,{mon:true,laptop:true});
 add("desk",4,4,{laptop:true});add("desk",5,4,{mon:true});add("desk",6,4,{});
-add("desk",7,4,{mon:true,plant:true});
+add("desk",9,0,{mon:true,plant:true});
 add("sofa",4,9);add("sofa",5,9);add("ctable",4,10);add("ctable",5,10);add("plant",3,11);add("lamp",6,9);
 add("mtable",9,8,{laptop:true});add("mtable",10,8,{mug:true});add("mtable",9,9,{mug:true});add("mtable",10,9,{laptop:true});
 add("fooz",7,11);add("coffee",11,4);add("plant",11,11);add("plant",7,6);
 const GLASS=[];for(let y=6;y<H;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<W;x++)GLASS.push({ax:"y",x,y:6});
+// despacho vidriado
+GLASS.push({ax:"x",x:8,y:0});GLASS.push({ax:"x",x:8,y:1,door:true});
+GLASS.push({ax:"x",x:10,y:0});GLASS.push({ax:"x",x:10,y:1});
+GLASS.push({ax:"y",x:8,y:2});GLASS.push({ax:"y",x:9,y:2});
 
 const player={x:6.5,y:7.5,path:[],dir:1,target:null};
 let marker=null;
@@ -465,8 +475,11 @@ function goToAgent(a){
   closeSheet();walkTo(goals,a);
 }
 function goToDespacho(){
-  const n=([x,y])=>[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
-  const goals=n(DESPACHO.desk).filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H&&!blocked.has(key(x,y)));
+  // El despacho es un cuarto cerrado (puerta en el lateral oeste) — a
+  // diferencia de un escritorio en planta abierta, no cualquier tile
+  // vecino sirve de meta: solo el piso de adentro, para que camine por
+  // la puerta y no "llegue" parado del otro lado del vidrio.
+  const goals=[[8,0],[9,1]].filter(([x,y])=>!blocked.has(key(x,y)));
   closeSheet();walkTo(goals,DESPACHO);
 }
 
@@ -486,6 +499,19 @@ document.getElementById("zoom").onclick=e=>{zoom=!zoom;e.currentTarget.setAttrib
 let last=performance.now();
 const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
 const ME={shirt:"#20324d",stripes:true,hair:"#3b2416",skin:"#e2b48c",hairStyle:"cap",pants:"#3a3f4a"};
+// Alternativa A de dirección de arte: luz ambiental sobre lo existente,
+// sin tocar la geometría de ningún mueble — viñeta + resplandor cálido
+// cerca del ventanal, para dar profundidad sin rehacer nada.
+function ambientLight(){
+  const cx=WORLD_W/2, cy=WORLD_H/2-20;
+  const vg=ctx.createRadialGradient(cx,cy,Math.min(WORLD_W,WORLD_H)*.22,cx,cy,Math.max(WORLD_W,WORLD_H)*.62);
+  vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(5,8,14,.4)");
+  ctx.fillStyle=vg;ctx.fillRect(0,0,WORLD_W,WORLD_H);
+  const [wx,wy]=iso(9,0);
+  const gl=ctx.createRadialGradient(wx,wy-110,10,wx,wy-110,260);
+  gl.addColorStop(0,"rgba(255,214,140,.16)");gl.addColorStop(1,"rgba(255,214,140,0)");
+  ctx.fillStyle=gl;ctx.fillRect(0,0,WORLD_W,WORLD_H);
+}
 function frame(t){
   const dt=Math.min(50,t-last);last=t;
   if(player.path.length){const [nx,ny]=player.path[0];const tx=nx+.5,ty=ny+.5;const dx=tx-player.x,dy=ty-player.y;const d=Math.hypot(dx,dy);
@@ -504,6 +530,7 @@ function frame(t){
   const walking=player.path.length>0;
   items.push({d:player.x+player.y-0.5+0.01,draw:()=>{const [fx,fy]=iso(player.x,player.y);drawPerson(fx,fy,ME,t,walking,player.dir<0);}});
   items.sort((a,b)=>a.d-b.d).forEach(i=>i.draw());
+  ambientLight();
   AGENTS.forEach(a=>{const [fx,fy]=iso(a.gx+.5,a.gy+.5);nameTag(fx,fy-64,a.name+" · "+a.role);bubble(fx,fy-76,a.status(),t+a.gx*300);});
   {const [fx,fy]=iso(DESPACHO.desk[0]+.5,DESPACHO.desk[1]+.5);nameTag(fx,fy-46,"Mi despacho → CRM","#5fc48a");}
   {const [fx,fy]=iso(player.x,player.y);nameTag(fx,fy-62,"Capocha","#f2c14e");}
@@ -563,20 +590,37 @@ function render(a,tab){
   body.innerHTML=VIEWS[a.key](tab);bindCopies();
   body.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>render(a,b.dataset.tab));
   body.querySelectorAll("[data-call]").forEach(b=>b.onclick=()=>{const c=CLIENTES.find(c=>c.id==b.dataset.call);c.done=!c.done;
-    if(c.done)toast("Anotado ✓");render(a);renderDock();});
+    if(c.done)toast("Anotado ✓");render(a);renderDock();renderHoyBtn();});
   paintAvatar(a);
 }
 function openAgent(a){current=a;render(a);sheet.hidden=false;body.scrollTop=0;}
+// "Hoy": acceso directo en la barra superior a lo mismo que ve Zafira — no
+// es un agente nuevo, es un atajo al mismo dato (a quién contactar hoy).
+function openHoy(){
+  const zafira=AGENTS.find(a=>a.key==="secre");
+  const hoy={...zafira,name:"Hoy",role:"Para contactar hoy"};
+  closeSheet();current=hoy;render(hoy);sheet.hidden=false;body.scrollTop=0;
+}
+function renderHoyBtn(){
+  const n=CLIENTES.filter(c=>!c.done).length;
+  document.getElementById("hoy-btn").textContent=n?`📋 Hoy (${n})`:"📋 Hoy";
+}
 function paintAvatar(a){const c=document.getElementById("av"),x=c.getContext("2d");const r=window.devicePixelRatio||1;
   c.width=38*r;c.height=38*r;x.setTransform(r,0,0,r,0,0);
   const saved=ctx;ctx=x;try{drawPerson(19,52,a,0,false,false);}finally{ctx=saved;}}
 
 // ---------- Dock ----------
+// Acceso directo: un toque abre el panel (o entra al CRM) al instante, sin
+// esperar a que el avatar camine. Caminar en la escena sigue existiendo
+// como interacción inmersiva aparte (goToAgent/goToDespacho).
 const dock=document.getElementById("dock");
-function renderDock(){dock.innerHTML=AGENTS.map((a,i)=>{const b=a.badge();return `<button data-i="${i}" aria-label="Ir con ${a.name}, ${a.role}">
-  ${b?`<span class="badge">${b}</span>`:""}<b>${a.name}</b><span>${a.role}</span></button>`;}).join("");
-  dock.querySelectorAll("button").forEach(b=>b.onclick=()=>goToAgent(AGENTS[+b.dataset.i]));}
+const DOCK_ITEMS=[...AGENTS,DESPACHO];
+function renderDock(){dock.innerHTML=DOCK_ITEMS.map((a,i)=>{const b=a.badge?a.badge():0;
+  return `<button data-i="${i}" aria-label="${a.despacho?'Entrar al CRM':'Abrir '+a.name}">
+  ${b?`<span class="badge">${b}</span>`:""}<b>${a.despacho?'🏢 ':''}${a.name}</b></button>`;}).join("");
+  dock.querySelectorAll("button").forEach(b=>b.onclick=()=>arriveAt(DOCK_ITEMS[+b.dataset.i]));}
 renderDock();
+renderHoyBtn();
 
 function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});}
 tick();setInterval(tick,15000);

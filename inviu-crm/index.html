@@ -7,6 +7,7 @@
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
+<script src="js/zafira.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>L</text></svg>">
@@ -268,6 +269,7 @@ body.previewing-report #report-print{
     </div>
   </div>
   <div class="tabbar">
+    <button class="tb" id="tb-hoy" onclick="nav('hoy')">📋 Hoy</button>
     <button class="tb" id="tb-cal" onclick="nav('cal')">📅 Calendario</button>
     <button class="tb" id="tb-cli" onclick="nav('cli')">👥 Clientes</button>
     <button class="tb" id="tb-imp" onclick="nav('imp')">⬆ Importar</button>
@@ -292,28 +294,43 @@ const SUPABASE_ANON_KEY='sb_publishable_DBhPfwrGlvI-41Cmo2NfKQ_WYdoGnT5';
 const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true}});
 const PIN_KEY='inviuCRM:pin:v1';
 function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
-let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''},lastReporte:{}};
+const ZAFIRA_CONFIG_DEFAULT={dias_sin_contacto:45,dias_sin_deposito:90,dias_cobro_cerca:7,dias_reinversion:3,dias_cliente_nuevo:30};
+const ZAFIRA_TEMPLATES_DEFAULT={
+  sin_contacto:'Hola {nombre}! Hace un tiempo que no hablamos, ¿cómo venís? Te escribo para ver cómo seguís con tus inversiones.',
+  sin_deposito:'Hola {nombre}! Vi que hace un tiempo no sumás a la cuenta. ¿Charlamos 10 minutos para ver si hay algo para optimizar?',
+  cobro_cerca:'Hola {nombre}! Te aviso que el {fecha} cobrás {ticker}. Cualquier cosa que necesites, acá estoy.',
+  reinversion:'Hola {nombre}! Vi que te entró un cobro de {monto}. Si querés pensamos juntos dónde reinvertirlo para que no quede quieto.',
+  cumpleanos:'Feliz cumple {nombre}! Que lo pases muy bien 🎉',
+  cliente_nuevo:'Hola {nombre}! Bienvenido/a. Cualquier duda que tengas con la cuenta, escribime sin problema.',
+};
+let DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
 
-function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',patrimonioARS:r.patrimonio_ars!=null?+r.patrimonio_ars:null,patrimonioUSD:r.patrimonio_usd!=null?+r.patrimonio_usd:null,patrimonioFecha:r.patrimonio_fecha||null,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
+function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',birthday:r.birthday||null,ultimoDeposito:r.ultimo_deposito||null,patrimonioARS:r.patrimonio_ars!=null?+r.patrimonio_ars:null,patrimonioUSD:r.patrimonio_usd!=null?+r.patrimonio_usd:null,patrimonioFecha:r.patrimonio_fecha||null,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 function rowToFlow(r){return {id:r.id,clientId:r.client_id,ticker:r.ticker,tipo:r.tipo,moneda:r.moneda,fecha:r.fecha,monto:+r.monto,cobrado:!!r.cobrado,source:r.source||''};}
+function rowToContacto(r){return {id:r.id,clientId:r.client_id,fecha:r.fecha,canal:r.canal,nota:r.nota||''};}
 function rowToAgenda(r){return {id:r.id,text:r.text,due:r.due,done:!!r.done,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 
 async function loadDBFromSupabase(){
-  const [clientsRes,flowsRes,agendaRes,issuersRes,advisorRes]=await Promise.all([
+  const [clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes]=await Promise.all([
     sb.from('clients').select('*'),
     sb.from('flows').select('*'),
     sb.from('agenda').select('*'),
     sb.from('issuers').select('*'),
-    sb.from('advisor_settings').select('*').maybeSingle()
+    sb.from('advisor_settings').select('*').maybeSingle(),
+    sb.from('contactos').select('*')
   ]);
-  const failed=[clientsRes,flowsRes,agendaRes,issuersRes,advisorRes].find(r=>r.error);
+  const failed=[clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes].find(r=>r.error);
   if(failed)throw failed.error; // no pisar los datos en memoria con vacío si falló la carga
   DB.clients=(clientsRes.data||[]).map(rowToClient);
   DB.flows=(flowsRes.data||[]).map(rowToFlow);
   DB.agenda=(agendaRes.data||[]).map(rowToAgenda);
   DB.issuers={};
   (issuersRes.data||[]).forEach(r=>{DB.issuers[r.ticker]={name:r.name||'',sector:r.sector||''};});
-  DB.advisor=advisorRes.data?{cnv:advisorRes.data.cnv||'',phone:advisorRes.data.phone||'',email:advisorRes.data.email||''}:{cnv:'',phone:'',email:''};
+  DB.contactos=(contactosRes.data||[]).map(rowToContacto);
+  DB.advisor=advisorRes.data?{cnv:advisorRes.data.cnv||'',phone:advisorRes.data.phone||'',email:advisorRes.data.email||'',
+    zafiraConfig:{...ZAFIRA_CONFIG_DEFAULT,...(advisorRes.data.zafira_config||{})},
+    zafiraTemplates:{...ZAFIRA_TEMPLATES_DEFAULT,...(advisorRes.data.zafira_templates||{})}}
+    :{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT};
 }
 function dbError(err){
   console.error(err);
@@ -560,17 +577,95 @@ function parseFlowRows(rows){
 }
 
 // ══════════════════════════ NAV ══════════════════════════
-let ATb='cal';
-const NAV_ORDER=['cal','cli','imp','stat'];
+let ATb='hoy';
+const NAV_ORDER=['hoy','cal','cli','imp','stat'];
 function nav(tab){
   ATb=tab;
   NAV_ORDER.forEach(t=>document.getElementById('tb-'+t).classList.toggle('active',t===tab));
-  if(tab==='cal')renderCalendario();
+  if(tab==='hoy')renderHoy();
+  else if(tab==='cal')renderCalendario();
   else if(tab==='cli')renderClientes();
   else if(tab==='imp')renderImportar();
   else if(tab==='stat')renderStats();
 }
 function sc(html){document.getElementById('view').innerHTML=html;}
+
+// ══════════════════════════ HOY (Zafira) ══════════════════════════
+// Motor de reglas puro en js/zafira.js — acá solo se arma la entrada real
+// (DB) y se dibuja la UI. Nada de esto decide nada por su cuenta: todo
+// queda como sugerencia, el mensaje se copia, nunca se manda solo.
+function clientCreatedDateStr(c){return new Date(c.createdAt).toISOString().slice(0,10);}
+function zafiraCfg(){return {...DB.advisor.zafiraConfig,templates:DB.advisor.zafiraTemplates};}
+function computeHoyAlerts(){
+  const clients=DB.clients.map(c=>({...c,createdAt:clientCreatedDateStr(c)}));
+  return computeZafira(clients,DB.flows,DB.contactos,zafiraCfg(),todayStr());
+}
+let HOY_ALERTS=[];
+function renderHoy(){
+  HOY_ALERTS=computeHoyAlerts();
+  const prioClass={alta:'r',media:'a',baja:'m'};
+  sc(`
+  <div class="sec-hdr"><h2>Hoy</h2><span style="font-family:var(--mono);font-size:10px;color:var(--muted);">${HOY_ALERTS.length} para revisar</span></div>
+  ${HOY_ALERTS.length?HOY_ALERTS.map((a,i)=>{
+    const c=DB.clients.find(x=>x.id===a.clientId);
+    if(!c)return'';
+    return `<div class="card" style="margin-bottom:10px;">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+        <span class="chip ${prioClass[a.prioridad]}">${esc(a.prioridad)}</span>
+        <div style="flex:1;font-weight:600;font-size:13px;">${esc(c.name)}</div>
+      </div>
+      <div style="font-size:12px;color:var(--soft);margin-bottom:10px;">${esc(a.motivo)}</div>
+      <div class="frow">
+        <button class="ib pri" style="flex:1;" onclick="openRegistrarContacto(${i})">✓ Lo contacté</button>
+        <button class="ib" style="flex:1;" onclick="copyHoyMsg(${i},this)">📋 Copiar mensaje</button>
+      </div>
+    </div>`;
+  }).join(''):'<div class="empty">Nada para hoy. ✅</div>'}
+  `);
+}
+async function copyHoyMsg(i,btn){
+  const msg=HOY_ALERTS[i]?.sugerenciaMensaje||'';
+  try{await navigator.clipboard.writeText(msg);toast('✓ Copiado');}
+  catch(e){toast('No se pudo copiar — mantené apretado el texto para copiarlo a mano');}
+}
+function openRegistrarContacto(i){
+  const a=HOY_ALERTS[i];if(!a)return;
+  const c=DB.clients.find(x=>x.id===a.clientId);if(!c)return;
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Registrar contacto — ${esc(c.name)}</h3>
+    <label class="flbl">Canal</label>
+    <select class="fi" id="ct-canal" style="margin-bottom:10px;">
+      <option value="whatsapp">WhatsApp</option>
+      <option value="llamada">Llamada</option>
+      <option value="mail">Mail</option>
+      <option value="reunion">Reunión</option>
+    </select>
+    <label class="flbl">Nota (opcional)</label>
+    <textarea class="fi" id="ct-nota" rows="2" style="resize:vertical;margin-bottom:12px;"></textarea>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="saveContacto('${c.id}')">Guardar</button>
+  `);
+}
+async function saveContacto(clientId,onDone){
+  const canal=document.getElementById('ct-canal').value;
+  const nota=document.getElementById('ct-nota').value.trim();
+  closeModal();
+  const row={id:uid(),client_id:clientId,fecha:new Date().toISOString(),canal,nota};
+  const{error}=await sb.from('contactos').insert(row);
+  if(error){dbError(error);return;}
+  DB.contactos.push(rowToContacto(row));
+  toast('✓ Anotado');
+  if(onDone)onDone();
+  else if(ATb==='hoy')renderHoy();
+}
+async function logZafiraRun(alerts){
+  const hoy=todayStr();
+  const{data}=await sb.from('agent_runs').select('id').eq('agent','zafira').gte('created_at',hoy+'T00:00:00').maybeSingle();
+  const row={agent:'zafira',titulo:`${alerts.length} para contactar`,resumen:alerts.length?`${alerts.length} alertas hoy`:'Todo al día',
+    payload:alerts,estado:'ok',requiere_accion:alerts.some(a=>a.prioridad==='alta')};
+  if(data){await sb.from('agent_runs').update(row).eq('id',data.id);}
+  else{await sb.from('agent_runs').insert(row);}
+}
 
 // ══════════════════════════ CALENDARIO ══════════════════════════
 let calFilterCli='all',calRange='30';
@@ -879,6 +974,8 @@ function openClientModal(existing){
     <input class="fi" id="cl-name" value="${c.name?esc(c.name):''}" placeholder="Nombre y apellido" style="margin-bottom:10px;">
     <label class="flbl">Contacto (tel / email, opcional)</label>
     <input class="fi" id="cl-contact" value="${c.contact?esc(c.contact):''}" placeholder="" style="margin-bottom:10px;">
+    <label class="flbl">Cumpleaños (opcional)</label>
+    <input class="fi" type="date" id="cl-birthday" value="${c.birthday||''}" style="margin-bottom:10px;">
     <label class="flbl">Notas</label>
     <textarea class="fi" id="cl-notes" rows="3" style="resize:vertical;margin-bottom:12px;">${c.notes?esc(c.notes):''}</textarea>
     <button class="ib pri" style="width:100%;padding:10px;" onclick="saveClient('${c.id||''}')">Guardar</button>
@@ -888,18 +985,19 @@ async function saveClient(id){
   const name=document.getElementById('cl-name').value.trim();
   if(!name){toast('Ingresá un nombre');return;}
   const contact=document.getElementById('cl-contact').value.trim();
+  const birthday=document.getElementById('cl-birthday').value||null;
   const notes=document.getElementById('cl-notes').value.trim();
   closeModal();
   if(id){
-    const{error}=await sb.from('clients').update({name,contact,notes}).eq('id',id);
+    const{error}=await sb.from('clients').update({name,contact,birthday,notes}).eq('id',id);
     if(error){dbError(error);return;}
     const c=DB.clients.find(x=>x.id===id);
-    Object.assign(c,{name,contact,notes});
+    Object.assign(c,{name,contact,birthday,notes});
   }else{
     const newId=uid();
-    const{error}=await sb.from('clients').insert({id:newId,name,contact,notes});
+    const{error}=await sb.from('clients').insert({id:newId,name,contact,birthday,notes});
     if(error){dbError(error);return;}
-    DB.clients.push({id:newId,name,contact,notes,createdAt:Date.now()});
+    DB.clients.push({id:newId,name,contact,birthday,notes,createdAt:Date.now()});
   }
   renderClientes();toast('✓ Cliente guardado');
 }
@@ -916,6 +1014,12 @@ function openClientDetail(id){
   const collected=flows.filter(f=>f.cobrado);
   const pendingHtml=pending.length?pending.map(f=>flowLine(f,true)).join(''):'<div class="empty">Sin cobros pendientes.</div>';
   const collectedHtml=collected.length?`<div class="ct" style="margin-top:14px;">Cobrados (${collected.length})</div>${collected.slice(0,10).map(f=>flowLine(f,false)).join('')}`:'';
+  const contactos=DB.contactos.filter(x=>x.clientId===id).sort((a,b)=>b.fecha<a.fecha?-1:1);
+  const CANAL_LABEL={whatsapp:'WhatsApp',llamada:'Llamada',mail:'Mail',reunion:'Reunión'};
+  const contactosHtml=contactos.length?contactos.slice(0,8).map(ct=>`<div class="row" style="padding:6px 0;">
+      <div style="flex:1;font-size:12px;">${CANAL_LABEL[ct.canal]||ct.canal}${ct.nota?' · '+esc(ct.nota):''}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${fmtDateShort(ct.fecha.slice(0,10))}</div>
+    </div>`).join(''):'<div class="empty">Sin contactos registrados.</div>';
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>${esc(c.name)}</h3>
@@ -930,6 +1034,26 @@ function openClientDetail(id){
     <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
     ${pendingHtml}
     ${collectedHtml}
+    <div class="ct" style="margin-top:14px;">Contactos</div>
+    ${contactosHtml}
+    <button class="ib" style="width:100%;padding:9px;margin-top:8px;" onclick="closeModal();openRegistrarContactoCliente('${c.id}')">✓ Registrar contacto</button>
+  `);
+}
+function openRegistrarContactoCliente(clientId){
+  const c=DB.clients.find(x=>x.id===clientId);if(!c)return;
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Registrar contacto — ${esc(c.name)}</h3>
+    <label class="flbl">Canal</label>
+    <select class="fi" id="ct-canal" style="margin-bottom:10px;">
+      <option value="whatsapp">WhatsApp</option>
+      <option value="llamada">Llamada</option>
+      <option value="mail">Mail</option>
+      <option value="reunion">Reunión</option>
+    </select>
+    <label class="flbl">Nota (opcional)</label>
+    <textarea class="fi" id="ct-nota" rows="2" style="resize:vertical;margin-bottom:12px;"></textarea>
+    <button class="ib pri" style="width:100%;padding:10px;" onclick="saveContacto('${c.id}',()=>openClientDetail('${c.id}'))">Guardar</button>
   `);
 }
 // ══════════════════════════ REPORTE PDF (por cliente) ══════════════════════════
@@ -1094,7 +1218,8 @@ function handleMovimientosReportFile(file){
       }
       if(parsed.length){
         pendingMovimientosReport=parsed;
-        setMovimientosReportStatus(`✓ Listo — ${parsed.length} movimientos leídos`,true);
+        const depositosMsg=await detectarYGuardarDepositos(parsed,currentReportClientId);
+        setMovimientosReportStatus(`✓ Listo — ${parsed.length} movimientos leídos${depositosMsg}`,true);
       }else{
         setMovimientosReportStatus('⚠ No pude leer movimientos. Verificá que sea el archivo correcto.',false);
       }
@@ -1168,6 +1293,24 @@ function stripMovTickerSuffix(t,arsTickers){
   const s=String(t||'');
   if(arsTickers&&arsTickers.has(s))return s;
   return s.replace(/(D|C)$/,'');
+}
+// Detecta depósitos (plata que entró a la cuenta desde afuera, no una venta
+// ni un cupón) en el archivo de Movimientos, y actualiza clients.ultimo_deposito
+// con la fecha más reciente — lo usa Zafira para la alerta "sin depósitos".
+// 'Depósito' es un tipo de operación real que ya reconoce el parser del
+// comprobante en PDF (ver OPS en parsePdfComprobanteMovimientos); acá se
+// aplica el mismo criterio sobre el Excel.
+async function detectarYGuardarDepositos(movRows,clientId){
+  const depositos=(movRows||[]).filter(m=>m.operacion==='Depósito'&&m.monto>0);
+  if(!depositos.length||!clientId)return'';
+  const ultima=depositos.map(d=>d.fecha).sort().slice(-1)[0];
+  const c=DB.clients.find(x=>x.id===clientId);
+  if(c&&(!c.ultimoDeposito||ultima>c.ultimoDeposito)){
+    c.ultimoDeposito=ultima;
+    const{error}=await sb.from('clients').update({ultimo_deposito:ultima}).eq('id',clientId);
+    if(error){dbError(error);return'';}
+  }
+  return ` · ${depositos.length} depósito${depositos.length===1?'':'s'} detectado${depositos.length===1?'':'s'} (último: ${fmtDateShort(ultima)})`;
 }
 function parseMovimientosRows(rows){
   if(!rows||!rows.length)return[];
@@ -2742,6 +2885,19 @@ function openSettings(){
     <div class="ct" style="margin-top:14px;">Emisores</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Nombre de la empresa/entidad de cada instrumento (aparece en los reportes PDF). Los bonos soberanos argentinos ya vienen completados.</div>
     <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();openIssuersEditor()">🏢 Editar emisores</button>
+    <div class="ct" style="margin-top:14px;">Alertas de Hoy (Zafira)</div>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Cuántos días tienen que pasar para que aparezca cada alerta.</div>
+    <div class="frow">
+      <div style="flex:1;"><label class="flbl">Sin contacto</label><input class="fi" type="number" min="1" value="${DB.advisor.zafiraConfig.dias_sin_contacto}" onchange="setZafiraConfigField('dias_sin_contacto',+this.value)"></div>
+      <div style="flex:1;"><label class="flbl">Sin depósito</label><input class="fi" type="number" min="1" value="${DB.advisor.zafiraConfig.dias_sin_deposito}" onchange="setZafiraConfigField('dias_sin_deposito',+this.value)"></div>
+    </div>
+    <div class="frow">
+      <div style="flex:1;"><label class="flbl">Cobro cerca</label><input class="fi" type="number" min="1" value="${DB.advisor.zafiraConfig.dias_cobro_cerca}" onchange="setZafiraConfigField('dias_cobro_cerca',+this.value)"></div>
+      <div style="flex:1;"><label class="flbl">Reinversión</label><input class="fi" type="number" min="1" value="${DB.advisor.zafiraConfig.dias_reinversion}" onchange="setZafiraConfigField('dias_reinversion',+this.value)"></div>
+    </div>
+    <label class="flbl">Cliente nuevo (días de alta)</label>
+    <input class="fi" type="number" min="1" style="margin-bottom:10px;" value="${DB.advisor.zafiraConfig.dias_cliente_nuevo}" onchange="setZafiraConfigField('dias_cliente_nuevo',+this.value)">
+    <button class="ib" style="width:100%;padding:9px;margin-bottom:10px;" onclick="closeModal();openZafiraTemplatesEditor()">✍️ Editar mensajes sugeridos</button>
     <div class="ct" style="margin-top:14px;">Backup</div>
     <div style="font-size:11px;color:var(--soft);margin-bottom:10px;">Descargá una copia de tus datos, o restaurá un backup viejo (por ejemplo, el de otra compu) hacia la nube.</div>
     <div class="frow">
@@ -2781,6 +2937,32 @@ async function setAdvisorField(field,value){
   DB.advisor[field]=value.trim();
   const{error}=await sb.from('advisor_settings').upsert({[field]:DB.advisor[field]},{onConflict:'user_id'});
   if(error)dbError(error);
+}
+async function setZafiraConfigField(key,value){
+  if(!(value>0)){toast('Tiene que ser un número mayor a 0');return;}
+  DB.advisor.zafiraConfig={...DB.advisor.zafiraConfig,[key]:value};
+  const{error}=await sb.from('advisor_settings').upsert({zafira_config:DB.advisor.zafiraConfig},{onConflict:'user_id'});
+  if(error){dbError(error);return;}
+  toast('✓ Guardado');
+}
+function openZafiraTemplatesEditor(){
+  const LABELS={sin_contacto:'Sin contacto',sin_deposito:'Sin depósito',cobro_cerca:'Cobro cerca',
+    reinversion:'Reinversión',cumpleanos:'Cumpleaños',cliente_nuevo:'Cliente nuevo'};
+  showModal(`
+    <button class="mclose" onclick="closeModal()">×</button>
+    <h3>Mensajes sugeridos</h3>
+    <div style="font-size:11px;color:var(--soft);margin-bottom:12px;">Variables disponibles según la alerta: {nombre}, {ticker}, {fecha}, {monto}. Nunca se mandan solos, siempre los copiás vos.</div>
+    ${Object.keys(LABELS).map(k=>`
+      <label class="flbl">${LABELS[k]}</label>
+      <textarea class="fi" rows="2" style="resize:vertical;margin-bottom:10px;" onchange="setZafiraTemplateField('${k}',this.value)">${esc(DB.advisor.zafiraTemplates[k]||'')}</textarea>
+    `).join('')}
+  `);
+}
+async function setZafiraTemplateField(key,value){
+  DB.advisor.zafiraTemplates={...DB.advisor.zafiraTemplates,[key]:value};
+  const{error}=await sb.from('advisor_settings').upsert({zafira_templates:DB.advisor.zafiraTemplates},{onConflict:'user_id'});
+  if(error){dbError(error);return;}
+  toast('✓ Guardado');
 }
 function exportBackup(){
   const blob=new Blob([JSON.stringify(DB,null,2)],{type:'application/json'});
@@ -2839,8 +3021,10 @@ async function wipeAll(){
   await sb.from('clients').delete().neq('id','00000000-0000-0000-0000-000000000000');
   await sb.from('agenda').delete().neq('id','00000000-0000-0000-0000-000000000000');
   await sb.from('issuers').delete().neq('ticker','');
-  DB={clients:[],flows:[],agenda:[],issuers:{},advisor:DB.advisor};
-  closeModal();nav('cal');toast('Datos borrados');
+  await sb.from('contactos').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  await sb.from('agent_runs').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:DB.advisor};
+  closeModal();nav('hoy');toast('Datos borrados');
 }
 
 // ══════════════════════════ PIN LOCK ══════════════════════════
@@ -2960,7 +3144,7 @@ async function logout(){
 // Sesión expirada / revocada en segundo plano: volver al login sin romper la UI.
 sb.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_OUT'||(event!=='INITIAL_SESSION'&&!session)){
-    DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''},lastReporte:{}};
+    DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
     document.getElementById('app').classList.add('hidden');
     document.getElementById('lock').classList.add('hidden');
     document.getElementById('login').classList.remove('hidden');
@@ -2999,7 +3183,8 @@ async function afterLogin(){
   }else{
     document.getElementById('app').classList.remove('hidden');
   }
-  nav('cal');
+  nav('hoy');
+  logZafiraRun(computeHoyAlerts()).catch(err=>console.warn('No se pudo guardar agent_runs:',err));
 }
 async function boot(){
   const{data:{session}}=await sb.auth.getSession();

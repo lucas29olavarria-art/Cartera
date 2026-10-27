@@ -30,51 +30,45 @@ del repo, "Cartera"). Todo lo de abajo se hace en ese proyecto.
 
 Detalle completo en `migrations/001_findings.md`.
 
-## Lo que falta hacer a mano en el dashboard de Supabase, EN ESTE ORDEN
+## Checklist manual del dashboard de Supabase — estado (27/oct/2026)
 
-1. **Confirmar/crear tu usuario.**
-   `Authentication → Users`. Como la app ya pedía login con contraseña antes de
-   este cambio, probablemente ya existe un usuario tuyo ahí — confirmá el email
-   exacto. Si no existe ninguno, `Add user` y creá uno con tu email (no hace
-   falta que tenga contraseña: el login OTP funciona igual para logins
-   passwordless sobre un usuario existente).
+1. [x] **Usuario confirmado.** `lucas29olavarria@gmail.com`, email confirmado,
+   visto directamente en el JWT de una sesión real. No hizo falta crear nada.
 
-2. **Desactivar altas de usuarios nuevos.**
-   `Authentication → Settings` (o `Authentication → Providers → Email` según
-   la versión del dashboard) → apagar **"Allow new users to sign up"**.
-   Esto es la segunda capa: aunque alguien mande un OTP a otro email, el
-   código `shouldCreateUser:false` del frontend ya lo bloquea, pero esto lo
-   refuerza a nivel proyecto.
+2. [x] **"Allow new users to sign up" desactivado.** Confirmado por captura.
+   Segunda capa además de `shouldCreateUser:false` en el frontend.
 
-3. **Template de email para que mande el código, no el link.**
-   `Authentication → Email Templates → Magic Link`. Ese mismo template sirve
-   para el flujo OTP — asegurate de que el cuerpo incluya `{{ .Token }}`
-   (el código de 6 dígitos), no solo `{{ .ConfirmationURL }}`. Si el template
-   por defecto solo tiene el link, agregale una línea tipo:
-   `Tu código es: {{ .Token }}`.
+3. [~] **Template de email con `{{ .Token }}` — bloqueado, pero no es grave.**
+   El dashboard no deja editar el `Source` del template ("Magic link or OTP")
+   sin configurar SMTP propio (limitación del mail gratuito de Supabase, no
+   algo que dependa de nosotros). Como el template ya se llama "Magic link
+   **or OTP**", lo más probable es que el default de Supabase ya mande el
+   código solo. **Pendiente de confirmar probando el login real una vez que
+   el código OTP esté en `main`** (hoy sigue solo en la rama de feature). Si
+   al probarlo el mail no trae el código, ahí se configura SMTP propio
+   (gratis con Gmail o un proveedor tipo Resend) — se resuelve en ese momento.
 
-4. **Site URL / Redirect URLs.**
-   `Authentication → URL Configuration`. Poné el **Site URL** apuntando a
-   donde vive el CRM (`https://lucas29olavarria-art.github.io/Cartera/inviu-crm/`
-   — confirmá primero que esa ruta sea la real, ver nota abajo). Agregá esa
-   misma URL a **Redirect URLs**. Con el flujo de código OTP esto importa
-   menos que con magic link, pero déjalo bien configurado igual por las dudas
-   de que el template conserve el link como fallback.
+4. [x] **Site URL / Redirect URLs corregidos.** Estaba en el default de
+   desarrollo `http://localhost:3000` y sin ninguna Redirect URL cargada —
+   quedó en `https://lucas29olavarria-art.github.io/Cartera/inviu-crm/` (Site
+   URL) y `https://lucas29olavarria-art.github.io/Cartera/inviu-crm/*`
+   (Redirect URLs). Esa es la URL real confirmada (el CRM abre ahí).
 
-5. **Correr los SQL de `inviu-crm/migrations/`, en este orden:**
-   - `000_audit.sql` — ✅ ya corrido, resultado documentado en `001_findings.md`.
-   - `001_findings.md` — es documentación, no se corre.
-   - `002_verify.sql` — correr en el SQL Editor, solo chequea integridad de
-     datos (no hay filas con `user_id` nulo, todo pertenece a un solo usuario).
-   - `002_verify.sh` — correr desde una terminal (no es SQL). Primero sin
-     nada (prueba que la anon key sola devuelve `[]`), después con
-     `ACCESS_TOKEN='...'` de una sesión real logueada (prueba que ahí sí
-     aparecen tus datos). Instrucciones de cómo sacar el token están arriba
-     del script.
+5. **SQL de `inviu-crm/migrations/`:**
+   - `000_audit.sql` — [x] corrido, resultado en `001_findings.md`.
+   - `002_verify.sql` — pendiente de correr (chequeo de integridad, no bloquea nada).
+   - `002_verify.sh` — [x] parcial. Sin sesión: confirmado `[]` en las 6 tablas
+     (la anon key sola no ve nada — el resultado que importaba). Con sesión:
+     se probó con un token real pero dio 401 sin cuerpo de error, consistente
+     con el proxy/firewall de la red donde se probó, no con un problema de
+     RLS (ya confirmado por separado vía `000_audit.sql`: políticas, default
+     `auth.uid()` y `NOT NULL` correctos). Repetir desde otra red si se quiere
+     la contraprueba completa.
 
-## Nota pendiente de confirmar
+## Importante: falta mergear a `main`
 
-No pude verificar desde esta sesión si `inviu-crm/index.html` está realmente
-publicado en `https://lucas29olavarria-art.github.io/Cartera/inviu-crm/` (el
-proxy de red de este entorno no llega a `github.io`). Confirmalo vos en el
-navegador antes del paso 4 de arriba, y si la URL real es otra, usá esa.
+Todo el trabajo de este checklist (login OTP, `onAuthStateChange`, etc.) está
+commiteado y pusheado en la rama `claude/inviu-crm-github-push-hk90co`, **no
+en `main`**. GitHub Pages publica desde `main`, así que el CRM que está online
+hoy todavía usa el login viejo (contraseña). Mergear es un paso aparte,
+pendiente de decisión explícita (no se pushea a `main` sin mostrar el diff).

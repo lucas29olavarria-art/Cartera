@@ -1,0 +1,559 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Oficina Lucas Olavarria</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
+<style>
+/* Layout: juego a pantalla completa — barra arriba, cuarto isométrico al centro, accesos a los agentes abajo, panel tipo bottom sheet */
+:root{
+  --night:#0e131b; --night-2:#18202c;
+  --panel:#27313d; --panel-2:#323e4c; --line:#465567;
+  --header:#3a6ea5; --ink:#eef2f6; --muted:#a9b6c4;
+  --gold:#f2c14e; --gold-ink:#2a2110; --ok:#5fc48a; --warn:#f08a5d;
+  --display:"Pixelify Sans", "Courier New", monospace;
+  --body:"Atkinson Hyperlegible", system-ui, sans-serif;
+  color-scheme:dark;
+}
+html,body{height:100%}
+[hidden]{display:none!important}
+body{background:var(--night);color:var(--ink);font-family:var(--body);overflow:hidden}
+.app{height:100%;display:flex;flex-direction:column}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding-block:10px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  background:var(--panel);border-bottom:2px solid var(--line)}
+.brand{font-family:var(--display);font-weight:700;font-size:18px;letter-spacing:.02em}
+.brand small{display:block;font-weight:400;font-size:12px;color:var(--muted);letter-spacing:.04em}
+.tools{display:flex;align-items:center;gap:10px}
+.zoom{font-family:var(--display);font-size:13px;color:var(--ink);background:var(--panel-2);border:2px solid var(--line);border-radius:6px;padding:5px 9px;cursor:pointer;white-space:nowrap}
+.zoom:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.clock{font-family:var(--display);font-size:15px;color:var(--gold);font-variant-numeric:tabular-nums}
+.stage{flex:1;min-height:0;position:relative;
+  background:radial-gradient(ellipse at 50% 40%, var(--night-2), var(--night) 70%)}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation;image-rendering:pixelated}
+.hint{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-family:var(--display);font-size:13px;
+  background:rgba(0,0,0,.45);color:var(--ink);padding:6px 12px;border-radius:4px;pointer-events:none;white-space:nowrap}
+.dock{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;background:var(--panel);border-top:2px solid var(--line);
+  padding-block:8px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
+.dock button{position:relative;font:inherit;color:var(--ink);background:var(--panel-2);border:2px solid var(--line);border-radius:6px;
+  padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;min-width:0}
+.dock button:focus-visible,.btn:focus-visible,.x:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.dock b{font-family:var(--display);font-size:14px;font-weight:600}
+.dock span{font-size:11px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%}
+.badge{position:absolute;top:-7px;right:-4px;background:var(--warn);color:#1a0d06;font-family:var(--display);font-size:12px;
+  min-width:20px;height:20px;border-radius:10px;display:grid;place-items:center;padding:0 5px;border:2px solid var(--panel)}
+.sheet{position:absolute;left:0;right:0;bottom:0;max-height:78%;display:flex;flex-direction:column;background:var(--panel);
+  border-top:3px solid var(--header);border-radius:12px 12px 0 0;box-shadow:0 -8px 30px rgba(0,0,0,.5);z-index:5}
+.sheet-h{display:flex;align-items:center;gap:12px;background:var(--header);padding-block:10px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));border-radius:9px 9px 0 0}
+.sheet-h .who{flex:1;min-width:0}
+.sheet-h h2{margin:0;font-family:var(--display);font-size:20px;font-weight:700}
+.sheet-h p{margin:0;font-size:13px;opacity:.85}
+.avatar{width:38px;height:38px;border-radius:6px;background:var(--panel-2);display:grid;place-items:center;flex:none}
+.x{font:inherit;background:rgba(0,0,0,.25);border:0;color:var(--ink);width:36px;height:36px;border-radius:6px;font-size:20px;cursor:pointer}
+.sheet-b{overflow-y:auto;padding-block:14px 18px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));
+  display:flex;flex-direction:column;gap:14px}
+.say{font-family:var(--display);font-size:15px;background:var(--panel-2);border:2px solid var(--line);border-radius:8px;padding:10px 12px;line-height:1.35}
+.demo{font-size:12px;color:var(--warn);font-family:var(--display);letter-spacing:.04em;text-transform:uppercase}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tab{font:inherit;font-size:13px;color:var(--ink);background:var(--panel-2);border:2px solid var(--line);border-radius:6px;padding:6px 10px;cursor:pointer}
+.tab[aria-pressed="true"]{background:var(--gold);color:var(--gold-ink);border-color:var(--gold)}
+.msg{white-space:pre-wrap;font-size:14px;line-height:1.5;background:#0f1822;border:2px solid var(--line);border-radius:8px;padding:12px;margin:0;
+  font-family:var(--body);max-width:65ch}
+.btn{font-family:var(--display);font-size:15px;font-weight:600;background:var(--gold);color:var(--gold-ink);border:0;border-radius:6px;padding:9px 14px;cursor:pointer;align-self:flex-start}
+.btn.ghost{background:transparent;color:var(--ink);border:2px solid var(--line)}
+.row{display:flex;align-items:center;gap:10px;padding:10px;background:var(--panel-2);border-radius:8px;border-left:4px solid var(--line)}
+.row.hot{border-left-color:var(--warn)} .row.mid{border-left-color:var(--gold)} .row.done{opacity:.5;border-left-color:var(--ok)}
+.row .t{flex:1;min-width:0} .row .t b{display:block;font-size:15px} .row .t span{font-size:13px;color:var(--muted)}
+.row .btn{padding:7px 10px;font-size:13px;flex:none}
+h3{margin:4px 0 0;font-family:var(--display);font-size:16px;font-weight:600;color:var(--muted);letter-spacing:.03em}
+.list{display:flex;flex-direction:column;gap:8px}
+.kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.kpi{background:var(--panel-2);border-radius:8px;padding:10px}
+.kpi span{display:block;font-size:12px;color:var(--muted)}
+.kpi b{font-family:var(--display);font-size:18px;font-variant-numeric:tabular-nums}
+.bar{display:grid;grid-template-columns:96px 1fr 70px;gap:8px;align-items:center;font-size:13px}
+.bar i{display:block;height:12px;background:var(--header);border-radius:3px}
+.bar em{font-style:normal;text-align:right;font-variant-numeric:tabular-nums;color:var(--muted)}
+.note{font-size:13px;color:var(--muted);line-height:1.45}
+.toast{position:absolute;top:12px;left:50%;transform:translateX(-50%);background:var(--ok);color:#06180d;font-family:var(--display);
+  padding:6px 12px;border-radius:6px;z-index:9;font-size:14px}
+@media (max-width:420px){.kpi b{font-size:15px}.bar{grid-template-columns:80px 1fr 60px}}
+</style>
+</head>
+<body>
+
+<div class="app">
+  <header class="top">
+    <div class="brand">Lucas Olavarria<small>Tocá el piso para caminar · tocá a alguien para hablar</small></div>
+    <div class="tools"><button class="zoom" id="zoom" aria-pressed="false">+ Acercar</button><div class="clock" id="clock">--:--</div></div>
+  </header>
+  <main class="stage" id="stage">
+    <canvas id="cv" aria-label="Oficina virtual isométrica con cuatro agentes"></canvas>
+    <div class="hint" id="hint">Datos de ejemplo · prototipo</div>
+    <section class="sheet" id="sheet" hidden aria-live="polite">
+      <div class="sheet-h">
+        <div class="avatar"><canvas id="av" width="38" height="38" style="width:38px;height:38px"></canvas></div>
+        <div class="who"><h2 id="sh-name"></h2><p id="sh-role"></p></div>
+        <button class="x" id="sh-close" aria-label="Cerrar">×</button>
+      </div>
+      <div class="sheet-b" id="sh-body"></div>
+    </section>
+    <div class="toast" id="toast" hidden></div>
+  </main>
+  <nav class="dock" id="dock"></nav>
+</div>
+
+<script>
+// ---------- Datos de ejemplo ----------
+const CLIENTES = [
+  {id:1,n:"Martín G.",motivo:"No lo llamás hace 52 días",tipo:"hot",done:false},
+  {id:2,n:"Laura P.",motivo:"Sin depósitos hace 94 días · AUM USD 38k",tipo:"hot",done:false},
+  {id:3,n:"Diego R.",motivo:"Cobra cupón el jueves · avisale",tipo:"mid",done:false},
+  {id:4,n:"Sofía M.",motivo:"Cumple años mañana",tipo:"mid",done:false},
+];
+const COBROS = [
+  {n:"Diego R.",d:"Jue 29/10",t:"Cupón ON · USD 412"},
+  {n:"Ana L.",d:"Vie 30/10",t:"Amortización · USD 1.250"},
+  {n:"Pablo V.",d:"Lun 02/11",t:"Cupón Bonar · USD 186"},
+];
+const COMIS = [
+  {n:"Laura P.",v:182400},{n:"Diego R.",v:141900},{n:"Ana L.",v:98700},{n:"Pablo V.",v:61200},{n:"Martín G.",v:23800}
+];
+const ARS = v => "$ " + v.toLocaleString("es-AR");
+
+const WPP = `☕ *Buen día, comunidad* · Mar 27/10
+
+🌎 *Afuera*
+• S&P 500 ▲ x,x% · Nasdaq ▲ x,x%
+• Tasa 10 años EE.UU.: x,xx%
+
+🇦🇷 *Acá*
+• Merval ▲ x,x% en USD
+• Riesgo país: xxx pb
+• Dólar MEP: $ x.xxx · CCL: $ x.xxx
+
+📌 *Para tener en el radar*
+Esta semana pagan renta varias ON corporativas. Si cobrás, pensá de antemano dónde reinvertir para no dejar la plata quieta.
+
+_Contenido informativo y general. No es una recomendación de inversión personalizada. Consultá con tu asesor._`;
+
+const PROPUESTA = `💡 *Idea de la semana: armar un colchón en dólares que rinda*
+
+Para quien tiene dólares quietos: combinar ON corporativas de buen emisor con vencimientos escalonados, para cobrar renta periódica sin depender de un solo pago.
+
+¿Para quién sirve? Perfil moderado, horizonte 1 a 3 años.
+¿Qué mirar? Emisor, moneda y ley de pago, y liquidez.
+
+Si te interesa ver cómo quedaría con tu cartera, escribime por privado.
+
+_Contenido informativo y general. No es una recomendación de inversión personalizada._`;
+
+const MKT = {
+  "Referidos":`Hola [Nombre]! Cómo andás?
+
+Te escribo porque estoy sumando gente nueva a mi cartera y me gustaría arrancar por quienes ya confían en mí.
+
+Si conocés a alguien que tenga ahorros quietos o que quiera ordenar sus inversiones, pasame su contacto. Le hago un diagnóstico de cartera sin cargo, y a vos te bonifico [beneficio] por cada referido que abra cuenta.
+
+Gracias por la confianza de siempre!
+Lucas Olavarria · Asesor idóneo CNV`,
+  "Prospecto nuevo":`Hola [Nombre], soy Lucas Olavarria, asesor financiero idóneo CNV.
+
+Me pasó tu contacto [referente]. Te propongo una charla de 20 minutos para ver cómo tenés hoy tus ahorros y si hay algo para mejorar: plata quieta, dólares que no rinden, o falta de un plan.
+
+Sin compromiso. ¿Te queda bien esta semana?`,
+  "Reactivar cliente":`Hola [Nombre]! Hace un tiempo que no hablamos y quería saber cómo venís.
+
+Estuve revisando tu cuenta y hay un par de cosas que me gustaría charlar con vos para que la plata trabaje mejor. ¿Tenés 10 minutos esta semana para una llamada?`
+};
+
+// ---------- Agentes ----------
+const AGENTS = [
+  {key:"research",name:"Nova",role:"Research",gx:4,gy:2,desk:[4,3],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",
+    status:()=> "📊 Informe listo", badge:()=>1},
+  {key:"secre",name:"Zafira",role:"Secretaria",gx:2,gy:7,desk:[2,8],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",
+    status:()=>{const p=CLIENTES.filter(c=>!c.done).length;return p?`📞 ${p} para llamar`:"✅ Todo al día"}, badge:()=>CLIENTES.filter(c=>!c.done).length},
+  {key:"fin",name:"Midas",role:"Finanzas",gx:10,gy:2,desk:[10,3],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",
+    status:()=>"💰 Comisiones oct", badge:()=>0},
+  {key:"mkt",name:"Chispa",role:"Marketing",gx:9,gy:7,desk:[9,8],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",
+    status:()=>"✍️ ¿Armamos algo?", badge:()=>0},
+];
+
+// ---------- Mundo isométrico ----------
+const W=12,H=12,TW=64,TH=32,WALLH=136,M=20;
+const OX=H*TW/2+M, OY=WALLH+M+40;
+const WORLD_W=(W+H)*TW/2+2*M, WORLD_H=(W+H)*TH/2+WALLH+2*M+56;
+const iso=(x,y)=>[(x-y)*TW/2+OX,(x+y)*TH/2+OY];
+
+const blocked=new Set(), edgeBlock=new Set();
+const key=(x,y)=>x+","+y;
+const ek=(a,b,c,d)=>a+","+b+">"+c+","+d;
+function blockEdge(a,b,c,d){edgeBlock.add(ek(a,b,c,d));edgeBlock.add(ek(c,d,a,b));}
+// sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10)
+for(let y=6;y<H;y++) if(y!==10) blockEdge(7,y,8,y);
+for(let x=8;x<W;x++) blockEdge(x,5,x,6);
+
+const FURN=[];
+const add=(type,gx,gy,extra={})=>{FURN.push({type,gx,gy,...extra});blocked.add(key(gx,gy));};
+AGENTS.forEach(a=>blocked.add(key(a.gx,a.gy)));
+add("shelf",1,0);blocked.add(key(2,0));add("plant",0,0);add("cooler",5,0);add("plant",11,0);add("plant",7,0);
+add("recep",1,8,{end:"l"});add("recep",2,8,{mon:true,logo:true});add("recep",3,8,{end:"r",phone:true});
+add("desk",4,3,{mon:true});add("desk",5,3,{plant:true});add("desk",6,3,{laptop:true});add("desk",10,3,{mon:true,laptop:true});
+add("desk",4,4,{laptop:true});add("desk",5,4,{mon:true});add("desk",6,4,{});
+add("sofa",4,9);add("sofa",5,9);add("ctable",4,10);add("ctable",5,10);add("plant",3,11);add("lamp",6,9);
+add("mtable",9,8,{laptop:true});add("mtable",10,8,{mug:true});add("mtable",9,9,{mug:true});add("mtable",10,9,{laptop:true});
+add("fooz",7,11);add("coffee",11,4);add("plant",11,11);add("plant",7,6);
+const GLASS=[];for(let y=6;y<H;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<W;x++)GLASS.push({ax:"y",x,y:6});
+
+const player={x:6.5,y:7.5,path:[],dir:1,target:null};
+let marker=null;
+
+// ---------- Canvas ----------
+const cv=document.getElementById("cv");let ctx=cv.getContext("2d");
+let scale=1,offX=0,offY=0,dpr=1,fit=1,zoom=false,cw=0,ch=0;
+function resize(){
+  const r=cv.getBoundingClientRect();dpr=Math.min(window.devicePixelRatio||1,2);cw=r.width;ch=r.height;
+  cv.width=Math.round(r.width*dpr);cv.height=Math.round(r.height*dpr);
+  fit=Math.min(r.width/WORLD_W,r.height/WORLD_H);
+}
+window.addEventListener("resize",resize);
+function camera(){
+  scale=zoom?Math.max(fit*2,0.9):fit;
+  const ww=WORLD_W*scale,wh=WORLD_H*scale;
+  if(!zoom||ww<=cw){offX=(cw-ww)/2;} else {const [px]=iso(player.x,player.y);offX=Math.min(0,Math.max(cw-ww,cw/2-px*scale));}
+  if(!zoom||wh<=ch){offY=(ch-wh)/2;} else {const [,py]=iso(player.x,player.y);offY=Math.min(0,Math.max(ch-wh,ch/2-(py-40)*scale));}
+}
+
+function poly(pts,fill,stroke,lw){ctx.beginPath();pts.forEach((p,i)=>i?ctx.lineTo(p[0],p[1]):ctx.moveTo(p[0],p[1]));ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1;ctx.stroke();}}
+function shade(hex,f){const n=parseInt(hex.slice(1),16);let r=n>>16,g=n>>8&255,b=n&255;
+  r=Math.max(0,Math.min(255,Math.round(r*f)));g=Math.max(0,Math.min(255,Math.round(g*f)));b=Math.max(0,Math.min(255,Math.round(b*f)));
+  return "#"+((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1);}
+// caja isométrica: x0,y0 esquina, dx,dy tamaño en tiles, h alto, lift elevación
+function box(x0,y0,dx,dy,h,col,lift=0,top){
+  const a=iso(x0,y0),b=iso(x0+dx,y0),c=iso(x0+dx,y0+dy),d=iso(x0,y0+dy);
+  const up=p=>[p[0],p[1]-h-lift], lo=p=>[p[0],p[1]-lift];
+  poly([lo(d),lo(c),up(c),up(d)],shade(col,.7));
+  poly([lo(c),lo(b),up(b),up(c)],shade(col,.85));
+  poly([up(a),up(b),up(c),up(d)],top||col,shade(top||col,.75));
+}
+// dibujar en el plano de una pared: "L" = pared izquierda (x=0), "R" = pared derecha (y=0)
+function onWall(side,t,fn){const p=side==="L"?iso(0,t):iso(t,0);ctx.save();
+  ctx.transform(1,side==="L"?-0.5:0.5,0,1,p[0],p[1]);fn();ctx.restore();}
+
+function drawRoom(t){
+  const p00=iso(0,0),p0H=iso(0,H),pW0=iso(W,0),pWH=iso(W,H);
+  // paredes
+  poly([p0H,p00,[p00[0],p00[1]-WALLH],[p0H[0],p0H[1]-WALLH]],"#232a37");
+  poly([p00,pW0,[pW0[0],pW0[1]-WALLH],[p00[0],p00[1]-WALLH]],"#2b3343");
+  poly([p0H,p00,[p00[0],p00[1]-10],[p0H[0],p0H[1]-10]],"#5a4330");
+  poly([p00,pW0,[pW0[0],pW0[1]-10],[p00[0],p00[1]-10]],"#6b5038");
+  // cantos superiores
+  poly([[p0H[0],p0H[1]-WALLH],[p00[0],p00[1]-WALLH],[p00[0],p00[1]-WALLH-8],[p0H[0]+8,p0H[1]-WALLH-4]],"#3a4456");
+  poly([[p00[0],p00[1]-WALLH],[pW0[0],pW0[1]-WALLH],[pW0[0]-8,pW0[1]-WALLH-4],[p00[0],p00[1]-WALLH-8]],"#46516a");
+
+  // marca en la pared izquierda
+  const L=32; // px por tile a lo largo de la pared
+  onWall("L",9.2,()=>{
+    // monograma
+    ctx.fillStyle="#e9ecef";ctx.fillRect(0,-104,30,30);
+    ctx.fillStyle="#232a37";ctx.font="700 17px 'Pixelify Sans', monospace";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText("LO",15,-88);
+    ctx.textAlign="left";ctx.textBaseline="alphabetic";
+    ctx.fillStyle="#eef1f4";ctx.font="700 30px 'Pixelify Sans', monospace";ctx.fillText("LUCAS",40,-82);
+    ctx.font="700 30px 'Pixelify Sans', monospace";ctx.fillText("OLAVARRIA",40,-52);
+    ctx.fillStyle="#f2c14e";ctx.font="600 12px 'Pixelify Sans', monospace";ctx.fillText("ASESOR FINANCIERO · IDÓNEO CNV",42,-34);
+  });
+  // puerta de entrada (vidrio) en la pared izquierda
+  onWall("L",11.5,()=>{const w=1.7*L;
+    ctx.fillStyle="#141a24";ctx.fillRect(-2,-102,w+4,102);
+    ctx.fillStyle="rgba(140,190,220,.28)";ctx.fillRect(3,-97,w-6,95);
+    ctx.fillStyle="rgba(255,255,255,.18)";ctx.fillRect(8,-90,4,70);
+    ctx.fillStyle="#9aa6b5";ctx.fillRect(w-12,-52,3,14);});
+  // frase en la pared derecha
+  onWall("R",3.0,()=>{ctx.fillStyle="#c9d1db";ctx.font="600 11px 'Pixelify Sans', monospace";
+    ["MEJORES","DECISIONES.","MÁS","OPORTUNIDADES."].forEach((s,i)=>ctx.fillText(s,4,-108+i*15));});
+  // ventanal con skyline porteño
+  onWall("R",6.1,()=>{const w=5.6*L,top=-122,bot=-14,hh=bot-top;
+    ctx.fillStyle="#141a24";ctx.fillRect(-4,top-4,w+8,hh+8);
+    const g=ctx.createLinearGradient(0,top,0,bot);g.addColorStop(0,"#6fa8d6");g.addColorStop(.65,"#bcd8ea");g.addColorStop(1,"#f3d9a6");
+    ctx.fillStyle=g;ctx.fillRect(0,top,w,hh);
+    ctx.fillStyle="rgba(255,240,190,.75)";ctx.beginPath();ctx.arc(w*.82,top+24,9,0,7);ctx.fill();
+    ctx.fillStyle="rgba(255,255,255,.7)";[[20,top+18,26],[95,top+12,34]].forEach(([x,y,l])=>{ctx.fillRect(x,y,l,4);ctx.fillRect(x+6,y-3,l-12,3);});
+    const B=[[0,52,"#7088a6"],[14,70,"#5d7697"],[30,44,"#8195b0"],[42,80,"#55708f"],[58,58,"#6a84a3"],[72,40,"#8da0b8"],
+      [118,66,"#5a7495"],[132,48,"#7790ad"],[146,78,"#4f6a8a"],[160,56,"#6f88a6"],[170,42,"#8399b3"]];
+    B.forEach(([x,hb,c])=>{ctx.fillStyle=c;ctx.fillRect(x,bot-hb,13,hb);ctx.fillStyle="rgba(255,236,170,.55)";
+      for(let yy=bot-hb+5;yy<bot-4;yy+=7)for(let xx=x+2;xx<x+11;xx+=4)if((xx*7+yy*3)%5)ctx.fillRect(xx,yy,2,3);});
+    // Obelisco
+    const ox=w*.55;ctx.fillStyle="#eef0ec";ctx.fillRect(ox-4,bot-88,8,88);ctx.beginPath();ctx.moveTo(ox-4,bot-88);ctx.lineTo(ox,bot-100);ctx.lineTo(ox+4,bot-88);ctx.fill();
+    ctx.fillStyle="#c9ccc6";ctx.fillRect(ox+1,bot-88,3,88);ctx.fillStyle="#1d2633";ctx.fillRect(ox-1,bot-80,2,3);
+    ctx.fillStyle="#141a24";[w/3,2*w/3].forEach(x=>ctx.fillRect(x-2,top,4,hh));ctx.fillRect(0,top+hh*.62,w,3);
+    ctx.fillStyle="rgba(255,255,255,.08)";ctx.beginPath();ctx.moveTo(10,bot);ctx.lineTo(40,top);ctx.lineTo(60,top);ctx.lineTo(30,bot);ctx.fill();
+  });
+  // cuadro con gráfico en la pared izquierda
+  onWall("L",2.7,()=>{ctx.fillStyle="#3b2c20";ctx.fillRect(0,-104,80,58);ctx.fillStyle="#1b2433";ctx.fillRect(4,-100,72,50);
+    ctx.strokeStyle="#5fc48a";ctx.lineWidth=2;ctx.beginPath();ctx.moveTo(10,-60);ctx.lineTo(26,-70);ctx.lineTo(38,-64);ctx.lineTo(54,-84);ctx.lineTo(70,-90);ctx.stroke();
+    ctx.fillStyle="#c9d1db";ctx.font="9px 'Pixelify Sans', monospace";ctx.fillText("AUM",10,-90);});
+
+  // piso
+  for(let x=0;x<W;x++)for(let y=0;y<H;y++){
+    const a=iso(x,y),b=iso(x+1,y),c=iso(x+1,y+1),d=iso(x,y+1);
+    const meet=x>=8&&y>=6;
+    const col=meet?((x+y)%2?"#3c4658":"#414c5f"):((x+y)%2?"#b8ae9f":"#c3baac");
+    poly([a,b,c,d],col,meet?"#353e4f":"#aaa093");
+  }
+  // alfombras
+  const rug=(x0,y0,x1,y1,c,e)=>{poly([iso(x0,y0),iso(x1,y0),iso(x1,y1),iso(x0,y1)],c,e,2);};
+  rug(3.2,8.6,6.9,11.8,"#5c6676","#8a93a1");
+  rug(0.15,9.9,1.1,11.4,"#1b212c","#2f3846");
+  rug(3.4,1.4,7.6,5.6,"rgba(70,80,96,.35)");
+  // espesor del piso
+  poly([p0H,pWH,[pWH[0],pWH[1]+12],[p0H[0],p0H[1]+12]],"#5a4330");
+  poly([pWH,pW0,[pW0[0],pW0[1]+12],[pWH[0],pWH[1]+12]],"#6b5038");
+}
+
+function plantAt(cx,cy,s=1){ctx.fillStyle="#2f7a46";
+  [[0,-26,10],[-9,-20,7],[9,-20,7],[0,-36,7],[-5,-30,6],[6,-31,6]].forEach(([dx,dy,r])=>{ctx.beginPath();ctx.arc(cx+dx*s,cy+dy*s,r*s,0,7);ctx.fill();});
+  ctx.fillStyle="#4aa765";[[-3,-30,4],[5,-24,3],[-7,-21,3]].forEach(([dx,dy,r])=>{ctx.beginPath();ctx.arc(cx+dx*s,cy+dy*s,r*s,0,7);ctx.fill();});}
+function monitor(x,y,t,glow){box(x,y,0.42,0.1,16,"#1a1f28",22);const s=iso(x+0.21,y+0.05);
+  ctx.fillStyle=glow||"#4f9fd6";ctx.fillRect(s[0]-8,s[1]-36,14,10);ctx.fillStyle="rgba(255,255,255,.5)";ctx.fillRect(s[0]-6,s[1]-34,6+((t/400|0)%3)*2,1);}
+function laptop(x,y){box(x,y,0.32,0.22,2,"#c6ccd4",22);const s=iso(x+0.16,y+0.02);ctx.fillStyle="#8b97a6";ctx.fillRect(s[0]-6,s[1]-34,11,9);}
+function mug(x,y){const s=iso(x,y);ctx.fillStyle="#f4f1ea";ctx.fillRect(s[0]-3,s[1]-29,6,7);ctx.fillStyle="#3a2414";ctx.fillRect(s[0]-2,s[1]-29,4,1);}
+
+function drawFurn(f,t){
+  const {gx:x,gy:y}=f;
+  switch(f.type){
+    case "desk":
+      box(x+0.04,y+0.06,0.92,0.88,22,"#d9cfbf",0,"#e2d8c8");
+      box(x+0.1,y+0.5,0.25,0.4,20,"#2a303b");
+      if(f.mon)monitor(x+0.3,y+0.15,t);
+      if(f.laptop)laptop(x+0.55,y+0.55);
+      if(f.plant){box(x+0.38,y+0.38,0.24,0.24,8,"#3c3f46",22);const c=iso(x+0.5,y+0.5);plantAt(c[0],c[1]-28,.55);}
+      break;
+    case "recep":
+      box(x,y+0.08,1,0.84,30,"#1f2633",0,"#8a6142");
+      if(f.mon)monitor(x+0.3,y+0.1,t,"#5fc4ad");
+      if(f.phone){const s=iso(x+0.5,y+0.4);ctx.fillStyle="#141820";ctx.fillRect(s[0]-6,s[1]-35,12,5);}
+      if(f.logo){const p=iso(x+0.25,y+0.92);ctx.save();ctx.transform(1,0.5,0,1,p[0],p[1]);
+        ctx.fillStyle="#e9ecef";ctx.font="700 12px 'Pixelify Sans', monospace";ctx.fillText("LUCAS O.",0,-12);ctx.restore();}
+      break;
+    case "shelf":
+      box(x+0.05,y+0.05,1.6,0.32,96,"#5b4130");
+      for(let r=0;r<4;r++){const p=iso(x+0.1,y+0.37);ctx.save();ctx.transform(1,0.5,0,1,p[0],p[1]);
+        ctx.fillStyle="#3c2b20";ctx.fillRect(0,-90+r*22,92,2);
+        ["#3a6ea5","#d9d2c3","#2b3240","#7a5bb8","#b8902f","#2f8f8a"].forEach((c,i)=>{if((i+r)%4){ctx.fillStyle=c;ctx.fillRect(4+i*14,-86+r*22,9,17);}});
+        if(r===1){ctx.fillStyle="#3f8a55";ctx.beginPath();ctx.arc(80,-74+r*22,7,0,7);ctx.fill();}
+        ctx.restore();}
+      break;
+    case "plant":
+      box(x+0.32,y+0.32,0.36,0.36,16,"#e9e6df");plantAt(...iso(x+0.5,y+0.5).map((v,i)=>i?v-14:v));break;
+    case "cooler":
+      box(x+0.3,y+0.3,0.4,0.4,34,"#2b313b");const c=iso(x+0.5,y+0.5);
+      ctx.fillStyle="rgba(140,200,240,.85)";ctx.fillRect(c[0]-8,c[1]-58,16,20);ctx.fillStyle="rgba(220,240,255,.8)";ctx.fillRect(c[0]-5,c[1]-55,4,13);break;
+    case "sofa":
+      box(x+0.02,y+0.15,0.98,0.8,14,"#2a3242");box(x+0.02,y+0.05,0.98,0.22,30,"#232a38");break;
+    case "ctable":
+      box(x+0.08,y+0.15,0.86,0.6,12,"#3a2a1f",0,"#4b3627");if(x===4){const s=iso(x+0.6,y+0.4);ctx.fillStyle="#d9d2c3";ctx.fillRect(s[0]-6,s[1]-16,12,4);}break;
+    case "lamp":
+      {const c=iso(x+0.5,y+0.5);ctx.fillStyle="#2b2f37";ctx.fillRect(c[0]-1,c[1]-50,3,50);ctx.fillStyle="#f3e2b0";ctx.fillRect(c[0]-8,c[1]-62,17,12);
+       ctx.fillStyle="rgba(255,230,160,.12)";ctx.beginPath();ctx.ellipse(c[0],c[1]-8,26,12,0,0,7);ctx.fill();}break;
+    case "mtable":
+      box(x,y,1,1,24,"#6b4a30",0,"#8a6142");if(f.laptop)laptop(x+0.3,y+0.3);if(f.mug)mug(x+0.5,y+0.6);break;
+    case "fooz":
+      box(x+0.05,y+0.1,0.9,0.8,24,"#3a2a1f",0,"#2f7a46");{const p=iso(x+0.2,y+0.5);for(let i=0;i<4;i++){ctx.fillStyle="#c9ccd2";ctx.fillRect(p[0]+i*9-4,p[1]-30+i*4.5,22,1.5);
+        ctx.fillStyle=i%2?"#d9463a":"#3a6ea5";ctx.fillRect(p[0]+i*9+5,p[1]-32+i*4.5,3,4);}}break;
+    case "coffee":
+      box(x+0.1,y+0.1,0.8,0.8,24,"#5b4130",0,"#6b5038");box(x+0.3,y+0.3,0.35,0.3,18,"#1a1f28",24);
+      {const s=iso(x+0.47,y+0.6);ctx.fillStyle="#f2c14e";ctx.fillRect(s[0]-1,s[1]-36,3,2);}break;
+  }
+}
+function drawGlass(g){
+  const h=96;let a,b;
+  if(g.ax==="x"){a=iso(g.x,g.y);b=iso(g.x,g.y+1);} else {a=iso(g.x,g.y);b=iso(g.x+1,g.y);}
+  ctx.strokeStyle="#2b3240";ctx.lineWidth=3;
+  if(g.door){ctx.beginPath();ctx.moveTo(a[0],a[1]-h);ctx.lineTo(b[0],b[1]-h);ctx.stroke();return;}
+  poly([a,b,[b[0],b[1]-h],[a[0],a[1]-h]],"rgba(150,200,230,.16)");
+  ctx.beginPath();ctx.moveTo(a[0],a[1]);ctx.lineTo(b[0],b[1]);ctx.moveTo(a[0],a[1]-h);ctx.lineTo(b[0],b[1]-h);
+  ctx.moveTo(a[0],a[1]);ctx.lineTo(a[0],a[1]-h);ctx.stroke();
+  ctx.strokeStyle="rgba(255,255,255,.22)";ctx.lineWidth=2;ctx.beginPath();
+  ctx.moveTo(a[0]+(b[0]-a[0])*.3,a[1]+(b[1]-a[1])*.3-20);ctx.lineTo(a[0]+(b[0]-a[0])*.5,a[1]+(b[1]-a[1])*.5-70);ctx.stroke();
+}
+
+function drawPerson(fx,fy,p,t,walking,faceLeft){
+  const bob=walking?Math.abs(Math.sin(t/90))*2:Math.sin(t/600)*0.8;
+  ctx.fillStyle="rgba(0,0,0,.25)";ctx.beginPath();ctx.ellipse(fx,fy,11,5,0,0,7);ctx.fill();
+  const y=fy-bob,step=walking?Math.sin(t/90)*3:0;
+  ctx.fillStyle=p.pants||"#2c3442";ctx.fillRect(fx-6,y-14+step*0.3,5,13);ctx.fillRect(fx+1,y-14-step*0.3,5,13);
+  ctx.fillStyle=p.shoes||"#e9ecef";ctx.fillRect(fx-7,y-2+step*0.3,6,3);ctx.fillRect(fx+1,y-2-step*0.3,6,3);
+  ctx.fillStyle=p.shirt;ctx.fillRect(fx-8,y-30,16,17);
+  ctx.fillStyle=shade(p.shirt,.8);ctx.fillRect(fx-8,y-16,16,3);ctx.fillRect(fx-2,y-30,4,3);
+  if(p.stripes){ctx.fillStyle="#f2c14e";ctx.fillRect(fx-8,y-25,16,3);ctx.fillRect(fx-8,y-19,16,2);}
+  ctx.fillStyle=shade(p.shirt,.85);ctx.fillRect(fx-11,y-29,3,12);ctx.fillRect(fx+8,y-29,3,12);
+  ctx.fillStyle=p.skin;ctx.fillRect(fx-11,y-18,3,3);ctx.fillRect(fx+8,y-18,3,3);
+  ctx.fillStyle=p.skin;ctx.fillRect(fx-7,y-44,14,14);
+  ctx.fillStyle="#1a1a1a";const ex=faceLeft?-2:2;ctx.fillRect(fx-4+ex,y-38,2,3);ctx.fillRect(fx+2+ex,y-38,2,3);
+  ctx.fillStyle=shade(p.skin,.82);ctx.fillRect(fx-2+ex,y-33,4,1);
+  if(p.glasses){ctx.strokeStyle="#1a1a1a";ctx.lineWidth=1;ctx.strokeRect(fx-5+ex+.5,y-39.5,4,4);ctx.strokeRect(fx+1+ex+.5,y-39.5,4,4);}
+  ctx.fillStyle=p.hair;
+  if(p.hairStyle==="cap"){ctx.fillStyle="#3a6ea5";ctx.fillRect(fx-8,y-48,16,6);ctx.fillRect(faceLeft?fx-12:fx+2,y-43,10,3);}
+  else{ctx.fillRect(fx-8,y-47,16,6);ctx.fillRect(fx-8,y-43,3,6);ctx.fillRect(fx+5,y-43,3,4);
+    if(p.hairStyle==="long"){ctx.fillRect(fx-8,y-41,3,15);ctx.fillRect(fx+5,y-41,3,15);}
+    if(p.hairStyle==="curly"){[-7,-2,3,8].forEach(d=>{ctx.beginPath();ctx.arc(fx+d-1,y-46,4,0,7);ctx.fill();});ctx.fillRect(fx-9,y-42,3,10);ctx.fillRect(fx+6,y-42,3,10);}}
+  if(p.headset){ctx.fillStyle="#1a1f28";ctx.fillRect(fx-9,y-41,3,6);ctx.fillRect(fx-8,y-49,16,2);ctx.fillRect(fx-7,y-35,6,1.5);}
+}
+
+function nameTag(x,y,txt,color){
+  ctx.font="600 11px 'Pixelify Sans', monospace";const w=ctx.measureText(txt).width+10;
+  ctx.fillStyle="rgba(15,22,30,.8)";ctx.fillRect(x-w/2,y-9,w,15);
+  ctx.fillStyle=color||"#eef2f6";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(txt,x,y-1);
+}
+function bubble(x,y,txt,t){
+  const by=y+Math.sin(t/400)*2;
+  ctx.font="12px 'Pixelify Sans', monospace";const w=ctx.measureText(txt).width+16;
+  ctx.fillStyle="#fffdf6";ctx.strokeStyle="#1d2633";ctx.lineWidth=2;
+  ctx.beginPath();ctx.roundRect(x-w/2,by-22,w,20,5);ctx.fill();ctx.stroke();
+  ctx.beginPath();ctx.moveTo(x-4,by-2);ctx.lineTo(x,by+4);ctx.lineTo(x+4,by-2);ctx.fill();
+  ctx.fillStyle="#1d2633";ctx.textAlign="center";ctx.textBaseline="middle";ctx.fillText(txt,x,by-11);
+}
+
+// ---------- Movimiento ----------
+function bfs(sx,sy,goals){
+  const goalSet=new Set(goals.map(g=>key(g[0],g[1])));
+  const q=[[sx,sy]],prev={};prev[key(sx,sy)]=null;
+  while(q.length){const [x,y]=q.shift();if(goalSet.has(key(x,y))){const path=[];let k=key(x,y);
+      while(k){const [a,b]=k.split(",").map(Number);path.unshift([a,b]);k=prev[k];}path.shift();return path;}
+    for(const [dx,dy] of [[1,0],[-1,0],[0,1],[0,-1]]){const nx=x+dx,ny=y+dy,k=key(nx,ny);
+      if(nx<0||ny<0||nx>=W||ny>=H||blocked.has(k)||k in prev||edgeBlock.has(ek(x,y,nx,ny)))continue;prev[k]=key(x,y);q.push([nx,ny]);}}
+  return null;
+}
+function walkTo(goals,agent){
+  const sx=Math.round(player.x-0.5),sy=Math.round(player.y-0.5);
+  const path=bfs(sx,sy,goals);
+  if(!path)return;
+  player.path=path;player.target=agent||null;
+  marker=path.length?path[path.length-1]:null;
+  if(!path.length&&agent)openAgent(agent);
+}
+function goToAgent(a){
+  const n=([x,y])=>[[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+  const goals=[...n(a.desk),...n([a.gx,a.gy])].filter(([x,y])=>x>=0&&y>=0&&x<W&&y<H&&!blocked.has(key(x,y)));
+  closeSheet();walkTo(goals,a);
+}
+
+function screenToWorld(e){const r=cv.getBoundingClientRect();return[(e.clientX-r.left-offX)/scale,(e.clientY-r.top-offY)/scale];}
+cv.addEventListener("pointerdown",e=>{
+  const [wx,wy]=screenToWorld(e);
+  for(const a of AGENTS){const [fx,fy]=iso(a.gx+.5,a.gy+.5);if(Math.abs(wx-fx)<16&&wy<fy+4&&wy>fy-60){goToAgent(a);return;}}
+  for(const a of AGENTS){const [fx,fy]=iso(a.desk[0]+.5,a.desk[1]+.5);if(Math.abs(wx-fx)<26&&wy<fy+12&&wy>fy-36){goToAgent(a);return;}}
+  const sx=wx-OX,sy=wy-OY;const gx=Math.floor((sx/(TW/2)+sy/(TH/2))/2),gy=Math.floor((sy/(TH/2)-sx/(TW/2))/2);
+  if(gx<0||gy<0||gx>=W||gy>=H||blocked.has(key(gx,gy)))return;
+  closeSheet();walkTo([[gx,gy]],null);
+});
+document.getElementById("zoom").onclick=e=>{zoom=!zoom;e.currentTarget.setAttribute("aria-pressed",zoom);e.currentTarget.textContent=zoom?"− Alejar":"+ Acercar";};
+
+// ---------- Loop ----------
+let last=performance.now();
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+const ME={shirt:"#20324d",stripes:true,hair:"#3b2416",skin:"#e2b48c",hairStyle:"cap",pants:"#3a3f4a"};
+function frame(t){
+  const dt=Math.min(50,t-last);last=t;
+  if(player.path.length){const [nx,ny]=player.path[0];const tx=nx+.5,ty=ny+.5;const dx=tx-player.x,dy=ty-player.y;const d=Math.hypot(dx,dy);
+    const sp=(reduce?6:3.4)*dt/1000;
+    if(d<=sp){player.x=tx;player.y=ty;player.path.shift();if(!player.path.length){marker=null;if(player.target){const a=player.target;player.target=null;openAgent(a);}}}
+    else{player.x+=dx/d*sp;player.y+=dy/d*sp;player.dir=(dx-dy)<0?-1:1;}}
+  camera();
+  ctx.setTransform(1,0,0,1,0,0);ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.setTransform(dpr*scale,0,0,dpr*scale,dpr*offX,dpr*offY);
+  drawRoom(t);
+  if(marker){const [x,y]=marker;ctx.globalAlpha=.5+.3*Math.sin(t/150);poly([iso(x,y),iso(x+1,y),iso(x+1,y+1),iso(x,y+1)],"rgba(242,193,78,.5)","#f2c14e");ctx.globalAlpha=1;}
+  const items=[];
+  FURN.forEach(f=>items.push({d:f.gx+f.gy+0.55,draw:()=>drawFurn(f,t)}));
+  GLASS.forEach(g=>items.push({d:g.ax==="x"?g.x+g.y:g.x+g.y+0.0,draw:()=>drawGlass(g)}));
+  AGENTS.forEach(a=>items.push({d:a.gx+a.gy+0.5,draw:()=>{const [fx,fy]=iso(a.gx+.5,a.gy+.5);drawPerson(fx,fy,a,t,false,false);}}));
+  const walking=player.path.length>0;
+  items.push({d:player.x+player.y-0.5+0.01,draw:()=>{const [fx,fy]=iso(player.x,player.y);drawPerson(fx,fy,ME,t,walking,player.dir<0);}});
+  items.sort((a,b)=>a.d-b.d).forEach(i=>i.draw());
+  AGENTS.forEach(a=>{const [fx,fy]=iso(a.gx+.5,a.gy+.5);nameTag(fx,fy-64,a.name+" · "+a.role);bubble(fx,fy-76,a.status(),t+a.gx*300);});
+  {const [fx,fy]=iso(player.x,player.y);nameTag(fx,fy-62,"Capocha","#f2c14e");}
+  requestAnimationFrame(frame);
+}
+
+// ---------- Paneles ----------
+const sheet=document.getElementById("sheet"),body=document.getElementById("sh-body");
+function closeSheet(){sheet.hidden=true;}
+document.getElementById("sh-close").onclick=closeSheet;
+function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(el._t);el._t=setTimeout(()=>el.hidden=true,1600);}
+async function copy(text,pre){try{await navigator.clipboard.writeText(text);toast("Copiado ✓");}
+  catch(e){const r=document.createRange();r.selectNodeContents(pre);const s=getSelection();s.removeAllRanges();s.addRange(r);toast("Seleccionado: mantené apretado para copiar");}}
+const esc=s=>s.replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+
+function textBlock(text,label){
+  const id="m"+Math.random().toString(36).slice(2,7);
+  return `<pre class="msg" id="${id}">${esc(text)}</pre><button class="btn" data-copy="${id}">${label||"Copiar texto"}</button>`;
+}
+function bindCopies(){body.querySelectorAll("[data-copy]").forEach(b=>b.onclick=()=>{const pre=document.getElementById(b.dataset.copy);copy(pre.textContent,pre);});}
+
+const VIEWS={
+  research(tab="wpp"){
+    return `<div class="demo">Texto de ejemplo · los x,x se completan con datos reales</div>
+    <div class="say">¡Buenas! Ya te dejé el informe de hoy para la comunidad. Revisalo y pegalo.</div>
+    <div class="tabs"><button class="tab" data-tab="wpp" aria-pressed="${tab==="wpp"}">Morning WhatsApp</button><button class="tab" data-tab="prop" aria-pressed="${tab==="prop"}">Idea de la semana</button></div>
+    ${textBlock(tab==="wpp"?WPP:PROPUESTA)}
+    <p class="note">Va siempre con disclaimer y sin recomendaciones personalizadas: es contenido público.</p>`;
+  },
+  secre(){
+    const pend=CLIENTES.filter(c=>!c.done).length;
+    return `<div class="demo">Clientes de ejemplo</div>
+    <div class="say">${pend?`Hoy tenés ${pend} ${pend===1?"persona":"personas"} para contactar. Arrancá por las de arriba.`:"¡Llamaste a todos! Te ganaste el café ☕"}</div>
+    <h3>Para llamar hoy</h3><div class="list">${CLIENTES.map(c=>`<div class="row ${c.done?"done":c.tipo}"><div class="t"><b>${c.n}</b><span>${c.motivo}</span></div>
+      <button class="btn ${c.done?"ghost":""}" data-call="${c.id}">${c.done?"Deshacer":"Lo llamé"}</button></div>`).join("")}</div>
+    <h3>Cobros de la semana</h3><div class="list">${COBROS.map(c=>`<div class="row"><div class="t"><b>${c.n} · ${c.d}</b><span>${c.t}</span></div></div>`).join("")}</div>`;
+  },
+  fin(){
+    const tot=COMIS.reduce((s,c)=>s+c.v,0),max=COMIS[0].v;
+    return `<div class="demo">Números de ejemplo · después salen del mail de comisiones</div>
+    <div class="say">Octubre viene bien, jefe. Ojo que Martín tiene buen patrimonio pero casi no te deja comisión: charlá su cartera.</div>
+    <div class="kpis"><div class="kpi"><span>Comisiones oct</span><b>${ARS(tot)}</b></div><div class="kpi"><span>vs. septiembre</span><b style="color:var(--ok)">▲ 12%</b></div><div class="kpi"><span>Proyección nov</span><b>${ARS(Math.round(tot*1.06/1000)*1000)}</b></div></div>
+    <h3>Ranking por cliente</h3><div class="list">${COMIS.map(c=>`<div class="bar"><span>${c.n}</span><i style="width:${Math.max(4,c.v/max*100)}%"></i><em>${Math.round(c.v/1000)}k</em></div>`).join("")}</div>
+    <h3>Para revisar</h3><div class="list">
+      <div class="row mid"><div class="t"><b>Martín G.</b><span>AUM alto, comisión baja: mucho en instrumentos sin costo</span></div></div>
+      <div class="row mid"><div class="t"><b>Ana L.</b><span>Le entra una amortización: plata para reinvertir</span></div></div></div>`;
+  },
+  mkt(tab="Referidos"){
+    return `<div class="say">¿Qué armamos hoy? Elegí y te dejo el borrador. Completá lo que está entre corchetes.</div>
+    <div class="tabs">${Object.keys(MKT).map(k=>`<button class="tab" data-tab="${k}" aria-pressed="${tab===k}">${k}</button>`).join("")}</div>
+    ${textBlock(MKT[tab])}`;
+  }
+};
+let current=null;
+function render(a,tab){
+  document.getElementById("sh-name").textContent=a.name;document.getElementById("sh-role").textContent=a.role;
+  body.innerHTML=VIEWS[a.key](tab);bindCopies();
+  body.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>render(a,b.dataset.tab));
+  body.querySelectorAll("[data-call]").forEach(b=>b.onclick=()=>{const c=CLIENTES.find(c=>c.id==b.dataset.call);c.done=!c.done;
+    if(c.done)toast("Anotado ✓");render(a);renderDock();});
+  paintAvatar(a);
+}
+function openAgent(a){current=a;render(a);sheet.hidden=false;body.scrollTop=0;}
+function paintAvatar(a){const c=document.getElementById("av"),x=c.getContext("2d");const r=window.devicePixelRatio||1;
+  c.width=38*r;c.height=38*r;x.setTransform(r,0,0,r,0,0);
+  const saved=ctx;ctx=x;try{drawPerson(19,52,a,0,false,false);}finally{ctx=saved;}}
+
+// ---------- Dock ----------
+const dock=document.getElementById("dock");
+function renderDock(){dock.innerHTML=AGENTS.map((a,i)=>{const b=a.badge();return `<button data-i="${i}" aria-label="Ir con ${a.name}, ${a.role}">
+  ${b?`<span class="badge">${b}</span>`:""}<b>${a.name}</b><span>${a.role}</span></button>`;}).join("");
+  dock.querySelectorAll("button").forEach(b=>b.onclick=()=>goToAgent(AGENTS[+b.dataset.i]));}
+renderDock();
+
+function tick(){const d=new Date();document.getElementById("clock").textContent=d.toLocaleTimeString("es-AR",{hour:"2-digit",minute:"2-digit"});}
+tick();setInterval(tick,15000);
+setTimeout(()=>{const h=document.getElementById("hint");if(h)h.hidden=true;},6000);
+
+resize();
+(document.fonts?document.fonts.ready:Promise.resolve()).then(()=>requestAnimationFrame(frame));
+</script>
+</body>
+</html>

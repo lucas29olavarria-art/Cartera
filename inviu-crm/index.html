@@ -230,12 +230,18 @@ body.previewing-report #report-print{
 <div id="login" class="hidden">
   <div class="lk-box" style="width:300px;">
     <div class="lk-title">CRM Lucas Olavarria</div>
-    <div class="lk-sub">Iniciá sesión para ver tus datos</div>
-    <label class="flbl" style="text-align:left;">Email</label>
-    <input class="fi" type="email" id="lg-email" autocomplete="username" style="margin-bottom:10px;">
-    <label class="flbl" style="text-align:left;">Contraseña</label>
-    <input class="fi" type="password" id="lg-pass" autocomplete="current-password" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')doLogin()">
-    <button class="ib pri" style="width:100%;padding:11px;" onclick="doLogin()">Entrar</button>
+    <div id="lg-step-email">
+      <div class="lk-sub">Iniciá sesión para ver tus datos</div>
+      <label class="flbl" style="text-align:left;">Email</label>
+      <input class="fi" type="email" id="lg-email" autocomplete="username" style="margin-bottom:14px;" onkeydown="if(event.key==='Enter')sendOtp()">
+      <button class="ib pri" style="width:100%;padding:11px;" onclick="sendOtp()">Enviar código</button>
+    </div>
+    <div id="lg-step-code" class="hidden">
+      <div class="lk-sub">Ingresá el código de 6 dígitos que te mandamos por email</div>
+      <input class="fi" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="lg-code" autocomplete="one-time-code" style="margin-bottom:10px;letter-spacing:.3em;text-align:center;" onkeydown="if(event.key==='Enter')verifyOtpCode()">
+      <button class="ib pri" style="width:100%;padding:11px;margin-bottom:8px;" onclick="verifyOtpCode()">Confirmar</button>
+      <button class="ib" style="width:100%;padding:9px;" onclick="sendOtp(true)">Reenviar código</button>
+    </div>
     <div class="lk-err" id="lg-err"></div>
   </div>
 </div>
@@ -280,7 +286,7 @@ body.previewing-report #report-print{
 // ══════════════════════════ STORAGE (Supabase) ══════════════════════════
 const SUPABASE_URL='https://vqxcmooloynecpvyeghv.supabase.co';
 const SUPABASE_ANON_KEY='sb_publishable_DBhPfwrGlvI-41Cmo2NfKQ_WYdoGnT5';
-const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY);
+const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{persistSession:true}});
 const PIN_KEY='inviuCRM:pin:v1';
 function uid(){return crypto.randomUUID?crypto.randomUUID():'id-'+Date.now()+'-'+Math.random().toString(36).slice(2);}
 let DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''},lastReporte:{}};
@@ -2913,14 +2919,33 @@ function removePin(){
 
 // ══════════════════════════ BOOT ══════════════════════════
 function render(){nav(ATb);}
-async function doLogin(){
-  const email=document.getElementById('lg-email').value.trim();
-  const pass=document.getElementById('lg-pass').value;
+
+let _otpEmail='';
+function showLoginStep(step){
+  document.getElementById('lg-step-email').classList.toggle('hidden',step!=='email');
+  document.getElementById('lg-step-code').classList.toggle('hidden',step!=='code');
+  document.getElementById('lg-err').textContent='';
+}
+async function sendOtp(resend){
+  const email=resend?_otpEmail:document.getElementById('lg-email').value.trim();
   const errEl=document.getElementById('lg-err');
   errEl.textContent='';
-  if(!email||!pass){errEl.textContent='Completá email y contraseña';return;}
-  const{error}=await sb.auth.signInWithPassword({email,password:pass});
-  if(error){errEl.textContent='Email o contraseña incorrectos';return;}
+  if(!email){errEl.textContent='Completá tu email';return;}
+  const{error}=await sb.auth.signInWithOtp({email,options:{shouldCreateUser:false}});
+  if(error){errEl.textContent='No se pudo enviar el código: '+error.message;return;}
+  _otpEmail=email;
+  showLoginStep('code');
+  document.getElementById('lg-code').value='';
+  document.getElementById('lg-code').focus();
+  toast('Código enviado a '+email);
+}
+async function verifyOtpCode(){
+  const token=document.getElementById('lg-code').value.trim();
+  const errEl=document.getElementById('lg-err');
+  errEl.textContent='';
+  if(!token){errEl.textContent='Ingresá el código';return;}
+  const{error}=await sb.auth.verifyOtp({email:_otpEmail,token,type:'email'});
+  if(error){errEl.textContent='Código incorrecto o vencido';return;}
   document.getElementById('login').classList.add('hidden');
   await afterLogin();
 }
@@ -2929,6 +2954,17 @@ async function logout(){
   await sb.auth.signOut();
   location.reload();
 }
+// Sesión expirada / revocada en segundo plano: volver al login sin romper la UI.
+sb.auth.onAuthStateChange((event,session)=>{
+  if(event==='SIGNED_OUT'||(event!=='INITIAL_SESSION'&&!session)){
+    DB={clients:[],flows:[],agenda:[],issuers:{},advisor:{cnv:'',phone:'',email:''},lastReporte:{}};
+    document.getElementById('app').classList.add('hidden');
+    document.getElementById('lock').classList.add('hidden');
+    document.getElementById('login').classList.remove('hidden');
+    _otpEmail='';
+    showLoginStep('email');
+  }
+});
 async function loadLastReportes(){
   try{
     const{data,error}=await sb.from('tenencias_snapshots').select('client_id,fecha');

@@ -5,7 +5,8 @@ del repo, "Cartera"). Todo lo de abajo se hace en ese proyecto.
 
 ## Qué ya está hecho (código, en este repo)
 
-- [x] Login con Supabase Auth, código OTP de 6 dígitos por email
+- [x] Login con Supabase Auth, código OTP por email (el proyecto manda 8
+      dígitos, no 6 — el frontend ya no asume una longitud fija)
       (`signInWithOtp` + `verifyOtp`), no magic link — pensado para la PWA.
       Ver commit "inviu-crm: login con OTP por email en vez de contraseña".
 - [x] `onAuthStateChange`: si la sesión se cae, vuelve al login sin romper la UI.

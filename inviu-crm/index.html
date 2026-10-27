@@ -237,8 +237,8 @@ body.previewing-report #report-print{
       <button class="ib pri" style="width:100%;padding:11px;" onclick="sendOtp()">Enviar código</button>
     </div>
     <div id="lg-step-code" class="hidden">
-      <div class="lk-sub">Ingresá el código de 6 dígitos que te mandamos por email</div>
-      <input class="fi" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="6" id="lg-code" autocomplete="one-time-code" style="margin-bottom:10px;letter-spacing:.3em;text-align:center;" onkeydown="if(event.key==='Enter')verifyOtpCode()">
+      <div class="lk-sub">Ingresá el código que te mandamos por email</div>
+      <input class="fi" type="text" inputmode="numeric" pattern="[0-9]*" maxlength="10" id="lg-code" autocomplete="one-time-code" style="margin-bottom:10px;letter-spacing:.3em;text-align:center;" onkeydown="if(event.key==='Enter')verifyOtpCode()">
       <button class="ib pri" style="width:100%;padding:11px;margin-bottom:8px;" onclick="verifyOtpCode()">Confirmar</button>
       <button class="ib" style="width:100%;padding:9px;" onclick="sendOtp(true)">Reenviar código</button>
     </div>

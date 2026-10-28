@@ -8,19 +8,23 @@
 -- resumen del día (subida al bucket de Storage "market-cards").
 -- ══════════════════════════════════════════════════════════════════════
 
+-- Los indicadores quedan como texto (no numeric): vienen con coma decimal
+-- y símbolos ("%","$","pb") tal como los escribe el mail de origen, y acá
+-- solo se usan para completar una plantilla — no hay cálculos ni gráficos
+-- sobre ellos. riesgo_pais es la excepción porque es un entero limpio.
 create table if not exists public.market_resumen (
   id uuid primary key default gen_random_uuid(),
   fecha date not null,
-  sp500_fut numeric,
-  nasdaq_fut numeric,
-  dow_fut numeric,
-  ust10y numeric,
+  sp500_fut text,
+  nasdaq_fut text,
+  dow_fut text,
+  ust10y text,
   riesgo_pais integer,
-  riesgo_pais_var numeric,
-  merval_var numeric,
-  dolar_mep numeric,
-  dolar_ccl numeric,
-  dolar_blue numeric,
+  riesgo_pais_var text,
+  merval_var text,
+  dolar_mep text,
+  dolar_ccl text,
+  dolar_blue text,
   radar_texto text,
   wpp_texto text,
   imagen_url text,

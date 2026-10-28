@@ -51,7 +51,7 @@ body{background:var(--night);color:var(--ink);font-family:var(--body);overflow:h
 }
 .stage{flex:1;min-height:0;position:relative;
   background:radial-gradient(ellipse at 50% 40%, var(--night-2), var(--night) 70%)}
-canvas{display:block;width:100%;height:100%;touch-action:manipulation;image-rendering:pixelated}
+canvas{display:block;width:100%;height:100%;touch-action:manipulation}
 .hint{position:absolute;left:50%;transform:translateX(-50%);bottom:10px;font-family:var(--display);font-size:13px;
   background:rgba(0,0,0,.45);color:var(--ink);padding:6px 12px;border-radius:4px;pointer-events:none;white-space:nowrap}
 .dock{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;background:var(--panel);border-top:2px solid var(--line);
@@ -350,6 +350,27 @@ function gradFace(p1,p2,p3,p4,colBottom,colTop){
   g.addColorStop(0,colBottom);g.addColorStop(1,colTop);
   poly([p1,p2,p3,p4],g);
 }
+// esquinas redondeadas — para que muebles y personajes dejen de leer como
+// bloques de píxeles con cantos de 90°.
+function roundRectPath(x,y,w,h,r){
+  ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);
+  ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+}
+function roundedPoly(pts,r,fill,stroke,lw){
+  ctx.beginPath();const n=pts.length;
+  for(let i=0;i<n;i++){
+    const p0=pts[(i-1+n)%n],p1=pts[i],p2=pts[(i+1)%n];
+    const v1x=p1[0]-p0[0],v1y=p1[1]-p0[1],d1=Math.hypot(v1x,v1y)||1;
+    const v2x=p2[0]-p1[0],v2y=p2[1]-p1[1],d2=Math.hypot(v2x,v2y)||1;
+    const rr=Math.min(r,d1/2,d2/2);
+    const a=[p1[0]-v1x/d1*rr,p1[1]-v1y/d1*rr],b=[p1[0]+v2x/d2*rr,p1[1]+v2y/d2*rr];
+    if(i===0)ctx.moveTo(a[0],a[1]);else ctx.lineTo(a[0],a[1]);
+    ctx.quadraticCurveTo(p1[0],p1[1],b[0],b[1]);
+  }
+  ctx.closePath();
+  if(fill){ctx.fillStyle=fill;ctx.fill();}
+  if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=lw||1;ctx.stroke();}
+}
 // caja isométrica: x0,y0 esquina, dx,dy tamaño en tiles, h alto, lift elevación
 function box(x0,y0,dx,dy,h,col,lift=0,top){
   const a=iso(x0,y0),b=iso(x0+dx,y0),c=iso(x0+dx,y0+dy),d=iso(x0,y0+dy);
@@ -359,7 +380,8 @@ function box(x0,y0,dx,dy,h,col,lift=0,top){
   gradFace(lo(d),lo(c),up(c),up(d),shade(col,.56),shade(col,.74));
   gradFace(lo(c),lo(b),up(b),up(c),shade(col,.78),shade(col,.94));
   const topCol=mix(top||col,"#ffdfa3",0.08+L*0.26);
-  poly([up(a),up(b),up(c),up(d)],topCol,shade(topCol,.72));
+  const topR=Math.min(6,Math.max(dx,dy)*TW*0.1);
+  roundedPoly([up(a),up(b),up(c),up(d)],topR,topCol,shade(topCol,.72),1);
 }
 // dibujar en el plano de una pared: "L" = pared izquierda (x=0), "R" = pared derecha (y=0)
 function onWall(side,t,fn){const p=side==="L"?iso(0,t):iso(t,0);ctx.save();
@@ -450,12 +472,12 @@ function drawRoom(t){
       const n=hash2(x*2+5,y*2+11);
       const base=(x+y)%2?"#3a4456":"#404b5e";
       const col=mix(shade(base,0.92+n*0.12),"#f4d9a0",L*0.1);
-      poly([a,b,c,d],col,"#2c3444",1);
+      poly([a,b,c,d],col,"rgba(20,26,36,.3)",1);
     } else {
       const plankBase=y%2?"#a9875a":"#9e7c4f";
       const n=hash2(x,y);
       const col=mix(shade(plankBase,0.88+n*0.2),"#ffe3ab",0.1+L*0.3);
-      poly([a,b,c,d],col,"rgba(58,38,18,.28)",1);
+      poly([a,b,c,d],col,"rgba(58,38,18,.13)",1);
       if(hash2(x+50,y+50)>0.42){
         const tt=0.28+hash2(x+99,y+13)*0.44;
         const g1=lerpPt(a,d,tt),g2=lerpPt(b,c,tt);
@@ -548,33 +570,64 @@ function drawPerson(fx,fy,p,t,walking,faceLeft){
   shGrad.addColorStop(0,"rgba(0,0,0,.32)");shGrad.addColorStop(1,"rgba(0,0,0,0)");
   ctx.fillStyle=shGrad;ctx.beginPath();ctx.ellipse(fx,fy,12,5,0,0,7);ctx.fill();
   const y=fy-bob,step=walking?Math.sin(t/90)*3:0;
-  ctx.fillStyle=p.pants||"#2c3442";ctx.fillRect(fx-6,y-14+step*0.3,5,13);ctx.fillRect(fx+1,y-14-step*0.3,5,13);
-  ctx.fillStyle=p.shoes||"#e9ecef";ctx.fillRect(fx-7,y-2+step*0.3,6,3);ctx.fillRect(fx+1,y-2-step*0.3,6,3);
+
+  // piernas y pies — cápsulas redondeadas en vez de rectángulos con canto vivo
+  ctx.fillStyle=p.pants||"#2c3442";
+  roundRectPath(fx-6,y-14+step*0.3,5,13,2.3);ctx.fill();
+  roundRectPath(fx+1,y-14-step*0.3,5,13,2.3);ctx.fill();
+  ctx.fillStyle=p.shoes||"#e9ecef";
+  roundRectPath(fx-7,y-2+step*0.3,6,4,2);ctx.fill();
+  roundRectPath(fx+1,y-2-step*0.3,6,4,2);ctx.fill();
+
+  // torso — silueta redondeada; el resto del detalle (bandas, corbata, filo
+  // iluminado) se recorta adentro, así conserva el shading que ya teníamos.
+  ctx.save();
+  roundRectPath(fx-8,y-30,16,17,5);ctx.clip();
   ctx.fillStyle=p.shirt;ctx.fillRect(fx-8,y-30,16,17);
   ctx.fillStyle=shade(p.shirt,.8);ctx.fillRect(fx-8,y-16,16,3);ctx.fillRect(fx-2,y-30,4,3);
   if(p.stripes){ctx.fillStyle="#f2c14e";ctx.fillRect(fx-8,y-25,16,3);ctx.fillRect(fx-8,y-19,16,2);}
   if(p.tie){ctx.fillStyle=p.tie;ctx.fillRect(fx-1,y-29,3,15);ctx.fillStyle=shade(p.tie,.7);ctx.fillRect(fx-1,y-29,3,2);}
   ctx.fillStyle=shade(p.shirt,1.22);ctx.fillRect(fx+6,y-29,2,16); // filo iluminado, lado ventana
-  ctx.fillStyle=shade(p.shirt,.85);ctx.fillRect(fx-11,y-29,3,12);ctx.fillRect(fx+8,y-29,3,12);
-  ctx.fillStyle=p.skin;ctx.fillRect(fx-11,y-18,3,3);ctx.fillRect(fx+8,y-18,3,3);
+  ctx.restore();
+  ctx.fillStyle=shade(p.shirt,.85);
+  roundRectPath(fx-11,y-29,3,12,1.4);ctx.fill();roundRectPath(fx+8,y-29,3,12,1.4);ctx.fill();
+  ctx.fillStyle=p.skin;
+  roundRectPath(fx-11,y-18,3,3,1.3);ctx.fill();roundRectPath(fx+8,y-18,3,3,1.3);ctx.fill();
   // credencial — detalle que comparten los cuatro, suma a la identidad "de estudio"
   ctx.fillStyle="#9aa6b5";ctx.fillRect(fx-1,y-27,1,6);
-  ctx.fillStyle="#f2c14e";ctx.fillRect(fx-3,y-21,6,5);ctx.fillStyle="rgba(0,0,0,.22)";ctx.fillRect(fx-3,y-21,6,1);
-  ctx.fillStyle=p.skin;ctx.fillRect(fx-7,y-44,14,14);
-  ctx.fillStyle="#1a1a1a";const ex=faceLeft?-2:2;ctx.fillRect(fx-4+ex,y-38,2,3);ctx.fillRect(fx+2+ex,y-38,2,3);
-  ctx.fillStyle=shade(p.skin,.82);ctx.fillRect(fx-2+ex,y-33,4,1);
-  if(p.glasses){ctx.strokeStyle="#1a1a1a";ctx.lineWidth=1;ctx.strokeRect(fx-5+ex+.5,y-39.5,4,4);ctx.strokeRect(fx+1+ex+.5,y-39.5,4,4);}
+  ctx.fillStyle="#f2c14e";roundRectPath(fx-3,y-21,6,5,1.2);ctx.fill();
+  ctx.fillStyle="rgba(0,0,0,.22)";ctx.fillRect(fx-3,y-21,6,1);
+
+  // cabeza — círculo real, no un cuadrado con pelo arriba
+  const hx=fx,hy=y-37,hr=8,ex=faceLeft?-2:2;
+  ctx.fillStyle=p.skin;ctx.beginPath();ctx.ellipse(hx,hy,hr,hr,0,0,7);ctx.fill();
+  ctx.save();ctx.beginPath();ctx.ellipse(hx,hy,hr,hr,0,0,7);ctx.clip();
+  ctx.fillStyle="#1a1a1a";
+  ctx.beginPath();ctx.ellipse(fx-3+ex,y-37,1.3,1.6,0,0,7);ctx.fill();
+  ctx.beginPath();ctx.ellipse(fx+3+ex,y-37,1.3,1.6,0,0,7);ctx.fill();
+  ctx.fillStyle=shade(p.skin,.8);ctx.beginPath();ctx.ellipse(fx-2+ex,y-32.5,2.2,1,0,0,7);ctx.fill();
+  if(p.glasses){ctx.strokeStyle="#1a1a1a";ctx.lineWidth=1;ctx.beginPath();ctx.ellipse(fx-3+ex,y-37,2.4,2.1,0,0,7);ctx.stroke();ctx.beginPath();ctx.ellipse(fx+3+ex,y-37,2.4,2.1,0,0,7);ctx.stroke();}
+  ctx.restore();
+  // pelo — cúpula redondeada sobre la cabeza en vez de una tapa plana
   ctx.fillStyle=p.hair;
-  if(p.hairStyle==="cap"){ctx.fillStyle="#3a6ea5";ctx.fillRect(fx-8,y-48,16,6);ctx.fillRect(faceLeft?fx-12:fx+2,y-43,10,3);}
-  else{ctx.fillRect(fx-8,y-47,16,6);ctx.fillRect(fx-8,y-43,3,6);ctx.fillRect(fx+5,y-43,3,4);
-    if(p.hairStyle==="long"){ctx.fillRect(fx-8,y-41,3,15);ctx.fillRect(fx+5,y-41,3,15);}
-    if(p.hairStyle==="curly"){[-7,-2,3,8].forEach(d=>{ctx.beginPath();ctx.arc(fx+d-1,y-46,4,0,7);ctx.fill();});ctx.fillRect(fx-9,y-42,3,10);ctx.fillRect(fx+6,y-42,3,10);}}
-  ctx.fillStyle=shade(p.hair,1.35);ctx.fillRect(fx+5,y-47,2,3); // brillito de pelo, lado iluminado
-  if(p.headset){ctx.fillStyle="#1a1f28";ctx.fillRect(fx-9,y-41,3,6);ctx.fillRect(fx-8,y-49,16,2);ctx.fillRect(fx-7,y-35,6,1.5);}
+  if(p.hairStyle==="cap"){
+    ctx.fillStyle="#3a6ea5";ctx.beginPath();ctx.ellipse(hx,hy-2,hr+0.5,hr-1,0,Math.PI,0);ctx.fill();
+    ctx.fillRect(faceLeft?hx-hr-3:hx+hr-6,hy-4,9,3);
+  } else {
+    ctx.beginPath();ctx.ellipse(hx,hy-1.5,hr+0.5,hr-0.5,0,Math.PI,0);ctx.fill();
+    ctx.fillRect(hx-hr,hy-2,3,6);ctx.fillRect(hx+hr-3,hy-2,3,5);
+    if(p.hairStyle==="long"){roundRectPath(hx-hr,hy,3,15,1.5);ctx.fill();roundRectPath(hx+hr-3,hy,3,15,1.5);ctx.fill();}
+    if(p.hairStyle==="curly"){[-7,-2,3,8].forEach(d=>{ctx.beginPath();ctx.arc(hx+d-1,hy-5,4,0,7);ctx.fill();});
+      roundRectPath(hx-hr-1,hy-1,3,10,1.5);ctx.fill();roundRectPath(hx+hr-2,hy-1,3,10,1.5);ctx.fill();}
+  }
+  ctx.fillStyle=shade(p.hair,1.35);ctx.beginPath();ctx.ellipse(hx+5,hy-6,2,1.6,.5,0,7);ctx.fill(); // brillito, lado iluminado
+  if(p.headset){ctx.fillStyle="#1a1f28";roundRectPath(hx-hr-1,hy-4,3,6,1.3);ctx.fill();
+    ctx.beginPath();ctx.ellipse(hx,hy-hr-1,hr+1,3,0,Math.PI,0);ctx.fill();roundRectPath(hx-hr+1,hy+2,6,1.5,.7);ctx.fill();}
+
   // accesorios que cuentan quién es cada agente, más allá del color de remera
-  if(p.prop==="tablet"){ctx.fillStyle="#1f2530";ctx.fillRect(fx+8,y-25,7,9);ctx.fillStyle="#4f9fd6";ctx.fillRect(fx+9,y-24,5,4);}
-  if(p.prop==="notepad"){ctx.fillStyle="#e9e2d0";ctx.fillRect(fx+8,y-23,6,8);ctx.strokeStyle="#9a8f78";ctx.lineWidth=1;ctx.strokeRect(fx+8.5,y-22,5,1.5);ctx.strokeRect(fx+8.5,y-19,5,1.5);}
-  if(p.prop==="megaphone"){ctx.fillStyle=p.accent||"#d9683a";ctx.beginPath();ctx.moveTo(fx+8,y-21);ctx.lineTo(fx+15,y-25);ctx.lineTo(fx+15,y-16);ctx.closePath();ctx.fill();ctx.fillStyle="#2b2f37";ctx.fillRect(fx+6,y-20,3,3);}
+  if(p.prop==="tablet"){roundRectPath(fx+8,y-25,7,9,1.5);ctx.fillStyle="#1f2530";ctx.fill();roundRectPath(fx+9,y-24,5,4,.8);ctx.fillStyle="#4f9fd6";ctx.fill();}
+  if(p.prop==="notepad"){roundRectPath(fx+8,y-23,6,8,1);ctx.fillStyle="#e9e2d0";ctx.fill();ctx.strokeStyle="#9a8f78";ctx.lineWidth=1;ctx.strokeRect(fx+8.5,y-22,5,1.5);ctx.strokeRect(fx+8.5,y-19,5,1.5);}
+  if(p.prop==="megaphone"){ctx.fillStyle=p.accent||"#d9683a";ctx.beginPath();ctx.moveTo(fx+8,y-21);ctx.lineTo(fx+15,y-25);ctx.lineTo(fx+15,y-16);ctx.closePath();ctx.fill();roundRectPath(fx+6,y-20,3,3,1);ctx.fillStyle="#2b2f37";ctx.fill();}
 }
 
 function nameTag(x,y,txt,color){

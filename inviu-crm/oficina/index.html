@@ -252,21 +252,21 @@ Estuve revisando tu cuenta y hay un par de cosas que me gustaría charlar con vo
 
 // ---------- Agentes ----------
 const AGENTS = [
-  {key:"research",name:"Nova",role:"Research",icon:"📈",gx:4,gy:2,desk:[4,3],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",prop:"tablet",
+  {key:"research",name:"Nova",role:"Research",icon:"📈",gx:4,gy:2,desk:[4,3],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",prop:"tablet",suit:true,tie:"#1f3a52",
     status:()=> "📊 Informe listo", badge:()=>1},
-  {key:"secre",name:"Zafira",role:"Secretaria",icon:"🗓️",gx:2,gy:7,desk:[2,8],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",prop:"notepad",
+  {key:"secre",name:"Zafira",role:"Secretaria",icon:"🗓️",gx:2,gy:7,desk:[2,8],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",prop:"notepad",suit:true,tie:"#caa455",
     status:()=>{if(!ZDB.ready)return"⏳ Cargando…";const p=ZDB.alerts.length;return p?`📞 ${p} para contactar`:"✅ Todo al día"},
     badge:()=>ZDB.ready?ZDB.alerts.length:0},
-  {key:"fin",name:"Midas",role:"Finanzas",icon:"💰",gx:10,gy:2,desk:[10,3],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",tie:"#f2c14e",
+  {key:"fin",name:"Midas",role:"Finanzas",icon:"💰",gx:10,gy:2,desk:[10,3],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",suit:true,tie:"#1f2d44",
     status:()=>"💰 Comisiones oct", badge:()=>0},
-  {key:"mkt",name:"Chispa",role:"Marketing",icon:"📣",gx:9,gy:7,desk:[9,8],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",prop:"megaphone",accent:"#f2c14e",
+  {key:"mkt",name:"Chispa",role:"Marketing",icon:"📣",gx:9,gy:7,desk:[9,8],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",prop:"megaphone",accent:"#f2c14e",suit:true,tie:"#f2c14e",
     status:()=>"✍️ ¿Armamos algo?", badge:()=>0},
 ];
 
 // Mi despacho: no es un personaje, es la puerta de entrada al CRM real.
 // Oficina privada vidriada junto a la ventana (x8-9,y0-1), para que se note
 // a simple vista como el lugar protagonista, no un escritorio más.
-const DESPACHO={gx:9,gy:0,desk:[9,0],despacho:true,name:"Mi despacho",role:"Entrar al CRM",icon:"🏢"};
+const DESPACHO={gx:8,gy:0,desk:[8,0],despacho:true,name:"Mi despacho",role:"Entrar al CRM",icon:"🏢"};
 
 // ---------- Mundo isométrico ----------
 const W=12,H=12,TW=64,TH=32,WALLH=136,M=20;
@@ -281,10 +281,11 @@ function blockEdge(a,b,c,d){edgeBlock.add(ek(a,b,c,d));edgeBlock.add(ek(c,d,a,b)
 // sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10)
 for(let y=6;y<H;y++) if(y!==10) blockEdge(7,y,8,y);
 for(let x=8;x<W;x++) blockEdge(x,5,x,6);
-// despacho vidriado: x 8..9, y 0..1 (puerta en el lateral oeste, y=1)
-blockEdge(7,0,8,0);
-blockEdge(9,0,10,0);blockEdge(9,1,10,1);
-blockEdge(8,1,8,2);blockEdge(9,1,9,2);
+// despacho vidriado: angosto, 1 tile de ancho (x=8, y 0..1), puerta al sur.
+// Así le queda un tile libre de cada lado — de Nova (desk hasta x=6) y de
+// Midas (desk en x=10) — en vez de tocar directamente a uno de los dos.
+blockEdge(7,0,8,0);blockEdge(7,1,8,1);
+blockEdge(8,0,9,0);blockEdge(8,1,9,1);
 
 const FURN=[];
 const add=(type,gx,gy,extra={})=>{FURN.push({type,gx,gy,...extra});blocked.add(key(gx,gy));};
@@ -293,15 +294,16 @@ add("shelf",1,0);blocked.add(key(2,0));add("plant",0,0);add("cooler",5,0);add("p
 add("recep",1,8,{end:"l"});add("recep",2,8,{mon:true,logo:true});add("recep",3,8,{end:"r",phone:true});
 add("desk",4,3,{mon:true});add("desk",5,3,{plant:true});add("desk",6,3,{laptop:true});add("desk",10,3,{mon:true,laptop:true});
 add("desk",4,4,{laptop:true});add("desk",5,4,{mon:true});add("desk",6,4,{});
-add("desk",9,0,{mon:true,plant:true});
+add("desk",8,0,{mon:true,plant:true});
 add("sofa",4,9);add("sofa",5,9);add("ctable",4,10);add("ctable",5,10);add("plant",3,11);add("lamp",6,9);
 add("mtable",9,8,{laptop:true});add("mtable",10,8,{mug:true});add("mtable",9,9,{mug:true});add("mtable",10,9,{laptop:true});
 add("fooz",7,11);add("coffee",11,4);add("plant",11,11);add("plant",7,6);
 const GLASS=[];for(let y=6;y<H;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<W;x++)GLASS.push({ax:"y",x,y:6});
-// despacho vidriado
-GLASS.push({ax:"x",x:8,y:0});GLASS.push({ax:"x",x:8,y:1,door:true});
-GLASS.push({ax:"x",x:10,y:0});GLASS.push({ax:"x",x:10,y:1});
-GLASS.push({ax:"y",x:8,y:2});GLASS.push({ax:"y",x:9,y:2});
+// despacho vidriado — puerta al sur (hacia la planta abierta), no hacia
+// ninguno de los dos vecinos.
+GLASS.push({ax:"x",x:8,y:0});GLASS.push({ax:"x",x:8,y:1});
+GLASS.push({ax:"x",x:9,y:0});GLASS.push({ax:"x",x:9,y:1});
+GLASS.push({ax:"y",x:8,y:2,door:true});
 
 const player={x:6.5,y:7.5,path:[],dir:1,target:null};
 let marker=null;
@@ -584,9 +586,24 @@ function drawPerson(fx,fy,p,t,walking,faceLeft){
   ctx.save();
   roundRectPath(fx-8,y-30,16,17,5);ctx.clip();
   ctx.fillStyle=p.shirt;ctx.fillRect(fx-8,y-30,16,17);
-  ctx.fillStyle=shade(p.shirt,.8);ctx.fillRect(fx-8,y-16,16,3);ctx.fillRect(fx-2,y-30,4,3);
-  if(p.stripes){ctx.fillStyle="#f2c14e";ctx.fillRect(fx-8,y-25,16,3);ctx.fillRect(fx-8,y-19,16,2);}
-  if(p.tie){ctx.fillStyle=p.tie;ctx.fillRect(fx-1,y-29,3,15);ctx.fillStyle=shade(p.tie,.7);ctx.fillRect(fx-1,y-29,3,2);}
+  ctx.fillStyle=shade(p.shirt,.8);ctx.fillRect(fx-8,y-16,16,3);
+  if(p.suit){
+    // traje formal: solapas abiertas, camisa blanca, corbata y botones
+    ctx.fillStyle="#f2efe6";
+    ctx.beginPath();ctx.moveTo(fx-2,y-30);ctx.lineTo(fx+2,y-30);ctx.lineTo(fx,y-19);ctx.closePath();ctx.fill();
+    const tieColor=p.tie||shade(p.shirt,.55);
+    ctx.fillStyle=tieColor;
+    ctx.beginPath();ctx.moveTo(fx-1.3,y-28);ctx.lineTo(fx+1.3,y-28);ctx.lineTo(fx+1.6,y-19);ctx.lineTo(fx,y-15);ctx.lineTo(fx-1.6,y-19);ctx.closePath();ctx.fill();
+    ctx.fillStyle=shade(p.shirt,.65);
+    ctx.beginPath();ctx.moveTo(fx-7,y-30);ctx.lineTo(fx-2,y-30);ctx.lineTo(fx-3.3,y-20);ctx.closePath();ctx.fill();
+    ctx.beginPath();ctx.moveTo(fx+7,y-30);ctx.lineTo(fx+2,y-30);ctx.lineTo(fx+3.3,y-20);ctx.closePath();ctx.fill();
+    ctx.fillStyle=shade(p.shirt,.55);
+    ctx.beginPath();ctx.ellipse(fx,y-13,0.9,0.9,0,0,7);ctx.fill();
+    ctx.beginPath();ctx.ellipse(fx,y-10,0.9,0.9,0,0,7);ctx.fill();
+  } else {
+    ctx.fillStyle=shade(p.shirt,.8);ctx.fillRect(fx-2,y-30,4,3);
+    if(p.stripes){ctx.fillStyle="#f2c14e";ctx.fillRect(fx-8,y-25,16,3);ctx.fillRect(fx-8,y-19,16,2);}
+  }
   ctx.fillStyle=shade(p.shirt,1.22);ctx.fillRect(fx+6,y-29,2,16); // filo iluminado, lado ventana
   ctx.restore();
   ctx.fillStyle=shade(p.shirt,.85);
@@ -676,7 +693,7 @@ function goToDespacho(){
   // diferencia de un escritorio en planta abierta, no cualquier tile
   // vecino sirve de meta: solo el piso de adentro, para que camine por
   // la puerta y no "llegue" parado del otro lado del vidrio.
-  const goals=[[8,0],[9,1]].filter(([x,y])=>!blocked.has(key(x,y)));
+  const goals=[[8,1]].filter(([x,y])=>!blocked.has(key(x,y)));
   closeSheet();walkTo(goals,DESPACHO);
 }
 

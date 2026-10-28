@@ -281,11 +281,11 @@ function blockEdge(a,b,c,d){edgeBlock.add(ek(a,b,c,d));edgeBlock.add(ek(c,d,a,b)
 // sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10)
 for(let y=6;y<H;y++) if(y!==10) blockEdge(7,y,8,y);
 for(let x=8;x<W;x++) blockEdge(x,5,x,6);
-// despacho — el principal, no un cuartito: 3x3 en el rincón del ventanal
-// (x 9..11, y 0..2), con aire de sobra hasta Nova (termina en x=6) y hasta
-// Midas (que se corre más abajo). Puerta al sur, centrada.
-blockEdge(8,0,9,0);blockEdge(8,1,9,1);blockEdge(8,2,9,2);
-blockEdge(9,2,9,3);blockEdge(11,2,11,3);
+// despacho — el salón principal: 4x3 en el rincón del ventanal (x 8..11,
+// y 0..2), con 1 tile de aire hasta Nova (termina en x=6, queda x=7 libre)
+// y hasta Midas (que está más abajo). Puerta al sur.
+blockEdge(7,0,8,0);blockEdge(7,1,8,1);blockEdge(7,2,8,2);
+blockEdge(8,2,8,3);blockEdge(10,2,10,3);blockEdge(11,2,11,3);
 
 const FURN=[];
 const add=(type,gx,gy,extra={})=>{FURN.push({type,gx,gy,...extra});blocked.add(key(gx,gy));};
@@ -294,15 +294,15 @@ add("shelf",1,0);blocked.add(key(2,0));add("plant",0,0);add("cooler",5,0);add("p
 add("recep",1,8,{end:"l"});add("recep",2,8,{mon:true,logo:true});add("recep",3,8,{end:"r",phone:true});
 add("desk",4,3,{mon:true});add("desk",5,3,{plant:true});add("desk",6,3,{laptop:true});add("desk",10,5,{mon:true,laptop:true});
 add("desk",4,4,{laptop:true});add("desk",5,4,{mon:true});add("desk",6,4,{});
-add("desk",10,0,{mon:true,plant:true});add("plant",9,2);add("lamp",11,2);
+add("desk",10,0,{mon:true,plant:true});add("plant",9,2);add("plant",8,1);add("lamp",11,2);
 add("sofa",4,9);add("sofa",5,9);add("ctable",4,10);add("ctable",5,10);add("plant",3,11);add("lamp",6,9);
 add("mtable",9,8,{laptop:true});add("mtable",10,8,{mug:true});add("mtable",9,9,{mug:true});add("mtable",10,9,{laptop:true});
 add("fooz",7,11);add("coffee",11,4);add("plant",11,11);add("plant",7,6);
 const GLASS=[];for(let y=6;y<H;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<W;x++)GLASS.push({ax:"y",x,y:6});
-// despacho vidriado — puerta al sur, centrada, bien separada de los
-// escritorios de Nova y de Midas.
-GLASS.push({ax:"x",x:9,y:0});GLASS.push({ax:"x",x:9,y:1});GLASS.push({ax:"x",x:9,y:2});
-GLASS.push({ax:"y",x:9,y:3});GLASS.push({ax:"y",x:10,y:3,door:true});GLASS.push({ax:"y",x:11,y:3});
+// despacho vidriado — puerta al sur, bien separada de los escritorios de
+// Nova y de Midas.
+GLASS.push({ax:"x",x:8,y:0});GLASS.push({ax:"x",x:8,y:1});GLASS.push({ax:"x",x:8,y:2});
+GLASS.push({ax:"y",x:8,y:3});GLASS.push({ax:"y",x:9,y:3,door:true});GLASS.push({ax:"y",x:10,y:3});GLASS.push({ax:"y",x:11,y:3});
 
 const player={x:6.5,y:7.5,path:[],dir:1,target:null};
 let marker=null;
@@ -337,7 +337,7 @@ function lerpPt(p,q,t){return [p[0]+(q[0]-p[0])*t,p[1]+(q[1]-p[1])*t];}
 // Luz única desde el ventanal (pared y=0, cerca de x≈9) — piso, muebles y
 // paredes consultan esta misma fuente, en vez de la viñeta desacoplada
 // que había antes (ambientLight ya no hace todo el trabajo sola).
-const LIGHT_X=10, LIGHT_Y=-0.6;
+const LIGHT_X=9.5, LIGHT_Y=-0.6;
 function lightAt(gx,gy){const dx=gx-LIGHT_X,dy=(gy-LIGHT_Y)*1.35;const d=Math.sqrt(dx*dx+dy*dy);return Math.max(0,1-d/13);}
 function shadowOffsetFor(gx,gy){const dx=gx-LIGHT_X,dy=gy-LIGHT_Y;const d=Math.hypot(dx,dy)||1;return [dx/d*0.32,dy/d*0.32];}
 function drawFloorShadow(cx,cy,size,L){
@@ -492,7 +492,7 @@ function drawRoom(t){
   rug(3.2,8.6,6.9,11.8,"#5c6676","#8a93a1");
   rug(0.15,9.9,1.1,11.4,"#1b212c","#2f3846");
   rug(3.4,1.4,7.6,5.6,"rgba(70,80,96,.35)");
-  rug(9.15,0.15,11.85,2.85,"rgba(120,90,50,.28)","rgba(170,130,80,.25)");
+  rug(8.15,0.15,11.85,2.85,"rgba(120,90,50,.28)","rgba(170,130,80,.25)");
   // espesor del piso
   poly([p0H,pWH,[pWH[0],pWH[1]+12],[p0H[0],p0H[1]+12]],"#5a4330");
   poly([pWH,pW0,[pW0[0],pW0[1]+12],[pWH[0],pWH[1]+12]],"#6b5038");
@@ -693,7 +693,7 @@ function goToDespacho(){
   // diferencia de un escritorio en planta abierta, no cualquier tile
   // vecino sirve de meta: solo el piso de adentro, para que camine por
   // la puerta y no "llegue" parado del otro lado del vidrio.
-  const goals=[[10,1],[9,1],[11,1]].filter(([x,y])=>!blocked.has(key(x,y)));
+  const goals=[[9,1],[10,1],[11,1],[8,2]].filter(([x,y])=>!blocked.has(key(x,y)));
   closeSheet();walkTo(goals,DESPACHO);
 }
 
@@ -726,7 +726,7 @@ function ambientLight(){
   const vg=ctx.createRadialGradient(cx,cy,Math.min(WORLD_W,WORLD_H)*.3,cx,cy,Math.max(WORLD_W,WORLD_H)*.66);
   vg.addColorStop(0,"rgba(0,0,0,0)");vg.addColorStop(1,"rgba(5,8,14,.28)");
   ctx.fillStyle=vg;ctx.fillRect(0,0,WORLD_W,WORLD_H);
-  const [wx,wy]=iso(10,-0.1);
+  const [wx,wy]=iso(9.5,-0.1);
   const gl=ctx.createRadialGradient(wx,wy-120,4,wx,wy-120,170);
   gl.addColorStop(0,"rgba(255,222,150,.22)");gl.addColorStop(1,"rgba(255,222,150,0)");
   ctx.fillStyle=gl;ctx.fillRect(0,0,WORLD_W,WORLD_H);

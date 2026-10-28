@@ -303,23 +303,25 @@ const ZAFIRA_TEMPLATES_DEFAULT={
   cumpleanos:'Feliz cumple {nombre}! Que lo pases muy bien 🎉',
   cliente_nuevo:'Hola {nombre}! Bienvenido/a. Cualquier duda que tengas con la cuenta, escribime sin problema.',
 };
-let DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
+let DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],depositos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
 
 function rowToClient(r){return {id:r.id,name:r.name,contact:r.contact||'',notes:r.notes||'',birthday:r.birthday||null,ultimoDeposito:r.ultimo_deposito||null,patrimonioARS:r.patrimonio_ars!=null?+r.patrimonio_ars:null,patrimonioUSD:r.patrimonio_usd!=null?+r.patrimonio_usd:null,patrimonioFecha:r.patrimonio_fecha||null,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 function rowToFlow(r){return {id:r.id,clientId:r.client_id,ticker:r.ticker,tipo:r.tipo,moneda:r.moneda,fecha:r.fecha,monto:+r.monto,cobrado:!!r.cobrado,source:r.source||''};}
 function rowToContacto(r){return {id:r.id,clientId:r.client_id,fecha:r.fecha,canal:r.canal,nota:r.nota||''};}
+function rowToDeposito(r){return {id:r.id,clientId:r.client_id,fecha:r.fecha,monto:+r.monto,moneda:r.moneda};}
 function rowToAgenda(r){return {id:r.id,text:r.text,due:r.due,done:!!r.done,createdAt:r.created_at?new Date(r.created_at).getTime():Date.now()};}
 
 async function loadDBFromSupabase(){
-  const [clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes]=await Promise.all([
+  const [clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes,depositosRes]=await Promise.all([
     sb.from('clients').select('*'),
     sb.from('flows').select('*'),
     sb.from('agenda').select('*'),
     sb.from('issuers').select('*'),
     sb.from('advisor_settings').select('*').maybeSingle(),
-    sb.from('contactos').select('*')
+    sb.from('contactos').select('*'),
+    sb.from('depositos').select('*')
   ]);
-  const failed=[clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes].find(r=>r.error);
+  const failed=[clientsRes,flowsRes,agendaRes,issuersRes,advisorRes,contactosRes,depositosRes].find(r=>r.error);
   if(failed)throw failed.error; // no pisar los datos en memoria con vacío si falló la carga
   DB.clients=(clientsRes.data||[]).map(rowToClient);
   DB.flows=(flowsRes.data||[]).map(rowToFlow);
@@ -327,6 +329,7 @@ async function loadDBFromSupabase(){
   DB.issuers={};
   (issuersRes.data||[]).forEach(r=>{DB.issuers[r.ticker]={name:r.name||'',sector:r.sector||''};});
   DB.contactos=(contactosRes.data||[]).map(rowToContacto);
+  DB.depositos=(depositosRes.data||[]).map(rowToDeposito);
   DB.advisor=advisorRes.data?{cnv:advisorRes.data.cnv||'',phone:advisorRes.data.phone||'',email:advisorRes.data.email||'',
     zafiraConfig:{...ZAFIRA_CONFIG_DEFAULT,...(advisorRes.data.zafira_config||{})},
     zafiraTemplates:{...ZAFIRA_TEMPLATES_DEFAULT,...(advisorRes.data.zafira_templates||{})}}
@@ -601,11 +604,48 @@ function computeHoyAlerts(){
   return computeZafira(clients,DB.flows,DB.contactos,zafiraCfg(),todayStr());
 }
 let HOY_ALERTS=[];
+function yesterdayStr(){const d=new Date();d.setDate(d.getDate()-1);return d.toISOString().slice(0,10);}
+function buildDepositosAyerHTML(){
+  const ayer=yesterdayStr();
+  const deps=DB.depositos.filter(d=>d.fecha===ayer);
+  if(!deps.length)return'';
+  const rows=deps.map(d=>{
+    const c=DB.clients.find(x=>x.id===d.clientId);
+    return `<div class="row" style="padding:6px 0;">
+      <div style="flex:1;font-size:12px;">${esc(c?c.name:'Cliente desconocido')}</div>
+      <div style="font-family:var(--mono);font-size:12px;color:var(--green);">${fmtMoney(d.monto,d.moneda)}</div>
+    </div>`;
+  }).join('');
+  const total=deps.reduce((acc,d)=>{acc[d.moneda]=(acc[d.moneda]||0)+d.monto;return acc;},{});
+  const totalStr=Object.entries(total).map(([m,v])=>fmtMoney(v,m)).join(' + ');
+  return `<div class="card" style="margin-bottom:14px;">
+    <div class="ct">Depósitos de ayer · ${totalStr}</div>
+    ${rows}
+  </div>`;
+}
+function buildCobrasHoyHTML(){
+  const hoy=todayStr();
+  const flows=DB.flows.filter(f=>f.fecha===hoy&&!f.cobrado);
+  if(!flows.length)return'';
+  const rows=flows.map(f=>{
+    const c=DB.clients.find(x=>x.id===f.clientId);
+    return `<div class="row" style="padding:6px 0;">
+      <div style="flex:1;font-size:12px;">${esc(c?c.name:'Cliente desconocido')} <span style="color:var(--muted);">·</span> ${esc(f.ticker)}</div>
+      <div style="font-family:var(--mono);font-size:12px;">${fmtMoney(f.monto,f.moneda)}</div>
+    </div>`;
+  }).join('');
+  return `<div class="card" style="margin-bottom:14px;border-color:rgba(245,166,35,.3);">
+    <div class="ct" style="color:var(--amber);">Cobrás hoy</div>
+    ${rows}
+  </div>`;
+}
 function renderHoy(){
   HOY_ALERTS=computeHoyAlerts();
   const prioClass={alta:'r',media:'a',baja:'m'};
   sc(`
   <div class="sec-hdr"><h2>Hoy</h2><span style="font-family:var(--mono);font-size:10px;color:var(--muted);">${HOY_ALERTS.length} para revisar</span></div>
+  ${buildDepositosAyerHTML()}
+  ${buildCobrasHoyHTML()}
   ${HOY_ALERTS.length?HOY_ALERTS.map((a,i)=>{
     const c=DB.clients.find(x=>x.id===a.clientId);
     if(!c)return'';
@@ -1020,6 +1060,11 @@ function openClientDetail(id){
       <div style="flex:1;font-size:12px;">${CANAL_LABEL[ct.canal]||ct.canal}${ct.nota?' · '+esc(ct.nota):''}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${fmtDateShort(ct.fecha.slice(0,10))}</div>
     </div>`).join(''):'<div class="empty">Sin contactos registrados.</div>';
+  const depositos=DB.depositos.filter(x=>x.clientId===id).sort((a,b)=>b.fecha<a.fecha?-1:1);
+  const depositosHtml=depositos.length?depositos.slice(0,8).map(d=>`<div class="row" style="padding:6px 0;">
+      <div style="flex:1;font-size:12px;color:var(--green);">${fmtMoney(d.monto,d.moneda)}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--muted);">${fmtDateShort(d.fecha)}</div>
+    </div>`).join(''):'<div class="empty">Sin depósitos registrados.</div>';
   showModal(`
     <button class="mclose" onclick="closeModal()">×</button>
     <h3>${esc(c.name)}</h3>
@@ -1034,6 +1079,8 @@ function openClientDetail(id){
     <div class="ct" style="margin-top:14px;">Pendientes (${pending.length})</div>
     ${pendingHtml}
     ${collectedHtml}
+    <div class="ct" style="margin-top:14px;">Depósitos</div>
+    ${depositosHtml}
     <div class="ct" style="margin-top:14px;">Contactos</div>
     ${contactosHtml}
     <button class="ib" style="width:100%;padding:9px;margin-top:8px;" onclick="closeModal();openRegistrarContactoCliente('${c.id}')">✓ Registrar contacto</button>
@@ -2767,6 +2814,17 @@ function renderStats(){
     ${tickersNoIssuer.length?`<div class="row"><div style="flex:1;font-size:12px;">Instrumentos sin emisor cargado</div><span class="chip a">${tickersNoIssuer.length}</span></div>`:''}
   </div>`:'';
 
+  const thisMonth=todayStr().slice(0,7);
+  const depMonthByClient={};
+  DB.depositos.filter(d=>d.fecha.slice(0,7)===thisMonth).forEach(d=>{
+    if(!depMonthByClient[d.clientId])depMonthByClient[d.clientId]={totals:{},sortKey:0};
+    depMonthByClient[d.clientId].totals[d.moneda]=(depMonthByClient[d.clientId].totals[d.moneda]||0)+d.monto;
+    depMonthByClient[d.clientId].sortKey+=d.monto;
+  });
+  const depMonthRows=Object.entries(depMonthByClient).map(([clientId,v])=>({client:DB.clients.find(c=>c.id===clientId),...v}))
+    .filter(r=>r.client).sort((a,b)=>b.sortKey-a.sortKey);
+  const depMonthMax=depMonthRows[0]?.sortKey||1;
+
   const clientsWithAUM=DB.clients.filter(c=>c.patrimonioARS!=null||c.patrimonioUSD!=null);
   const aumTotalARS=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioARS||0),0);
   const aumTotalUSD=clientsWithAUM.reduce((s,c)=>s+(c.patrimonioUSD||0),0);
@@ -2783,6 +2841,16 @@ function renderStats(){
       <div class="kpi"><div class="kl">En ARS</div><div class="kv b">${fmtMoney(aumTotalARS,'ARS')}</div></div>
     </div>
     <div style="font-size:10px;color:var(--muted);margin-top:8px;">${clientsWithAUM.length} de ${DB.clients.length} cliente${DB.clients.length!==1?'s':''} con AUM cargado</div>
+  </div>`:''}
+  ${depMonthRows.length?`
+  <div class="card">
+    <div class="ct">Quién más depositó este mes</div>
+    ${depMonthRows.slice(0,8).map(r=>`
+      <div class="row">
+        <div style="flex:1;min-width:0;font-size:12px;font-weight:500;">${esc(r.client.name)}</div>
+        <div style="width:90px;"><div class="bar-outer"><div class="bar-fill" style="width:${Math.max(4,r.sortKey/depMonthMax*100)}%;"></div></div></div>
+        <div style="font-family:var(--mono);font-size:11px;min-width:90px;text-align:right;">${Object.entries(r.totals).map(([m,v])=>fmtMoney(v,m)).join(' + ')}</div>
+      </div>`).join('')}
   </div>`:''}
   <div class="krow" style="grid-template-columns:repeat(2,1fr);">
     <div class="kpi"><div class="kl">Total cobrado (histórico)</div><div class="kv g">${fmtTotals(sumByMoneda(cobrados))||'—'}</div><div class="ks">${cobrados.length} cobro${cobrados.length!==1?'s':''}</div></div>
@@ -3023,7 +3091,8 @@ async function wipeAll(){
   await sb.from('issuers').delete().neq('ticker','');
   await sb.from('contactos').delete().neq('id','00000000-0000-0000-0000-000000000000');
   await sb.from('agent_runs').delete().neq('id','00000000-0000-0000-0000-000000000000');
-  DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:DB.advisor};
+  await sb.from('depositos').delete().neq('id','00000000-0000-0000-0000-000000000000');
+  DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],depositos:[],advisor:DB.advisor};
   closeModal();nav('hoy');toast('Datos borrados');
 }
 
@@ -3144,7 +3213,7 @@ async function logout(){
 // Sesión expirada / revocada en segundo plano: volver al login sin romper la UI.
 sb.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_OUT'||(event!=='INITIAL_SESSION'&&!session)){
-    DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
+    DB={clients:[],flows:[],agenda:[],issuers:{},contactos:[],depositos:[],advisor:{cnv:'',phone:'',email:'',zafiraConfig:ZAFIRA_CONFIG_DEFAULT,zafiraTemplates:ZAFIRA_TEMPLATES_DEFAULT},lastReporte:{}};
     document.getElementById('app').classList.add('hidden');
     document.getElementById('lock').classList.add('hidden');
     document.getElementById('login').classList.remove('hidden');

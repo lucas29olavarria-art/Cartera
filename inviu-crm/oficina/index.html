@@ -7,6 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Pixelify+Sans:wght@400;600;700&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="../js/zafira.js"></script>
 <style>
 /* Misma sesión que el CRM (inviu-crm/index.html). Sin login ahí, no hay oficina. */
 html:not(.sb-ready){visibility:hidden}
@@ -92,10 +93,46 @@ const sb=window.supabase.createClient(SUPABASE_URL,SUPABASE_ANON_KEY,{auth:{pers
 sb.auth.getSession().then(({data:{session}})=>{
   if(!session){location.replace('../index.html');return;}
   document.documentElement.classList.add('sb-ready');
+  loadZafiraData();
 });
 sb.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_OUT'||(event!=='INITIAL_SESSION'&&!session))location.replace('../index.html');
 });
+
+// Datos reales para el panel de Zafira (el único agente ya conectado —
+// Nova/Midas/Chispa siguen con datos de ejemplo hasta que les toque el turno).
+const ZAFIRA_CONFIG_DEFAULT={dias_sin_contacto:45,dias_sin_deposito:90,dias_cobro_cerca:7,dias_reinversion:3,dias_cliente_nuevo:30};
+let ZDB={clients:[],flows:[],contactos:[],config:ZAFIRA_CONFIG_DEFAULT,templates:{},alerts:[],ready:false};
+function todayStrOf(){return new Date().toISOString().slice(0,10);}
+function fmtDateShortOf(d){const dt=new Date(d+'T00:00:00');return String(dt.getDate()).padStart(2,'0')+'/'+String(dt.getMonth()+1).padStart(2,'0');}
+function fmtMoneyOf(n,moneda){return(moneda==='USD'?'u$s ':'$ ')+Number(n).toLocaleString('es-AR');}
+async function loadZafiraData(){
+  const [clientsRes,flowsRes,contactosRes,advisorRes]=await Promise.all([
+    sb.from('clients').select('*'),
+    sb.from('flows').select('*'),
+    sb.from('contactos').select('*'),
+    sb.from('advisor_settings').select('*').maybeSingle(),
+  ]);
+  if(clientsRes.error||flowsRes.error||contactosRes.error)return; // se queda con datos de ejemplo si falla
+  ZDB.clients=(clientsRes.data||[]).map(r=>({id:r.id,name:r.name,createdAt:r.created_at?r.created_at.slice(0,10):todayStrOf(),
+    birthday:r.birthday||null,ultimoDeposito:r.ultimo_deposito||null}));
+  ZDB.flows=(flowsRes.data||[]).map(r=>({id:r.id,clientId:r.client_id,ticker:r.ticker,fecha:r.fecha,monto:+r.monto,moneda:r.moneda,cobrado:!!r.cobrado}));
+  ZDB.contactos=(contactosRes.data||[]).map(r=>({id:r.id,clientId:r.client_id,fecha:r.fecha}));
+  ZDB.config=advisorRes.data?.zafira_config||ZAFIRA_CONFIG_DEFAULT;
+  ZDB.templates=advisorRes.data?.zafira_templates||{};
+  ZDB.alerts=computeZafira(ZDB.clients,ZDB.flows,ZDB.contactos,{...ZDB.config,templates:ZDB.templates},todayStrOf());
+  ZDB.ready=true;
+  if(typeof renderDock==='function'){renderDock();renderHoyBtn();if(current&&current.key==='secre')render(current);}
+}
+async function zafiraRegistrarContacto(clientId){
+  const row={id:crypto.randomUUID?crypto.randomUUID():'id-'+Date.now(),client_id:clientId,fecha:new Date().toISOString(),canal:'whatsapp'};
+  const{error}=await sb.from('contactos').insert(row);
+  if(error){toast('No se pudo guardar — reintentá');return;}
+  toast('Anotado ✓');
+  await loadZafiraData();
+  if(current&&current.key==='secre')render(current);
+  renderDock();renderHoyBtn();
+}
 </script>
 </head>
 <body>
@@ -122,18 +159,7 @@ sb.auth.onAuthStateChange((event,session)=>{
 </div>
 
 <script>
-// ---------- Datos de ejemplo ----------
-const CLIENTES = [
-  {id:1,n:"Martín G.",motivo:"No lo llamás hace 52 días",tipo:"hot",done:false},
-  {id:2,n:"Laura P.",motivo:"Sin depósitos hace 94 días · AUM USD 38k",tipo:"hot",done:false},
-  {id:3,n:"Diego R.",motivo:"Cobra cupón el jueves · avisale",tipo:"mid",done:false},
-  {id:4,n:"Sofía M.",motivo:"Cumple años mañana",tipo:"mid",done:false},
-];
-const COBROS = [
-  {n:"Diego R.",d:"Jue 29/10",t:"Cupón ON · USD 412"},
-  {n:"Ana L.",d:"Vie 30/10",t:"Amortización · USD 1.250"},
-  {n:"Pablo V.",d:"Lun 02/11",t:"Cupón Bonar · USD 186"},
-];
+// ---------- Datos de ejemplo (Zafira ya usa datos reales — ver ZDB) ----------
 const COMIS = [
   {n:"Laura P.",v:182400},{n:"Diego R.",v:141900},{n:"Ana L.",v:98700},{n:"Pablo V.",v:61200},{n:"Martín G.",v:23800}
 ];
@@ -190,7 +216,8 @@ const AGENTS = [
   {key:"research",name:"Nova",role:"Research",gx:4,gy:2,desk:[4,3],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",
     status:()=> "📊 Informe listo", badge:()=>1},
   {key:"secre",name:"Zafira",role:"Secretaria",gx:2,gy:7,desk:[2,8],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",
-    status:()=>{const p=CLIENTES.filter(c=>!c.done).length;return p?`📞 ${p} para llamar`:"✅ Todo al día"}, badge:()=>CLIENTES.filter(c=>!c.done).length},
+    status:()=>{if(!ZDB.ready)return"⏳ Cargando…";const p=ZDB.alerts.length;return p?`📞 ${p} para contactar`:"✅ Todo al día"},
+    badge:()=>ZDB.ready?ZDB.alerts.length:0},
   {key:"fin",name:"Midas",role:"Finanzas",gx:10,gy:2,desk:[10,3],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",
     status:()=>"💰 Comisiones oct", badge:()=>0},
   {key:"mkt",name:"Chispa",role:"Marketing",gx:9,gy:7,desk:[9,8],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",
@@ -561,12 +588,26 @@ const VIEWS={
     <p class="note">Va siempre con disclaimer y sin recomendaciones personalizadas: es contenido público.</p>`;
   },
   secre(){
-    const pend=CLIENTES.filter(c=>!c.done).length;
-    return `<div class="demo">Clientes de ejemplo</div>
-    <div class="say">${pend?`Hoy tenés ${pend} ${pend===1?"persona":"personas"} para contactar. Arrancá por las de arriba.`:"¡Llamaste a todos! Te ganaste el café ☕"}</div>
-    <h3>Para llamar hoy</h3><div class="list">${CLIENTES.map(c=>`<div class="row ${c.done?"done":c.tipo}"><div class="t"><b>${c.n}</b><span>${c.motivo}</span></div>
-      <button class="btn ${c.done?"ghost":""}" data-call="${c.id}">${c.done?"Deshacer":"Lo llamé"}</button></div>`).join("")}</div>
-    <h3>Cobros de la semana</h3><div class="list">${COBROS.map(c=>`<div class="row"><div class="t"><b>${c.n} · ${c.d}</b><span>${c.t}</span></div></div>`).join("")}</div>`;
+    if(!ZDB.ready)return`<div class="say">Cargando tus datos reales…</div>`;
+    const prioClass={alta:"hot",media:"mid",baja:""};
+    const dias=ZDB.config.dias_cobro_cerca??7;
+    const hoy=todayStrOf();
+    const cobros=ZDB.flows.filter(f=>!f.cobrado&&f.fecha>=hoy).filter(f=>{
+      const d=(new Date(f.fecha+"T00:00:00")-new Date(hoy+"T00:00:00"))/86400000;
+      return d<=dias;
+    }).sort((a,b)=>a.fecha<b.fecha?-1:1).slice(0,8);
+    return `<div class="say">${ZDB.alerts.length?`Hoy tenés ${ZDB.alerts.length} ${ZDB.alerts.length===1?"cosa":"cosas"} para revisar. Arrancá por las de arriba.`:"¡Estás al día! Te ganaste el café ☕"}</div>
+    <h3>Para contactar hoy</h3><div class="list">${ZDB.alerts.length?ZDB.alerts.map(a=>{
+      const c=ZDB.clients.find(x=>x.id===a.clientId);if(!c)return"";
+      const msg=(a.sugerenciaMensaje||"").replace(/"/g,"&quot;");
+      return `<div class="row ${prioClass[a.prioridad]||""}"><div class="t"><b>${esc(c.name)}</b><span>${esc(a.motivo)}</span></div>
+      <button class="btn" onclick="zafiraRegistrarContacto('${c.id}')">Lo contacté</button>
+      <button class="btn ghost" onclick='copy("${msg}")'>Copiar</button></div>`;
+    }).join(""):'<div class="note">Nada pendiente.</div>'}</div>
+    <h3>Cobros próximos (${dias} días)</h3><div class="list">${cobros.length?cobros.map(f=>{
+      const c=ZDB.clients.find(x=>x.id===f.clientId);
+      return `<div class="row"><div class="t"><b>${esc(c?c.name:"?")} · ${fmtDateShortOf(f.fecha)}</b><span>${esc(f.ticker)} · ${fmtMoneyOf(f.monto,f.moneda)}</span></div></div>`;
+    }).join(""):'<div class="note">Nada en los próximos días.</div>'}</div>`;
   },
   fin(){
     const tot=COMIS.reduce((s,c)=>s+c.v,0),max=COMIS[0].v;
@@ -589,8 +630,6 @@ function render(a,tab){
   document.getElementById("sh-name").textContent=a.name;document.getElementById("sh-role").textContent=a.role;
   body.innerHTML=VIEWS[a.key](tab);bindCopies();
   body.querySelectorAll("[data-tab]").forEach(b=>b.onclick=()=>render(a,b.dataset.tab));
-  body.querySelectorAll("[data-call]").forEach(b=>b.onclick=()=>{const c=CLIENTES.find(c=>c.id==b.dataset.call);c.done=!c.done;
-    if(c.done)toast("Anotado ✓");render(a);renderDock();renderHoyBtn();});
   paintAvatar(a);
 }
 function openAgent(a){current=a;render(a);sheet.hidden=false;body.scrollTop=0;}
@@ -602,7 +641,7 @@ function openHoy(){
   closeSheet();current=hoy;render(hoy);sheet.hidden=false;body.scrollTop=0;
 }
 function renderHoyBtn(){
-  const n=CLIENTES.filter(c=>!c.done).length;
+  const n=ZDB.ready?ZDB.alerts.length:0;
   document.getElementById("hoy-btn").textContent=n?`📋 Hoy (${n})`:"📋 Hoy";
 }
 function paintAvatar(a){const c=document.getElementById("av"),x=c.getContext("2d");const r=window.devicePixelRatio||1;

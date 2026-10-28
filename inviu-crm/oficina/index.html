@@ -252,14 +252,14 @@ Estuve revisando tu cuenta y hay un par de cosas que me gustaría charlar con vo
 
 // ---------- Agentes ----------
 const AGENTS = [
-  {key:"research",name:"Nova",role:"Research",icon:"📈",gx:4,gy:2,desk:[4,3],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",prop:"tablet",suit:true,tie:"#1f3a52",
+  {key:"research",name:"Nova",role:"Research",icon:"📈",gx:14,gy:1,desk:[14,2],shirt:"#2f8f8a",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",prop:"tablet",suit:true,tie:"#1f3a52",
     status:()=> "📊 Informe listo", badge:()=>1},
-  {key:"secre",name:"Zafira",role:"Secretaria",icon:"🗓️",gx:2,gy:7,desk:[2,8],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",prop:"notepad",suit:true,tie:"#caa455",
+  {key:"secre",name:"Zafira",role:"Secretaria",icon:"🗓️",gx:14,gy:6,desk:[14,7],shirt:"#7a5bb8",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",prop:"notepad",suit:true,tie:"#caa455",
     status:()=>{if(!ZDB.ready)return"⏳ Cargando…";const p=ZDB.alerts.length;return p?`📞 ${p} para contactar`:"✅ Todo al día"},
     badge:()=>ZDB.ready?ZDB.alerts.length:0},
-  {key:"fin",name:"Midas",role:"Finanzas",icon:"💰",gx:10,gy:4,desk:[10,5],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",suit:true,tie:"#1f2d44",
+  {key:"fin",name:"Midas",role:"Finanzas",icon:"💰",gx:18,gy:1,desk:[18,2],shirt:"#b8902f",hair:"#1d1a1a",skin:"#f0c7a0",hairStyle:"short",glasses:true,pants:"#23293a",suit:true,tie:"#1f2d44",
     status:()=>"💰 Comisiones oct", badge:()=>0},
-  {key:"mkt",name:"Chispa",role:"Marketing",icon:"📣",gx:9,gy:7,desk:[9,8],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",prop:"megaphone",accent:"#f2c14e",suit:true,tie:"#f2c14e",
+  {key:"mkt",name:"Chispa",role:"Marketing",icon:"📣",gx:18,gy:6,desk:[18,7],shirt:"#d9683a",hair:"#8a3b22",skin:"#f2cfae",hairStyle:"curly",pants:"#23293a",prop:"megaphone",accent:"#f2c14e",suit:true,tie:"#f2c14e",
     status:()=>"✍️ ¿Armamos algo?", badge:()=>0},
 ];
 
@@ -269,7 +269,7 @@ const AGENTS = [
 const DESPACHO={gx:10,gy:0,desk:[10,0],despacho:true,name:"Mi despacho",role:"Entrar al CRM",icon:"🏢"};
 
 // ---------- Mundo isométrico ----------
-const W=12,H=12,TW=64,TH=32,WALLH=136,M=20;
+const W=20,H=12,TW=64,TH=32,WALLH=136,M=20;
 const OX=H*TW/2+M, OY=WALLH+M+40;
 const WORLD_W=(W+H)*TW/2+2*M, WORLD_H=(W+H)*TH/2+WALLH+2*M+56;
 const iso=(x,y)=>[(x-y)*TW/2+OX,(x+y)*TH/2+OY];
@@ -278,14 +278,35 @@ const blocked=new Set(), edgeBlock=new Set();
 const key=(x,y)=>x+","+y;
 const ek=(a,b,c,d)=>a+","+b+">"+c+","+d;
 function blockEdge(a,b,c,d){edgeBlock.add(ek(a,b,c,d));edgeBlock.add(ek(c,d,a,b));}
-// sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10)
-for(let y=6;y<H;y++) if(y!==10) blockEdge(7,y,8,y);
-for(let x=8;x<W;x++) blockEdge(x,5,x,6);
+// Cuarto vidriado autoportante y genérico: rectángulo x0..x0+w-1,y0..y0+h-1
+// con sus 4 paredes y una puerta en el medio del lado pedido ("n"/"s"/"e"/"o").
+// Usa GLASS, así que solo se puede llamar una vez que el array ya existe
+// (más abajo, junto a los otros cuartos armados a mano).
+function makeOffice(x0,y0,w,h,door){
+  const midX=x0+Math.floor(w/2), midY=y0+Math.floor(h/2);
+  for(let x=x0;x<x0+w;x++){
+    const dN=door==="n"&&x===midX, dS=door==="s"&&x===midX;
+    if(!dN)blockEdge(x,y0-1,x,y0); GLASS.push({ax:"y",x,y:y0,door:dN});
+    if(!dS)blockEdge(x,y0+h-1,x,y0+h); GLASS.push({ax:"y",x,y:y0+h,door:dS});
+  }
+  for(let y=y0;y<y0+h;y++){
+    const dW=door==="o"&&y===midY, dE=door==="e"&&y===midY;
+    if(!dW)blockEdge(x0-1,y,x0,y); GLASS.push({ax:"x",x:x0,y,door:dW});
+    if(!dE)blockEdge(x0+w-1,y,x0+w,y); GLASS.push({ax:"x",x:x0+w,y,door:dE});
+  }
+}
+// sala de reuniones vidriada: x 8..11, y 6..11 (puerta en y=10) — límites
+// fijos a propósito (no W/H): la sala no debe crecer si el grid crece.
+for(let y=6;y<12;y++) if(y!==10) blockEdge(7,y,8,y);
+for(let x=8;x<12;x++) blockEdge(x,5,x,6);
 // despacho — el salón principal: 4x3 en el rincón del ventanal (x 8..11,
 // y 0..2), con 1 tile de aire hasta Nova (termina en x=6, queda x=7 libre)
-// y hasta Midas (que está más abajo). Puerta al sur.
+// y hasta Midas. Puerta al sur. Ahora que el grid creció hacia la derecha
+// (ver W=20 y el ala de oficinas más abajo) también necesita pared este —
+// antes la cerraba gratis el borde del mundo, ahora hay piso después.
 blockEdge(7,0,8,0);blockEdge(7,1,8,1);blockEdge(7,2,8,2);
 blockEdge(8,2,8,3);blockEdge(10,2,10,3);blockEdge(11,2,11,3);
+blockEdge(11,0,12,0);blockEdge(11,1,12,1);blockEdge(11,2,12,2);
 
 const FURN=[];
 const add=(type,gx,gy,extra={})=>{FURN.push({type,gx,gy,...extra});blocked.add(key(gx,gy));};
@@ -295,14 +316,26 @@ add("recep",1,8,{end:"l"});add("recep",2,8,{mon:true,logo:true});add("recep",3,8
 add("desk",4,3,{mon:true});add("desk",5,3,{plant:true});add("desk",6,3,{laptop:true});add("desk",10,5,{mon:true,laptop:true});
 add("desk",4,4,{laptop:true});add("desk",5,4,{mon:true});add("desk",6,4,{});
 add("desk",10,0,{mon:true,plant:true});add("plant",9,2);add("plant",8,1);add("lamp",11,2);
+// ala de oficinas individuales — una por agente, ninguna compartida
+add("desk",14,2,{mon:true,laptop:true});add("plant",15,3);
+add("desk",18,2,{mon:true,laptop:true});add("plant",19,3);
+add("desk",14,7,{mon:true,plant:true});
+add("desk",18,7,{mon:true,laptop:true});add("plant",19,8);
 add("sofa",4,9);add("sofa",5,9);add("ctable",4,10);add("ctable",5,10);add("plant",3,11);add("lamp",6,9);
 add("mtable",9,8,{laptop:true});add("mtable",10,8,{mug:true});add("mtable",9,9,{mug:true});add("mtable",10,9,{laptop:true});
 add("fooz",7,11);add("coffee",11,4);add("plant",11,11);add("plant",7,6);
-const GLASS=[];for(let y=6;y<H;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<W;x++)GLASS.push({ax:"y",x,y:6});
+const GLASS=[];for(let y=6;y<12;y++)GLASS.push({ax:"x",x:8,y,door:y===10});for(let x=8;x<12;x++)GLASS.push({ax:"y",x,y:6});
 // despacho vidriado — puerta al sur, bien separada de los escritorios de
-// Nova y de Midas.
+// Nova y de Midas, y ahora con pared este propia (ver nota más arriba).
 GLASS.push({ax:"x",x:8,y:0});GLASS.push({ax:"x",x:8,y:1});GLASS.push({ax:"x",x:8,y:2});
 GLASS.push({ax:"y",x:8,y:3});GLASS.push({ax:"y",x:9,y:3,door:true});GLASS.push({ax:"y",x:10,y:3});GLASS.push({ax:"y",x:11,y:3});
+GLASS.push({ax:"x",x:12,y:0});GLASS.push({ax:"x",x:12,y:1});GLASS.push({ax:"x",x:12,y:2});
+// ala de oficinas — una por agente, con su puerta mirando al pasillo
+// central (y=4/5) entre las dos filas.
+makeOffice(13,1,3,3,"s"); // Nova
+makeOffice(17,1,3,3,"s"); // Midas
+makeOffice(13,6,3,3,"n"); // Zafira
+makeOffice(17,6,3,3,"n"); // Chispa
 
 const player={x:6.5,y:7.5,path:[],dir:1,target:null};
 let marker=null;
@@ -467,7 +500,7 @@ function drawRoom(t){
   // luz de ventana que el resto de la escena (lightAt), no son un color fijo.
   for(let x=0;x<W;x++)for(let y=0;y<H;y++){
     const a=iso(x,y),b=iso(x+1,y),c=iso(x+1,y+1),d=iso(x,y+1);
-    const meet=x>=8&&y>=6;
+    const meet=x>=8&&x<12&&y>=6; // límite fijo — la sala de reuniones no crece con el grid
     const L=lightAt(x+0.5,y+0.5);
     if(meet){
       const n=hash2(x*2+5,y*2+11);

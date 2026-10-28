@@ -127,13 +127,14 @@ sb.auth.getSession().then(({data:{session}})=>{
   if(!session){location.replace('../index.html');return;}
   document.documentElement.classList.add('sb-ready');
   loadZafiraData();
+  loadNovaData();
 });
 sb.auth.onAuthStateChange((event,session)=>{
   if(event==='SIGNED_OUT'||(event!=='INITIAL_SESSION'&&!session))location.replace('../index.html');
 });
 
-// Datos reales para el panel de Zafira (el único agente ya conectado —
-// Nova/Midas/Chispa siguen con datos de ejemplo hasta que les toque el turno).
+// Datos reales — Zafira y ahora Nova. Midas/Chispa siguen con datos de
+// ejemplo hasta que les toque el turno.
 const ZAFIRA_CONFIG_DEFAULT={dias_sin_contacto:45,dias_sin_deposito:90,dias_cobro_cerca:7,dias_reinversion:3,dias_cliente_nuevo:30};
 let ZDB={clients:[],flows:[],contactos:[],config:ZAFIRA_CONFIG_DEFAULT,templates:{},alerts:[],ready:false};
 function todayStrOf(){return new Date().toISOString().slice(0,10);}
@@ -165,6 +166,18 @@ async function zafiraRegistrarContacto(clientId){
   await loadZafiraData();
   if(current&&current.key==='secre')render(current);
   renderDock();renderHoyBtn();
+}
+
+// Nova — el resumen diario de mercados lo arma una tarea programada que lee
+// el mail "Resumen Diario de Mercados" (ya se genera solo cada mañana) y
+// guarda acá la fila del día: números + texto listo para WhatsApp + la
+// tarjeta PNG. Si no corrió todavía hoy, se muestra la última disponible.
+let NDB={row:null,ready:false};
+async function loadNovaData(){
+  const r=await sb.from('market_resumen').select('*').order('fecha',{ascending:false}).limit(1);
+  NDB.row=(r.data&&r.data[0])||null;
+  NDB.ready=true;
+  if(typeof renderDock==='function'){renderDock();if(current&&current.key==='research')render(current);}
 }
 </script>
 </head>
@@ -253,7 +266,8 @@ Estuve revisando tu cuenta y hay un par de cosas que me gustaría charlar con vo
 // ---------- Agentes ----------
 const AGENTS = [
   {key:"research",name:"Nova",role:"Research",icon:"📈",gx:14,gy:1,desk:[14,2],shirt:"#3d7d78",hair:"#4a2616",skin:"#e9b98f",hairStyle:"long",pants:"#23293a",prop:"tablet",suit:true,tie:"#1f3a52",
-    status:()=> "📊 Informe listo", badge:()=>1},
+    status:()=>{if(!NDB.ready)return"⏳ Cargando…";return NDB.row&&NDB.row.wpp_texto?"📊 Informe listo":"📭 Sin resumen hoy";},
+    badge:()=>NDB.ready&&NDB.row&&NDB.row.wpp_texto?1:0},
   {key:"secre",name:"Zafira",role:"Secretaria",icon:"🗓️",gx:14,gy:6,desk:[14,7],shirt:"#6f5f8a",hair:"#2a1712",skin:"#d39a72",hairStyle:"long",headset:true,pants:"#23293a",prop:"notepad",suit:true,tie:"#b89a5f",
     status:()=>{if(!ZDB.ready)return"⏳ Cargando…";const p=ZDB.alerts.length;return p?`📞 ${p} para contactar`:"✅ Todo al día"},
     badge:()=>ZDB.ready?ZDB.alerts.length:0},
@@ -809,10 +823,19 @@ function bindCopies(){body.querySelectorAll("[data-copy]").forEach(b=>b.onclick=
 
 const VIEWS={
   research(tab="wpp"){
-    return `<div class="demo">Texto de ejemplo · los x,x se completan con datos reales</div>
-    <div class="say">¡Buenas! Ya te dejé el informe de hoy para la comunidad. Revisalo y pegalo.</div>
+    const real=tab==="wpp"&&NDB.ready&&NDB.row&&NDB.row.wpp_texto;
+    const loading=tab==="wpp"&&!NDB.ready;
+    const wppText=real?NDB.row.wpp_texto:WPP;
+    const sayTxt=tab!=="wpp"?"¡Buenas! Ya te dejé el informe de hoy para la comunidad. Revisalo y pegalo."
+      :loading?"Cargando el resumen de hoy…"
+      :real?`¡Buenas! Te dejé el resumen de ${fmtDateShortOf(NDB.row.fecha)} listo para la comunidad.`
+      :"Todavía no hay resumen de hoy — este es de ejemplo mientras tanto.";
+    return `${tab==="prop"||(tab==="wpp"&&!real)?`<div class="demo">${loading?"Cargando…":"Texto de ejemplo · los x,x se completan con datos reales"}</div>`:""}
+    <div class="say">${sayTxt}</div>
     <div class="tabs"><button class="tab" data-tab="wpp" aria-pressed="${tab==="wpp"}">Morning WhatsApp</button><button class="tab" data-tab="prop" aria-pressed="${tab==="prop"}">Idea de la semana</button></div>
-    ${textBlock(tab==="wpp"?WPP:PROPUESTA)}
+    ${textBlock(tab==="wpp"?wppText:PROPUESTA)}
+    ${real&&NDB.row.imagen_url?`<img src="${esc(NDB.row.imagen_url)}" alt="Tarjeta del resumen del día" style="max-width:100%;border-radius:8px;border:1px solid var(--line)">
+    <a class="btn ghost" href="${esc(NDB.row.imagen_url)}" download target="_blank" rel="noopener">⬇ Descargar imagen</a>`:""}
     <p class="note">Va siempre con disclaimer y sin recomendaciones personalizadas: es contenido público.</p>`;
   },
   secre(){

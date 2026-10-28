@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Resumen del día</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap">
+<style>
+  :root{
+    --navy:#0e131b; --navy-2:#18202c; --panel:#1b2330; --line:#2d3848;
+    --ink:#eef2f6; --muted:#9aabbd; --gold:#f2c14e; --ok:#5fc48a; --warn:#f08a5d;
+    --font:"Inter",-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{width:1080px;font-family:var(--font);background:var(--navy);color:var(--ink)}
+  .card{width:1080px;position:relative;padding:64px 56px;display:flex;flex-direction:column;
+    background:radial-gradient(ellipse at 20% 0%, var(--navy-2), var(--navy) 60%)}
+  .brand{display:flex;align-items:center;gap:18px}
+  .mark{width:64px;height:64px;border-radius:16px;background:var(--gold);color:#2a2110;display:grid;place-items:center;
+    font-weight:800;font-size:24px;letter-spacing:.02em;flex:none}
+  .brand b{display:block;font-size:26px;font-weight:700}
+  .brand span{display:block;font-size:17px;color:var(--muted);margin-top:2px}
+  .label{margin-top:46px;font-size:15px;font-weight:700;letter-spacing:.14em;text-transform:uppercase;color:var(--gold)}
+  .fecha{font-size:34px;font-weight:800;margin-top:8px}
+  .radar{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--gold);
+    border-radius:14px;padding:26px 28px;font-size:23px;line-height:1.5;color:#dbe4ee}
+  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px}
+  .tile .k{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+  .tile .v{font-size:38px;font-weight:800;margin-top:10px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .tile .d{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:18px;font-weight:700;
+    padding:4px 10px;border-radius:8px}
+  .d.pos{background:#15803d2e;color:var(--ok)} .d.neg{background:#b91c1c2e;color:var(--warn)} .d.flat{background:#6b72802e;color:var(--muted)}
+  .tile.wide{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between}
+  .tile.wide .half{flex:1}
+  .footer{margin-top:40px;padding-top:28px;border-top:1px solid var(--line);display:flex;align-items:center;gap:16px}
+  .footer .fi{width:48px;height:48px;border-radius:12px;background:var(--panel);border:1px solid var(--line);
+    display:grid;place-items:center;font-weight:700;font-size:16px;color:var(--ink)}
+  .footer .ft b{display:block;font-size:19px;font-weight:700}
+  .footer .ft span{display:block;font-size:14px;color:var(--muted);margin-top:2px}
+  .disclaimer{margin-top:16px;font-size:12px;color:#5b6b7d;line-height:1.4}
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="brand">
+      <div class="mark">LO</div>
+      <div><b>Lucas Olavarría</b><span>Asesor financiero · Idóneo CNV</span></div>
+    </div>
+
+    <div class="label">Resumen del día</div>
+    <div class="fecha">{{FECHA}}</div>
+
+    <div class="radar">{{RADAR}}</div>
+
+    <div class="grid">
+      <div class="tile"><div class="k">S&amp;P 500 (futuro)</div><div class="v">{{SP500}}</div><div class="d {{SP500_CLASS}}">{{SP500_ARROW}} {{SP500}}</div></div>
+      <div class="tile"><div class="k">Nasdaq (futuro)</div><div class="v">{{NASDAQ}}</div><div class="d {{NASDAQ_CLASS}}">{{NASDAQ_ARROW}} {{NASDAQ}}</div></div>
+      <div class="tile"><div class="k">Merval</div><div class="v">{{MERVAL_VAR}}</div><div class="d {{MERVAL_CLASS}}">{{MERVAL_ARROW}} {{MERVAL_VAR}}</div></div>
+      <div class="tile"><div class="k">Riesgo país</div><div class="v">{{RIESGO_PAIS}}</div><div class="d {{RIESGO_CLASS}}">{{RIESGO_ARROW}} {{RIESGO_PAIS_VAR}}</div></div>
+      <div class="tile wide">
+        <div class="half"><div class="k">Dólar MEP</div><div class="v" style="font-size:30px">{{DOLAR_MEP}}</div></div>
+        <div class="half"><div class="k">Dólar CCL</div><div class="v" style="font-size:30px">{{DOLAR_CCL}}</div></div>
+        <div class="half"><div class="k">UST 10Y</div><div class="v" style="font-size:30px">{{UST10Y}}</div></div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <div class="fi">LO</div>
+      <div class="ft"><b>Lucas Olavarria</b><span>lucas29olavarria@gmail.com · 11 5774-2378</span></div>
+    </div>
+    <div class="disclaimer">Contenido informativo y general, con datos del cierre y pre-apertura del día. No es una recomendación de inversión personalizada. Consultá con tu asesor.</div>
+  </div>
+</body>
+</html>

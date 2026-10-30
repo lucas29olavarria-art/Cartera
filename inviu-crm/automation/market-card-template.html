@@ -24,16 +24,19 @@
   .fecha{font-size:34px;font-weight:800;margin-top:8px}
   .radar{margin-top:28px;background:var(--panel);border:1px solid var(--line);border-left:5px solid var(--gold);
     border-radius:14px;padding:26px 28px;font-size:23px;line-height:1.5;color:#dbe4ee}
-  .grid{display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-top:36px}
-  .tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:24px 26px}
+  .section-label{margin-top:38px;font-size:13px;font-weight:700;letter-spacing:.1em;text-transform:uppercase;color:var(--muted)}
+  .grid2{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;margin-top:14px}
+  .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:14px}
+  .tile{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px 24px}
   .tile .k{font-size:14px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
-  .tile .v{font-size:38px;font-weight:800;margin-top:10px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
-  .tile .d{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:18px;font-weight:700;
+  .tile .v{font-size:36px;font-weight:800;margin-top:10px;font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+  .grid3 .tile .v{font-size:29px}
+  .tile .d{display:inline-flex;align-items:center;gap:6px;margin-top:10px;font-size:17px;font-weight:700;
     padding:4px 10px;border-radius:8px}
   .d.pos{background:#15803d2e;color:var(--ok)} .d.neg{background:#b91c1c2e;color:var(--warn)} .d.flat{background:#6b72802e;color:var(--muted)}
-  .tile.wide{grid-column:1 / -1;display:flex;align-items:center;justify-content:space-between}
-  .tile.wide .half{flex:1}
-  .footer{margin-top:40px;padding-top:28px;border-top:1px solid var(--line);display:flex;align-items:center;gap:16px}
+  .tile.plain .v{font-size:32px}
+  .tile.wide-single{margin-top:14px;display:flex;align-items:center;justify-content:space-between}
+  .footer{margin-top:44px;padding-top:28px;border-top:1px solid var(--line);display:flex;align-items:center;gap:16px}
   .footer .fi{width:48px;height:48px;border-radius:12px;background:var(--panel);border:1px solid var(--line);
     display:grid;place-items:center;font-weight:700;font-size:16px;color:var(--ink)}
   .footer .ft b{display:block;font-size:19px;font-weight:700}
@@ -53,17 +56,28 @@
 
     <div class="radar">{{RADAR}}</div>
 
-    <div class="grid">
-      <div class="tile"><div class="k">S&amp;P 500 (futuro)</div><div class="v">{{SP500}}</div><div class="d {{SP500_CLASS}}">{{SP500_ARROW}} {{SP500}}</div></div>
-      <div class="tile"><div class="k">Nasdaq (futuro)</div><div class="v">{{NASDAQ}}</div><div class="d {{NASDAQ_CLASS}}">{{NASDAQ_ARROW}} {{NASDAQ}}</div></div>
+    <div class="section-label">Futuros (pre-apertura)</div>
+    <div class="grid3">
+      <div class="tile"><div class="k">S&amp;P 500</div><div class="v">{{SP500}}</div><div class="d {{SP500_CLASS}}">{{SP500_ARROW}} {{SP500}}</div></div>
+      <div class="tile"><div class="k">Nasdaq</div><div class="v">{{NASDAQ}}</div><div class="d {{NASDAQ_CLASS}}">{{NASDAQ_ARROW}} {{NASDAQ}}</div></div>
+      <div class="tile"><div class="k">Dow Jones</div><div class="v">{{DOW}}</div><div class="d {{DOW_CLASS}}">{{DOW_ARROW}} {{DOW}}</div></div>
+    </div>
+
+    <div class="section-label">Argentina</div>
+    <div class="grid2">
       <div class="tile"><div class="k">Merval</div><div class="v">{{MERVAL_VAR}}</div><div class="d {{MERVAL_CLASS}}">{{MERVAL_ARROW}} {{MERVAL_VAR}}</div></div>
       <div class="tile"><div class="k">Riesgo país</div><div class="v">{{RIESGO_PAIS}}</div><div class="d {{RIESGO_CLASS}}">{{RIESGO_ARROW}} {{RIESGO_PAIS_VAR}}</div></div>
-      <div class="tile wide">
-        <div class="half"><div class="k">Dólar MEP</div><div class="v" style="font-size:30px">{{DOLAR_MEP}}</div></div>
-        <div class="half"><div class="k">Dólar CCL</div><div class="v" style="font-size:30px">{{DOLAR_CCL}}</div></div>
-        <div class="half"><div class="k">UST 10Y</div><div class="v" style="font-size:30px">{{UST10Y}}</div></div>
-      </div>
     </div>
+
+    <div class="section-label">Dólar</div>
+    <div class="grid3">
+      <div class="tile plain"><div class="k">MEP</div><div class="v">{{DOLAR_MEP}}</div></div>
+      <div class="tile plain"><div class="k">CCL</div><div class="v">{{DOLAR_CCL}}</div></div>
+      <div class="tile plain"><div class="k">Blue</div><div class="v">{{DOLAR_BLUE}}</div></div>
+    </div>
+
+    <div class="section-label">Tasas</div>
+    <div class="tile plain wide-single"><div class="k">UST 10 años</div><div class="v">{{UST10Y}}</div></div>
 
     <div class="footer">
       <div class="fi">LO</div>

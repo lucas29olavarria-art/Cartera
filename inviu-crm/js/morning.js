@@ -23,6 +23,13 @@ function mcFechaLabel(f) {
   return t.charAt(0).toUpperCase() + t.slice(1);
 }
 
+function mcTextoCanal() {
+  const d = new Date((MC.sel || mcHoyISO()) + 'T12:00:00');
+  const dia = d.toLocaleDateString('es-AR', { weekday: 'long' });
+  const z = n => String(n).padStart(2, '0');
+  return `🎧 Resumen del día — ${dia} ${z(d.getDate())}/${z(d.getMonth() + 1)}`;
+}
+
 function mcImagenValida(src) {
   return typeof src === 'string' && /^data:image\/png;base64,[A-Za-z0-9+/=]+$/.test(src);
 }
@@ -103,7 +110,8 @@ function mcRender() {
   </div>
 
   <div class="card">
-    <button class="ib grn" style="width:100%;padding:11px;" onclick="mcCompartir(true)">📲 Compartir audio + imagen</button>
+    <button class="ib grn" style="width:100%;padding:11px;margin-bottom:8px;" onclick="mcCompartir(true)">📲 Compartir audio + imagen</button>
+    <button class="ib" style="width:100%;padding:9px;" onclick="mcCopiar('canal')">✍ Copiar texto para el canal: <span style="color:var(--text);">${esc(mcTextoCanal())}</span></button>
     <div style="font-size:10px;color:var(--muted);margin-top:6px;line-height:1.5;">En el celu abre el menú de compartir (elegís WhatsApp y el canal). En la compu los descarga. Primero convertí el audio en el paso 2.</div>
   </div>`);
 
@@ -139,9 +147,10 @@ async function mcCopiarTexto(txt) {
 }
 
 async function mcCopiar(tipo) {
-  const txt = tipo === 'estilo' ? MC_STYLE : (MC.row && MC.row.guion) || '';
+  const txt = tipo === 'estilo' ? MC_STYLE : tipo === 'canal' ? mcTextoCanal() : (MC.row && MC.row.guion) || '';
   const ok = await mcCopiarTexto(txt);
-  toast(ok ? (tipo === 'estilo' ? 'Estilo copiado' : 'Guion copiado') : 'No pude copiar: seleccioná el texto a mano');
+  const msg = { estilo: 'Estilo copiado', canal: 'Texto copiado' }[tipo] || 'Guion copiado';
+  toast(ok ? msg : 'No pude copiar: seleccioná el texto a mano');
 }
 
 function mcAbrirStudio() {
@@ -256,7 +265,7 @@ function mcDescargarImg() {
 async function mcCompartirArchivos(files) {
   if (navigator.canShare && navigator.canShare({ files })) {
     try {
-      await navigator.share({ files });
+      await navigator.share({ files, text: mcTextoCanal() });
     } catch (e) {
       if (e && e.name !== 'AbortError') toast('No se pudo compartir');
     }

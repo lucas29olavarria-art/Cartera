@@ -8,6 +8,7 @@
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js"></script>
 <script src="js/zafira.js"></script>
+<script src="js/morning.js"></script>
 <script>pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.worker.min.js';</script>
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,300;0,400;1,300;1,400&family=Geist+Mono:wght@300;400;500&family=Geist:wght@300;400;500;600&display=swap" rel="stylesheet">
 <link rel="icon" type="image/svg+xml" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307080b'/><text y='.9em' font-size='58' x='50%' dominant-baseline='auto' text-anchor='middle' font-family='serif' fill='%235b9cf6'>L</text></svg>">
@@ -274,6 +275,7 @@ body.previewing-report #report-print{
     <button class="tb" id="tb-cli" onclick="nav('cli')">👥 Clientes</button>
     <button class="tb" id="tb-imp" onclick="nav('imp')">⬆ Importar</button>
     <button class="tb" id="tb-stat" onclick="nav('stat')">📊 Estadísticas</button>
+    <button class="tb" id="tb-mc" onclick="nav('mc')">🎙 Morning Call</button>
   </div>
   <div class="content" id="view"></div>
   <div class="foot-note">crm lucas olavarria · sincronizado en la nube · disponible en cualquier dispositivo</div>
@@ -581,7 +583,7 @@ function parseFlowRows(rows){
 
 // ══════════════════════════ NAV ══════════════════════════
 let ATb='hoy';
-const NAV_ORDER=['hoy','cal','cli','imp','stat'];
+const NAV_ORDER=['hoy','cal','cli','imp','stat','mc'];
 function nav(tab){
   ATb=tab;
   NAV_ORDER.forEach(t=>document.getElementById('tb-'+t).classList.toggle('active',t===tab));
@@ -590,6 +592,7 @@ function nav(tab){
   else if(tab==='cli')renderClientes();
   else if(tab==='imp')renderImportar();
   else if(tab==='stat')renderStats();
+  else if(tab==='mc')renderMorning();
 }
 function sc(html){document.getElementById('view').innerHTML=html;}
 
